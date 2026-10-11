@@ -71,6 +71,46 @@ func TestModalErrorText(t *testing.T) {
 	}
 }
 
+func TestModalDeployURL(t *testing.T) {
+	const want = "https://testaccount--ajean-coder390-modal-l40s-8k-validation-serve.modal.run"
+	tests := []struct {
+		name   string
+		output string
+		want   string
+	}{
+		{
+			name:   "normal deployment",
+			output: "✓ Created Function serve\n    └── " + want + " (unauthenticated)\n✓ App deployed!\n",
+			want:   want,
+		},
+		{
+			name:   "hard wrapped hostname",
+			output: "✓ Created Function serve\n    └── https://testaccount--ajean-coder390-modal-l40s-8k-validation-serve.moda\n        l.run (unauthenticated)\n✓ App deployed!\n",
+			want:   want,
+		},
+		{
+			name:   "wrapped even earlier",
+			output: "    └── https://testaccount--ajean-coder390-modal-\r\n        l40s-8k-validation-serve.mo\r\n        dal.run (unauthenticated)\r\n✓ Deployment skipped: no changes detected!\r\n",
+			want:   want,
+		},
+		{
+			name:   "unrelated URL is not an endpoint",
+			output: "View Deployment: https://modal.com/apps/testaccount/main/deployed/example\n",
+		},
+		{
+			name:   "missing endpoint",
+			output: "Error: deployment failed\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := modalDeployURL(tt.output); got != tt.want {
+				t.Fatalf("modalDeployURL() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Vision : le projecteur est téléchargé à côté du modèle et passé à llama-server.
 func TestCloudVision(t *testing.T) {
 	cfg := map[string]string{

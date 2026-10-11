@@ -47,6 +47,65 @@ func TestCloudModelURL(t *testing.T) {
 	}
 }
 
+func TestCloudDraftAndOutputBudget(t *testing.T) {
+	cfg := map[string]string{
+		"CLOUD":           "modal",
+		"CLOUD_MODEL":     "https://huggingface.co/example/target/resolve/main/target.gguf",
+		"CLOUD_DRAFT":     "https://huggingface.co/example/draft/blob/main/draft-Q4_K_M.gguf",
+		"CLOUD_N_PREDICT": "4800",
+		"EXTRA_ARGS":      "--flash-attn on --spec-type draft-dflash --spec-draft-n-max 5 --model-draft C:/local/draft.gguf --jinja",
+	}
+	args, err := cloudServerArgs(cfg, "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	for _, want := range []string{
+		"--model-draft /models/draft-Q4_K_M.gguf", "--n-predict 4800",
+		"--spec-type draft-dflash", "--spec-draft-n-max 5",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q: %s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "C:/local/draft.gguf") {
+		t.Fatalf("local draft path must not reach Modal: %s", joined)
+	}
+	files := cloudFiles(cfg)
+	if len(files) != 2 || files[1]["file"] != "draft-Q4_K_M.gguf" ||
+		files[1]["url"] != "https://huggingface.co/example/draft/resolve/main/draft-Q4_K_M.gguf" {
+		t.Fatalf("target and draft must be downloaded to the Modal volume: %+v", files)
+	}
+	oldFP := cloudFingerprint(cfg)
+	cfg["CLOUD_DRAFT"] = "https://huggingface.co/example/draft/resolve/main/draft-Q8_0.gguf"
+	if cloudFingerprint(cfg) == oldFP {
+		t.Fatal("changing the draft must redeploy")
+	}
+	cfg["CLOUD_DRAFT"] = "https://huggingface.co/example/draft/resolve/main/draft-Q4_K_M.gguf"
+	oldFP = cloudFingerprint(cfg)
+	cfg["CLOUD_N_PREDICT"] = "6000"
+	if cloudFingerprint(cfg) == oldFP {
+		t.Fatal("changing the output budget must redeploy")
+	}
+}
+
+func TestCloudDraftAndPredictInvalid(t *testing.T) {
+	cfg := map[string]string{
+		"CLOUD_MODEL": "https://huggingface.co/example/resolve/main/target.gguf",
+		"CLOUD_DRAFT": "https://huggingface.co/example/draft",
+	}
+	if _, err := cloudServerArgs(cfg, ""); err == nil {
+		t.Fatal("draft without .gguf must be rejected")
+	}
+	cfg["CLOUD_DRAFT"] = "https://huggingface.co/example/draft.gguf"
+	for _, invalid := range []string{"0", "-1", "nan", "4.8k"} {
+		cfg["CLOUD_N_PREDICT"] = invalid
+		if _, err := cloudServerArgs(cfg, ""); err == nil {
+			t.Errorf("invalid output budget %q accepted", invalid)
+		}
+	}
+}
+
 func TestUsesRemoteEndpoint(t *testing.T) {
 	if !usesRemoteEndpoint(map[string]string{"CLOUD": "modal"}) || !usesRemoteEndpoint(map[string]string{"EXTERNAL": "1"}) {
 		t.Fatal("cloud et externe n'ont pas de moteur local")

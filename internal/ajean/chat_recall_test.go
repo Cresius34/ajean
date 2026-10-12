@@ -2,6 +2,7 @@ package ajean
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -195,18 +196,62 @@ func TestCompactNoArchiveWithoutAgent(t *testing.T) {
 	}
 }
 
+// Une compaction refusée (réduction insuffisante) ne laisse aucune archive
+// orpheline : un seul bloc archivable, trop petit devant le reste du torse.
 func TestCompactDoesNotArchiveWhenReductionIsRejected(t *testing.T) {
 	testHome(t)
 	summarizerStub(t, "trop court")
-	content := "archive_should_not_be_written " + strings.Repeat("contenu assistant ", 100)
-	msgs := []Message{um("question initiale"), am(content)}
+	msgs := []Message{um("question initiale"), am("archive_should_not_be_written " + strings.Repeat("contenu assistant ", 60))}
 	for i := 0; i < 10; i++ {
-		msgs = append(msgs, um("suite"), am("réponse courte"))
+		msgs = append(msgs, um("suite"), am(strings.Repeat("réponse moyenne ", 40)))
 	}
 	if _, changed := compactMessages(t.Context(), msgs, Caps{Agent: true}); changed {
 		t.Fatal("une compaction sans réduction suffisante a été acceptée")
 	}
 	if hits := recallSearch("archive_should_not_be_written", 5); len(hits) != 0 {
 		t.Fatalf("un bloc a été archivé alors que la compaction a été refusée (%d blocs)", len(hits))
+	}
+}
+
+// Archivage impossible (base indisponible) : la compaction a quand même lieu,
+// sans marqueur recall, plutôt que de laisser la fenêtre déborder.
+func TestCompactFallsBackWhenArchiveFails(t *testing.T) {
+	testHome(t)
+	summarizerStub(t, "Résumé : l'utilisateur écrit un jeu en Go, le fichier principal est déjà rédigé et testé.")
+	prev := recallArchive
+	recallArchive = func([]recallArchiveInput) ([]recallEntry, error) {
+		return nil, errors.New("base indisponible")
+	}
+	t.Cleanup(func() { recallArchive = prev })
+
+	msgs := []Message{um("écris le jeu"), am(strings.Repeat("contenu assistant ", 100))}
+	for i := 0; i < 16; i++ {
+		msgs = append(msgs, um("suite"), am("réponse courte"))
+	}
+	out, changed := compactMessages(t.Context(), msgs, Caps{Agent: true})
+	if !changed {
+		t.Fatal("la compaction a été abandonnée parce que l'archivage a échoué")
+	}
+	for _, m := range out {
+		if strings.Contains(msgText(m), "recall:r") {
+			t.Fatalf("marqueur recall sans archive derrière : %q", msgText(m))
+		}
+	}
+}
+
+// Résumé raté : le repli dégraissé doit quand même porter les marqueurs recall
+// des blocs archivés, sinon il ne réduit rien et la compaction est refusée.
+func TestCompactArchivesWhenSummaryFails(t *testing.T) {
+	testHome(t)
+	summarizerStub(t, "")
+	msgs := []Message{um("écris le jeu"), am("marqueur_plugh " + strings.Repeat("contenu assistant ", 100))}
+	for i := 0; i < 16; i++ {
+		msgs = append(msgs, um("suite"), am("réponse courte"))
+	}
+	if _, changed := compactMessages(t.Context(), msgs, Caps{Agent: true}); !changed {
+		t.Fatal("repli sans résumé refusé alors que l'archivage suffisait à réduire")
+	}
+	if hits := recallSearch("marqueur_plugh", 5); len(hits) != 1 {
+		t.Fatalf("attendu 1 bloc archivé, reçu %d", len(hits))
 	}
 }

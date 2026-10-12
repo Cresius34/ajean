@@ -1,12 +1,14 @@
 package ajean
 
 import (
+	"context"
 	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // sys_gpu_apple.go — jauge GPU du panneau Machine sur Mac Apple Silicon.
@@ -91,7 +93,10 @@ func appleGPUs() []map[string]any {
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
 		return nil
 	}
-	out, err := exec.Command("ioreg", "-r", "-c", "IOAccelerator", "-d", "1").Output()
+	// Borné : un ioreg qui ne répond pas ne doit pas figer la télémétrie.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ioreg", "-r", "-c", "IOAccelerator", "-d", "1").Output()
 	if err != nil {
 		return nil
 	}
@@ -106,6 +111,9 @@ func appleGPUs() []map[string]any {
 	used := int(s.allocBytes / (1024 * 1024))
 	if used > total {
 		used = total
+	}
+	if s.util < 0 || s.util > 100 {
+		s.util = 0
 	}
 	return []map[string]any{{
 		"name": appleChipName(), "used": used, "total": total, "util": s.util, "temp": 0,

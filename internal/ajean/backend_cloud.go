@@ -284,6 +284,20 @@ def serve():
 
 var cloudURLRe = regexp.MustCompile(`https://[A-Za-z0-9.-]+\.modal\.run`)
 
+// Modal's CLI wraps long URLs to a terminal width, even when stdout is
+// captured: "...serve.moda" may be followed by an indented "l.run" on the
+// next line. Rejoin only URL-shaped fragments before validating the endpoint.
+var cloudWrappedURLRe = regexp.MustCompile(`https://[A-Za-z0-9.-]+(?:\r?\n[ \t]*[A-Za-z0-9.-]+)*`)
+
+func modalDeployURL(output string) string {
+	for _, fragment := range cloudWrappedURLRe.FindAllString(output, -1) {
+		if url := cloudURLRe.FindString(strings.Join(strings.Fields(fragment), "")); url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
 // modalCommand trouve le client Modal : le runtime privé d'AJEAN s'il est
 // installé, sinon une CLI déjà présente sur la machine. Sans l'un ni l'autre,
 // l'installation du runtime privé démarre et l'appelant reçoit errCloudRuntime.
@@ -393,7 +407,7 @@ func runCloudDeploy(cfg map[string]string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("déploiement Modal impossible : %s", modalErrorText(string(out)))
 	}
-	url := cloudURLRe.FindString(string(out))
+	url := modalDeployURL(string(out))
 	if url == "" {
 		return "", fmt.Errorf("modal deploy n'a renvoyé aucune URL")
 	}

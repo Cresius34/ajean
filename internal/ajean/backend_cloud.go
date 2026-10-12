@@ -90,16 +90,21 @@ func cloudReady(cfg map[string]string) bool {
 // cloudFingerprint : ce qui, s'il change, exige un redéploiement.
 func cloudFingerprint(cfg map[string]string) string {
 	args, _ := cloudServerArgs(cfg, "")
-	return configFingerprint(map[string]string{
+	fp := map[string]string{
 		"a": strings.Join(args, "\x00"),
 		"g": cloudGPU(cfg),
 		"m": cfg[cloudKeyModel],
 		"v": cfg[cloudKeyMM],
-		"d": cfg[cloudKeyDraft],
-		"n": cfg[cloudKeyPredict],
 		"i": cloudIdle(cfg),
 		"p": cloudProfile(cfg),
-	})
+	}
+	// Seulement s'il y en a un : une clé vide changerait l'empreinte des presets
+	// déjà déployés et les ferait tous redéployer. Le budget de sortie est déjà
+	// dans les arguments.
+	if d := strings.TrimSpace(cfg[cloudKeyDraft]); d != "" {
+		fp["d"] = d
+	}
+	return configFingerprint(fp)
 }
 
 func cloudGPU(cfg map[string]string) string {
@@ -236,6 +241,11 @@ func cloudServerArgs(cfg map[string]string, key string) ([]string, error) {
 		df := cloudModelFile(draft)
 		if !strings.HasSuffix(strings.ToLower(df), ".gguf") {
 			return nil, fmt.Errorf("lien du modèle draft invalide : il faut un lien direct vers un .gguf")
+		}
+		// Même nom que le modèle ou le projecteur : un seul fichier dans le volume,
+		// le second téléchargement serait sauté et le draft serait le modèle lui-même.
+		if df == file || (strings.TrimSpace(cfg[cloudKeyMM]) != "" && df == cloudModelFile(cfg[cloudKeyMM])) {
+			return nil, fmt.Errorf("le modèle draft doit porter un autre nom de fichier que le modèle et le projecteur vision")
 		}
 		args = append(args, "--model-draft", "/models/"+df)
 	}

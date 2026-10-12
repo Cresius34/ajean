@@ -454,7 +454,7 @@ async function loadCfg(){
     rows.push(row('GPU', c.CLOUD_GPU||'A10G'));
     if(c.CLOUD_MODEL) rows.push(row('MODEL', c.CLOUD_MODEL.split('?')[0].split('/').pop(), c.CLOUD_MODEL));
     if(c.CLOUD_DRAFT) rows.push(row('DRAFT', c.CLOUD_DRAFT.split('?')[0].split('/').pop(), c.CLOUD_DRAFT));
-    if(c.CLOUD_N_PREDICT) rows.push(row('MAX OUTPUT', c.CLOUD_N_PREDICT + ' tok'));
+    if(c.CLOUD_N_PREDICT) rows.push(row('N_PREDICT', c.CLOUD_N_PREDICT));
     ['CTX','KV_TYPE','BATCH','UBATCH','NGL'].filter(k=>c[k]).forEach(k=>rows.push(row(k, c[k])));
     const sp=(c.EXTRA_ARGS||'').match(/--spec-type\s+(\S+)/);
     if(sp) rows.push(row('SPEC', sp[1]));

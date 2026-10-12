@@ -106,6 +106,36 @@ func TestCloudDraftAndPredictInvalid(t *testing.T) {
 	}
 }
 
+// Un preset sans draft ni budget garde l'empreinte d'avant ces options : pas de
+// redéploiement des presets existants à la mise à jour.
+func TestCloudFingerprintStableWithoutDraft(t *testing.T) {
+	cfg := map[string]string{
+		"CLOUD":       "modal",
+		"CLOUD_MODEL": "https://huggingface.co/example/target/resolve/main/target.gguf",
+	}
+	args, err := cloudServerArgs(cfg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := configFingerprint(map[string]string{
+		"a": strings.Join(args, "\x00"), "g": cloudGPU(cfg), "m": cfg["CLOUD_MODEL"],
+		"v": "", "i": cloudIdle(cfg), "p": "",
+	})
+	if got := cloudFingerprint(cfg); got != want {
+		t.Fatalf("empreinte modifiée pour un preset sans draft : %s != %s", got, want)
+	}
+}
+
+func TestCloudDraftSameFileRejected(t *testing.T) {
+	cfg := map[string]string{
+		"CLOUD_MODEL": "https://huggingface.co/example/a/resolve/main/model.gguf",
+		"CLOUD_DRAFT": "https://huggingface.co/example/b/resolve/main/model.gguf",
+	}
+	if _, err := cloudServerArgs(cfg, ""); err == nil {
+		t.Fatal("un draft du même nom que le modèle doit être refusé")
+	}
+}
+
 func TestUsesRemoteEndpoint(t *testing.T) {
 	if !usesRemoteEndpoint(map[string]string{"CLOUD": "modal"}) || !usesRemoteEndpoint(map[string]string{"EXTERNAL": "1"}) {
 		t.Fatal("cloud et externe n'ont pas de moteur local")

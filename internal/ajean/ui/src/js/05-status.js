@@ -300,11 +300,20 @@ function fmtCtxTokens(n){
 // n'apparaît que si un effort est défini — c'est le sens de « quand on a défini un
 // niveau sur un preset » : on ne propose de le changer que là où il compte.
 let REASON_EFFORT = null; // null = pas encore chargé
-function updateReasonBtn(eff){
+// Moteur MoE (Qwen3.8 Flash Next) : il prend toujours le niveau en compte, le
+// raccourci est donc toujours là. Son gabarit connaît low, medium et xhigh (son
+// défaut) ; « high » y vaut xhigh.
+let REASON_MOE = false;
+function reasonLevel(){
+  const e=(REASON_EFFORT||'').trim();
+  return REASON_MOE ? ((!e || e==='high') ? 'xhigh' : e) : e;
+}
+function updateReasonBtn(eff, moe){
   REASON_EFFORT = eff==null ? REASON_EFFORT : eff;
+  if(moe!=null) REASON_MOE = !!moe;
   const btn=document.getElementById('reason-btn');
   if(!btn) return;
-  const e=(REASON_EFFORT||'').trim();
+  const e=reasonLevel();
   // Pas d'effort défini sur le preset → pas de raccourci (on ne veut pas envoyer
   // reasoning_effort à un moteur lancé sans --jinja, où il n'aurait aucun effet).
   if(!e){ btn.style.display='none'; return; }
@@ -317,8 +326,11 @@ function updateReasonBtn(eff){
 }
 function toggleReasonMenu(ev){
   ev.stopPropagation();
-  const menu=document.getElementById('reason-menu'), cur=(REASON_EFFORT||'').trim();
-  menu.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.eff===cur)); // niveau courant
+  const menu=document.getElementById('reason-menu'), cur=reasonLevel();
+  menu.querySelectorAll('button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.eff===cur); // niveau courant
+    b.style.display = (REASON_MOE && b.dataset.eff==='high') ? 'none' : '';
+  });
   toggleMenu(menu, document.getElementById('reason-btn'), {side:'above', align:'right'});
 }
 const closeReasonMenu = ()=>closeMenu();
@@ -459,7 +471,7 @@ async function loadCfg(){
     const sp=(c.EXTRA_ARGS||'').match(/--spec-type\s+(\S+)/);
     if(sp) rows.push(row('SPEC', sp[1]));
     swapContent(document.getElementById('cfg'), rows.join(''));
-    updateReasonBtn(c.REASONING_EFFORT || '');
+    updateReasonBtn(c.REASONING_EFFORT || '', false);
     return;
   }
   if(c.EXTERNAL==='1'){
@@ -477,7 +489,7 @@ async function loadCfg(){
       rows.push(row(t('external.key_label'), mask, ''));
     }
     swapContent(document.getElementById('cfg'), rows.join(''));
-    updateReasonBtn('');
+    updateReasonBtn('', false);
     return;
   }
   // Moteur optimisé (Qwen3.8 Flash Next) : la config réelle de lancement,
@@ -501,7 +513,7 @@ async function loadCfg(){
       if(d.vision_gpu) rows.push(row('VISION', 'on', d.vision_gpu));
     }else if(c.CTX) rows.push(row('CTX', c.CTX));
     swapContent(document.getElementById('cfg'), rows.join(''));
-    updateReasonBtn(c.REASONING_EFFORT || '');
+    updateReasonBtn(c.REASONING_EFFORT || '', true);
     return;
   }
   if(c.BIN){
@@ -533,5 +545,5 @@ async function loadCfg(){
   // Raccourci « niveau de réflexion » du composeur : présent seulement si le preset
   // actif définit un effort. Rafraîchi à chaque loadCfg (donc après une bascule de
   // preset ou une édition).
-  updateReasonBtn(c.REASONING_EFFORT || '');
+  updateReasonBtn(c.REASONING_EFFORT || '', false);
 }

@@ -337,6 +337,7 @@ func handleReasoning(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	moePersistEffort(eff)
 	sendJSON(w, 200, map[string]any{"ok": true, "effort": eff})
 }
 

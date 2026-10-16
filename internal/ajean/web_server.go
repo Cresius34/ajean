@@ -402,6 +402,36 @@ func killPid(pid int, force bool) {
 // given TCP port, via `ss` (Linux) with an `lsof` fallback, or `netstat -ano`
 // on Windows. Returns 0 if none is found or if the tools can't see it (e.g.
 // owned by another user).
+// pidFromNetstat : le PID à l'écoute sur ce port, d'après une sortie de
+// `netstat -ano -p tcp`. Fonction pure, donc vérifiable avec de la sortie
+// étrangère sur un runner anglais.
+//
+// L'ÉTAT N'EST PAS LU : Windows le traduit (« LISTENING », « ABHÖREN »,
+// « ÉCOUTE »…). S'y fier rendait la fonction muette sur toute machine non
+// anglophone — mesuré le 2026-10-16 sur un poste en allemand, où elle renvoyait
+// 0 alors que le port était occupé, et où resolvePortConflict annonçait donc
+// « le process n'a pas pu être identifié ».
+//
+// Une socket en écoute se reconnaît sans la langue : son adresse DISTANTE est
+// nulle (0.0.0.0:0 ou [::]:0). Une connexion établie porte toujours, elle, un
+// vrai port distant.
+func pidFromNetstat(out string, port int) int {
+	suffix := ":" + strconv.Itoa(port)
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 5 || f[0] != "TCP" {
+			continue
+		}
+		if !strings.HasSuffix(f[1], suffix) || !strings.HasSuffix(f[2], ":0") {
+			continue
+		}
+		if pid, err := strconv.Atoi(f[4]); err == nil && pid > 0 {
+			return pid
+		}
+	}
+	return 0
+}
+
 func pidOnPort(port int) (int, string) {
 	if runtime.GOOS == "windows" {
 		// netstat -ano : "  TCP    0.0.0.0:8090   0.0.0.0:0   LISTENING   1234"
@@ -409,14 +439,8 @@ func pidOnPort(port int) (int, string) {
 		if err != nil {
 			return 0, ""
 		}
-		suffix := ":" + strconv.Itoa(port)
-		for _, line := range strings.Split(string(out), "\n") {
-			f := strings.Fields(line)
-			if len(f) >= 5 && f[0] == "TCP" && strings.HasSuffix(f[1], suffix) && f[3] == "LISTENING" {
-				if pid, err := strconv.Atoi(f[4]); err == nil && pid > 0 {
-					return pid, processName(pid)
-				}
-			}
+		if pid := pidFromNetstat(string(out), port); pid > 0 {
+			return pid, processName(pid)
 		}
 		return 0, ""
 	}

@@ -48,6 +48,9 @@ var (
 // arrête celui démarré pour un preset précédent, démarre celui du preset
 // actuel. Sans effet pour un preset qui n'en déclare pas.
 func syncExternalService(cfg map[string]string) error {
+	if parallelBuild() {
+		return nil
+	} // no system unit is ever owned by this copy
 	want := externalServiceOf(cfg)
 	if want != "" && !validExternalService(want) {
 		return fmt.Errorf("%s invalide : %q (attendu : ajean-<nom>)", extKeyService, want)

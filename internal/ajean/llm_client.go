@@ -64,7 +64,7 @@ func memSearchTool() Tool {
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"query": map[string]any{"type": "string", "description": "Keywords"},
+					"query": map[string]any{"type": "string", "description": "Words or question"},
 					"limit": map[string]any{"type": "integer", "description": "Default 8, max 30"},
 				},
 				"required": []string{"query"},
@@ -1597,15 +1597,23 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if v, ok := args["limit"].(float64); ok {
 						lim = int(v)
 					}
-					hits := MemSearch(label, lim)
+					search := SearchMemory(ctx, label, lim)
+					hits := search.Hits
 					if len(hits) == 0 {
 						result = "[aucun résultat]"
 					} else {
 						var b strings.Builder
 						for _, h := range hits {
-							fmt.Fprintf(&b, "- %s — %s\n  %s\n", h.File, h.Title, h.Snippet)
+							if h.StartLine > 0 {
+								fmt.Fprintf(&b, "- %s (lignes %d-%d) — %s\n  %s\n", h.File, h.StartLine, h.EndLine, h.Title, h.Snippet)
+							} else {
+								fmt.Fprintf(&b, "- %s — %s\n  %s\n", h.File, h.Title, h.Snippet)
+							}
 						}
 						result = strings.TrimRight(b.String(), "\n")
+					}
+					if search.Note != "" {
+						result += "\n[recherche lexicale : " + search.Note + "]"
 					}
 				case "mem_read":
 					off, lim := 0, 0

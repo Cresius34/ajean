@@ -24,7 +24,7 @@ import (
 var procBoot = time.Now().UnixMilli()
 
 func handlePing(w http.ResponseWriter, r *http.Request) {
-	sendJSON(w, 200, map[string]any{"ok": true, "service": "ajean", "version": Version})
+	sendJSON(w, 200, map[string]any{"ok": true, "service": "ajean", "version": displayVersion()})
 }
 
 // handleStatus reports service state cross-platform via serviceIsActive
@@ -83,7 +83,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"health":      health,
 		"port":        LLMPort(),
 		"ctx":         ctx,
-		"version":     Version,
+		"version":     displayVersion(),
 		"warn":        appWarning(),       // ex. App Translocation macOS — vide si tout va bien
 		"load_error":  loadErr,            // modèle qui ne charge pas (incompat moteur…) — vide sinon
 		"boot":        procBoot,           // empreinte de démarrage du process (détecte un redémarrage côté UI)
@@ -592,6 +592,9 @@ func handlePreset(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		sendJSON(w, 404, map[string]any{"error": "not found"})
 		return
+	}
+	if parallelBuild() {
+		content = withDisplayName(formatEnv(resolveParallelConfig(parseEnv(content))), presetDisplayName(content, id))
 	}
 	sendJSON(w, 200, map[string]any{"id": id, "name": presetDisplayName(content, id), "content": content, "sysprompt": presetSysPrompt(id)})
 }

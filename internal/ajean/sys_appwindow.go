@@ -23,6 +23,9 @@ import (
 // openAppWindow ouvre l'URL dans une fenêtre d'application dédiée, ou à défaut
 // dans le navigateur par défaut. AJEAN_BROWSER=1 force le navigateur classique.
 func openAppWindow(url string) error {
+	if parallelBuild() {
+		return openBrowser(url)
+	} // no shared Ajean Chromium profile
 	if os.Getenv("AJEAN_BROWSER") == "1" {
 		return openBrowser(url)
 	}

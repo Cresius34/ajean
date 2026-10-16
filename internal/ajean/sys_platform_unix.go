@@ -217,6 +217,9 @@ func ensureCompiler() error {
 	if haveCC && haveCXX && hasTool("make") {
 		return nil
 	}
+	if parallelBuild() {
+		return fmt.Errorf("prototype portable : compilateur C/C++ et make requis ; les fournir séparément ou choisir un moteur précompilé")
+	}
 	candidates := []string{"build-essential", "gcc", "g++", "make"}
 	if _, err := exec.LookPath("apt-get"); err != nil {
 		// Non-Debian: build-essential n'existe pas, on vise les paquets directs.

@@ -1,17 +1,13 @@
+// ajean-memory-test is the portable proof build. The regular cmd/ajean entry
+// and its platform resources retain their official identity and defaults.
 package main
 
-import (
-	"os"
+import "github.com/nathaninline/ajean/internal/ajean"
 
-	_ "embed"
-)
-
-//go:embed resource_windows_amd64.syso
-var _ amd64Res
-
-//go:embed resource_windows_arm64.syso
-var _ arm64Res
+//go:generate goversioninfo -64 -icon=../ajean/icon.ico -o resource_windows_amd64.syso versioninfo.json
+//go:generate goversioninfo -64 -arm -icon=../ajean/icon.ico -o resource_windows_arm64.syso versioninfo.json
 
 func main() {
-	os.Exit(0)
+	ajean.BuildFlavor = "embedding-test"
+	ajean.Main()
 }

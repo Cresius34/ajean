@@ -13,6 +13,7 @@ package ajean
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -67,6 +68,23 @@ func memPageText(name string) (string, bool) {
 		return "", false
 	}
 	return string(b), true
+}
+
+// For captured project snapshots; names come from ReadDir, not from a request.
+func memPageTextIn(root, name string) (string, bool) {
+	if filepath.Base(name) != name {
+		return "", false
+	}
+	fi, err := os.Lstat(filepath.Join(root, name))
+	if err != nil || !fi.Mode().IsRegular() {
+		return "", false
+	}
+	raw, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		return "", false
+	}
+	b, err := decodeMemContent(raw)
+	return string(b), err == nil
 }
 
 // encodeMemContent prépare le contenu à écrire sur disque selon l'état du

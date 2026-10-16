@@ -51,6 +51,9 @@ func launchdLogPath() string { return filepath.Join(AjeanHome(), serviceName()+"
 // serviceAction mappe start/stop/restart/enable/disable sur launchctl. `load -w`
 // (re)active le service ET le rend persistant au boot ; `unload -w` le désactive.
 func serviceAction(action string) error {
+	if parallelBuild() {
+		return parallelServiceAction(action)
+	}
 	// API Externe : aucun moteur local (arrêt). GPU Cloud : relais local vers le GPU.
 	action = cloudServiceAction(action)
 	svc := serviceName()
@@ -133,6 +136,9 @@ func serviceLogs() error {
 // list <label>` renvoie un dict incluant la clé "PID" uniquement quand il tourne.
 // Sans LaunchDaemon installé, on lit le fichier PID du mode utilisateur.
 func serviceIsActive() bool {
+	if parallelBuild() {
+		return parallelEngineActive()
+	}
 	if _, err := os.Stat(launchdPlistPath(serviceName())); err != nil {
 		pid := readServicePID()
 		return pid > 0 && processAlive(pid)

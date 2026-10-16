@@ -14,6 +14,9 @@ const Version = "0.18.1"
 
 // Main est le vrai main() du binaire (cmd/ajean ne fait que l'appeler).
 func Main() {
+	if parallelBuild() {
+		mustExit(initParallelProfile())
+	}
 	// Rattache la console du terminal parent si on est lancé depuis un shell
 	// (Windows : binaire GUI). Retourne false au double-clic (aucune console) →
 	// on bascule alors sur l'expérience « application ». Hors Windows : toujours
@@ -29,6 +32,20 @@ func Main() {
 	if len(args) > 0 {
 		cmd = args[0]
 		args = args[1:]
+	}
+	if parallelBuild() {
+		if noArgs || cmd == "app" || cmd == "web" {
+			mustExit(cmdParallelApp())
+			return
+		}
+		if !parallelCommandAllowed(cmd) {
+			mustExit(fmt.Errorf("commande désactivée dans cette version parallèle : %s", cmd))
+			return
+		}
+		if cmd == "import-presets" {
+			mustExit(importParallelPresets(args))
+			return
+		}
 	}
 	// Double-clic sur le binaire (aucun argument, aucune console rattachée) → on
 	// lance l'expérience « application » (UI web + navigateur + icône tray) plutôt
@@ -107,7 +124,7 @@ func Main() {
 	case "uninstall":
 		mustExit(cmdUninstall(args))
 	case "version", "-v", "--version":
-		fmt.Println("ajean", Version)
+		fmt.Println("ajean", displayVersion())
 	case "help", "-h", "--help", "":
 		printHelp()
 	default:

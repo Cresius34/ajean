@@ -97,6 +97,7 @@ func clearMemDEK() {
 	}
 	memDEK = nil
 	memKeyMu.Unlock()
+	clearEmbeddingCache()
 }
 
 // currentDEK renvoie la DEK en RAM, ou une erreur si la mémoire est verrouillée.

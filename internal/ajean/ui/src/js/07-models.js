@@ -51,7 +51,7 @@ async function switchTo(n,name,id){
   // d'un pouce pendant tout ce temps et le clic semblait sans effet.
   pendingPreset = n; loadPresets();
   // id d'abord : le numéro seul peut viser un autre preset si la liste a bougé.
-  const r=await jpost('/api/switch',id?{id:id}:{n:n});
+  const r=await jpost('/api/switch',id?{id:id}:{n:n},15*60*1000);
   if(!r.ok){ pendingPreset = 0; toast(t('chat.error')); loadPresets(); return; }
   toast(t('models.switched'));
   // Le preset ACTIF, c'est celui dont l'empreinte est celle de la configuration : le serveur
@@ -112,6 +112,7 @@ async function openItem(kind, key){
   const benchBtn = document.getElementById('btn-bench');
   if(benchBtn) benchBtn.style.display = (kind === 'preset' && key && key === ACTIVE_PRESET_ID) ? 'inline-flex' : 'none';
   // Model picker is preset-only: it edits the MODEL= line of the preset.
+  document.getElementById('m-memory-block').style.display=kind==='preset'?'':'none';
   const modelRow = document.getElementById('m-model-row');
   const engineRow = document.getElementById('m-engine-row'); // Moteur, en haut du modal
   const settingsRow = document.getElementById('m-settings-row');
@@ -194,7 +195,7 @@ async function openItem(kind, key){
     populateSettings();
     syncRunMode();
     attachDownload();                      // téléchargement encore en cours côté serveur ?
-    await Promise.all([populateBackend(), populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs()]);
+    await Promise.all([populateBackend(), populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs(), populateMemoryPreset()]);
     if(seq !== openSeq) return;
   }
   // On lève le voile SANS transition (voir la note dans styles.css), puis on rend
@@ -1018,6 +1019,8 @@ function runMode(){
 }
 function syncRunMode(){
   const mode = runMode();
+  const anchor=document.getElementById(mode==='external'?'m-memory-remote-anchor':'m-memory-local-anchor');
+  anchor.after(document.getElementById('m-memory-block'));
   document.querySelectorAll('input[name="m-run"]').forEach(r=>{ r.checked = r.value === mode; });
   document.getElementById('m-cloud-body').style.display = mode === 'modal' ? '' : 'none';
   document.getElementById('m-ext-body').style.display = mode === 'external' ? '' : 'none';
@@ -1317,7 +1320,9 @@ const openMem    = (n)=>openItem('mem', n);
 // Fermer la modale n'annule PAS un téléchargement en cours (il vit côté
 // serveur) : on arrête juste de l'interroger.
 function closeModal(){ hideModal('modal'); document.getElementById('modal').classList.remove('loading'); stopDlPoll(); }
+let itemSaveRunning=false;
 async function saveItem(){
+  if(itemSaveRunning)return;
   const K = KIND(editingKind);
   const name = document.getElementById('m-name').value.trim();
   // Interrupteur « Raisonnement » : on matérialise son état dans le preset AVANT
@@ -1344,9 +1349,13 @@ async function saveItem(){
     : {name, old: editingKey, content};
   // Page mémoire consultée dans un autre projet : enregistrer LÀ, pas dans l'actif.
   if(editingKind==='mem' && typeof MEM_VIEW_PROJECT!=='undefined' && MEM_VIEW_PROJECT) payload.project = MEM_VIEW_PROJECT;
-  const r = await jpost(K.saveUrl, payload);
-  if(!r.ok){ toast(t('common.error_prefix') + (r.error||'')); return; }
-  toast(t('models.saved')); closeModal(); K.reload();
+  const seq=openSeq,button=document.querySelector('#modal .pe-btn.primary');
+  const label=button.textContent;itemSaveRunning=true;button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Enregistrement…';
+  try{
+    const r = await jpost(K.saveUrl, payload, editingKind==='preset'?15*60*1000:undefined);
+    if(!r.ok){ toast(t('common.error_prefix') + (r.error||'')); return; }
+    toast(t('models.saved'));if(seq===openSeq)closeModal();K.reload();
+  }catch(e){toast(e.message);}finally{itemSaveRunning=false;button.disabled=false;button.removeAttribute('aria-busy');button.textContent=label;}
 }
 async function delItem(){
   if(!editingKey) return;
@@ -1506,7 +1515,7 @@ function watchDownload(fname){
       e.prog.innerHTML = '<span style="color:var(--ok)">✓ '+fname+' '+t('models.dl.downloaded')+' ('+fmtSize(st.done)+')</span>';
       e.bar.className = 'pe-bar done'; e.bar.firstElementChild.style.width = '100%';
       stop();
-      await Promise.all([populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs()]);
+      await Promise.all([populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs(), populateMemoryPreset()]);
       // Un projecteur (mmproj) se sélectionne dans le champ Vision, un modèle dans
       // le sélecteur de modèle — d'après le nom du fichier téléchargé. Le fichier
       // a pu atterrir hors du dossier ajean : l'option porte alors le chemin

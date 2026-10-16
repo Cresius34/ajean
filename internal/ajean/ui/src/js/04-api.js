@@ -56,4 +56,9 @@ function askKeyOnce(){
   return _keyAsk;
 }
 async function jget(u){ const r=await jfetch(u); return r.json(); }
-async function jpost(u,b){ const r=await jfetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); return r.json(); }
+async function jpost(u,b,timeoutMs){
+  const opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})};
+  let timer;
+  if(timeoutMs){const controller=new AbortController();opts.signal=controller.signal;timer=setTimeout(()=>controller.abort(),timeoutMs);}
+  try{const r=await jfetch(u,opts);return await r.json();}finally{if(timer)clearTimeout(timer);}
+}

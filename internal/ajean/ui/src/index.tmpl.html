@@ -395,14 +395,21 @@
              elle-même n'est pas concernée : elle reste dans le navigateur qui
              l'a ouverte (Edge sous Windows), seul le lien cliqué change de
              navigateur. -->
-        <label class="switchrow rev"><span data-i18n="settings.link_browser_label">ouvrir les liens externes dans</span>
-          <select id="link-browser" onchange="setLinkBrowser(this.value)">
-            <option value="auto" data-i18n="settings.link_browser_auto">navigateur par défaut du système</option>
+        <label class="switchrow"><span data-i18n="settings.link_browser_label">liens externes dans</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="settings.link_browser_help" data-i18n-html>Les liens cliqués dans AJEAN s'ouvrent dans ce navigateur. La fenêtre AJEAN elle-même ne change pas : seuls les liens cliqués changent de navigateur. « Navigateur par défaut » suit le réglage de ta machine et couvre aussi les navigateurs absents de cette liste.</span></span>
+          <!-- class="sctl" n'est pas cosmétique : sans elle, un <select> prend la
+               largeur de son option la plus longue et écrase le libellé en face
+               (constaté : quatre lignes pour « ouvrir les liens externes dans »).
+               La règle .switchrow>.sctl le borne à 62 % et le pousse à droite.
+               Le « ? » doit rester AVANT le select dans le DOM : sctl impose
+               order:2, donc tout ce qui le suit passerait à sa gauche. -->
+          <select id="link-browser" class="sctl" onchange="setLinkBrowser(this.value)">
+            <option value="auto" data-i18n="settings.link_browser_auto">navigateur par défaut</option>
             <option value="chrome">Google Chrome</option>
             <option value="edge">Microsoft Edge</option>
             <option value="brave">Brave</option>
             <option value="chromium">Chromium</option>
-          </select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="settings.link_browser_help" data-i18n-html>Les liens cliqués dans AJEAN s'ouvrent dans ce navigateur. La fenêtre AJEAN elle-même ne change pas : seuls les liens cliqués changent de navigateur. « Navigateur par défaut du système » suit le réglage de ta machine et couvre aussi les navigateurs absents de cette liste.</span></span></label>
+          </select>
+        </label>
     </div>
   </details>
   <!-- Section « Actions » retirée : la MAJ s'affiche automatiquement dans le bandeau

@@ -689,6 +689,22 @@ async function clearCrawlKey(){
 // jeu connu à chaque changement de thème, et écraserait donc, sur un appareil au
 // localStorage vide, un choix fait depuis un autre appareil.
 const LINK_BROWSERS=['auto','chrome','edge','brave','chromium'];
+// Disponibilité réelle des navigateurs sur la machine : la liste propose les
+// cinq, mais seuls ceux qui sont installés doivent être choisissables. Sans ça
+// on offrait Brave à qui ne l'a pas — le choix ne cassait rien (le clic retombe
+// sur window.open) mais il mentait sur ce qui est possible ici.
+// « auto » n'est jamais grisé : il passe par le gestionnaire de l'OS, qui existe
+// toujours et couvre les navigateurs absents de cette liste.
+async function loadOpen(){
+  try{
+    const r=await jget('/api/open');
+    const sel=document.getElementById('link-browser');
+    if(!r || !r.ok || !r.available || !sel) return;
+    for(const o of sel.options){
+      o.disabled = o.value==='auto' ? false : r.available[o.value]===false;
+    }
+  }catch(e){}
+}
 function applyLinkBrowser(v){
   const val=LINK_BROWSERS.indexOf(v)>=0 ? v : 'auto';
   try{ localStorage.setItem('ajean-link-browser', val); }catch(e){}
@@ -705,7 +721,7 @@ async function loadAll(){
   // allSettled et pas all : un seul chargement en échec (accès distant coupé,
   // clé API absente…) ne doit pas empêcher la suite — et surtout pas laisser les
   // hauteurs réservées en place pour toujours.
-  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
+  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
   releaseHeights(); // tout est en place : on rend la main et on mesure pour la prochaine fois
 }
 // Démarrer / arrêter / redémarrer le moteur. On REMONTE l'erreur si le serveur répond

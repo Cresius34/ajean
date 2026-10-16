@@ -7055,6 +7055,16 @@ async function clearCrawlKey(){
   toast(t('settings.internet.key_removed'));
 }
 const LINK_BROWSERS=['auto','chrome','edge','brave','chromium'];
+async function loadOpen(){
+  try{
+    const r=await jget('/api/open');
+    const sel=document.getElementById('link-browser');
+    if(!r || !r.ok || !r.available || !sel) return;
+    for(const o of sel.options){
+      o.disabled = o.value==='auto' ? false : r.available[o.value]===false;
+    }
+  }catch(e){}
+}
 function applyLinkBrowser(v){
   const val=LINK_BROWSERS.indexOf(v)>=0 ? v : 'auto';
   try{ localStorage.setItem('ajean-link-browser', val); }catch(e){}
@@ -7068,7 +7078,7 @@ async function setLinkBrowser(v){
   toast(t('settings.link_browser_saved'));
 }
 async function loadAll(){
-  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
+  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
   releaseHeights(); 
 }
 async function act(a){

@@ -1,0 +1,15 @@
+{
+  "Fixed": {
+    "FileDescription": "Ajean Memory Test",
+    "ProductName": "Ajean",
+    "FileVersion": "0.18.1.0",
+    "ProductVersion": "0.18.1.0",
+    "LegalCopyright": "© 2026 Ajean",
+    "OriginalFilename": "ajean-memory-test.exe"
+  },
+  "String": {
+    "CompanyName": "Ajean",
+    "InternalName": "ajean-memory-test",
+    "LegalTrademarks": ""
+  }
+}

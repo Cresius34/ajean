@@ -13,3 +13,16 @@
 Thumbs.db
 .idea/
 .vscode/
+
+# Portable proof build: never commit local models, memories, credentials or binaries.
+/data/
+/encoder/
+/ajean-memoire-test.exe
+/ajean-memory-test
+*.gguf
+*.part-*
+
+# Optional portable memory runtime and Python bytecode
+__pycache__/
+*.py[cod]
+embedding-python/

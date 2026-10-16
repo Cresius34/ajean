@@ -684,6 +684,23 @@ async function clearCrawlKey(){
   renderInternet(await jpost('/api/internet',{key:''}));
   toast(t('settings.internet.key_removed'));
 }
+// Navigateur des liens externes cliqués dans l'interface. Réglage partagé entre
+// appareils (/api/prefs) mais écrit à part de savePrefs() : celui-ci poste tout le
+// jeu connu à chaque changement de thème, et écraserait donc, sur un appareil au
+// localStorage vide, un choix fait depuis un autre appareil.
+const LINK_BROWSERS=['auto','chrome','edge','brave','chromium'];
+function applyLinkBrowser(v){
+  const val=LINK_BROWSERS.indexOf(v)>=0 ? v : 'auto';
+  try{ localStorage.setItem('ajean-link-browser', val); }catch(e){}
+  const sel=document.getElementById('link-browser');
+  if(sel && document.activeElement!==sel) sel.value=val;
+  return val;
+}
+async function setLinkBrowser(v){
+  const val=applyLinkBrowser(v);
+  await jpost('/api/prefs',{link_browser:val});
+  toast(t('settings.link_browser_saved'));
+}
 async function loadAll(){
   // allSettled et pas all : un seul chargement en échec (accès distant coupé,
   // clé API absente…) ne doit pas empêcher la suite — et surtout pas laisser les

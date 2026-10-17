@@ -34,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -332,7 +333,11 @@ func jeanAppendLocked(kind, text string) error {
 	// Heure de l'utilisateur, décalage explicite : sans lui l'heure du serveur
 	// (UTC) passait pour l'heure française (« vers 13h30 » au lieu de 15h30).
 	cur += "\n## " + now.In(loc(defaultTaskTZ())).Format("2006-01-02 15:04 -0700") + " · " + id + " · " + kind + "\n" + text + "\n"
-	return jeanWrite(name, cur)
+	if err := jeanWrite(name, cur); err != nil {
+		return err
+	}
+	jeanEmbedKick() // la nouvelle entrée sera indexée par le sens, en fond
+	return nil
 }
 
 func parseJeanJournal(s string) []jeanEntry {
@@ -415,20 +420,11 @@ type jeanRecall struct {
 	Days []string `json:"days"`
 }
 
-// JeanSearch cherche dans le journal. Même classement que MemSearch (couverture
-// des termes puis rareté), fraîcheur en simple départage. Chaque note renvoyée
-// voit son compteur de rappels augmenter.
-func JeanSearch(query string, limit int) string {
-	if limit <= 0 || limit > 15 {
-		limit = 6
-	}
-	terms := uniqueTerms(foldSearch(query))
-	if len(terms) == 0 {
-		return "[erreur] requête vide"
-	}
-	jeanMu.Lock()
-	defer jeanMu.Unlock()
-	all := jeanJournalAll()
+// jeanKeywordRank classe les entrées du journal qui contiennent au moins un des
+// termes : couverture des termes d'abord, puis rareté (IDF) et fréquence, une
+// note pesant plus qu'un échange, la fraîcheur en simple départage. Renvoie les
+// indices dans all, du meilleur au moins bon.
+func jeanKeywordRank(terms []string, all []jeanEntry, now time.Time) []int {
 	hays := make([]string, len(all))
 	df := map[string]int{}
 	for i, e := range all {
@@ -440,13 +436,12 @@ func JeanSearch(query string, limit int) string {
 		}
 	}
 	type hit struct {
-		e       jeanEntry
+		i       int
 		matched int
 		score   float64
 	}
 	var hits []hit
 	n := float64(len(all))
-	now := time.Now()
 	for i, e := range all {
 		matched, score := 0, 0.0
 		for _, t := range terms {
@@ -465,14 +460,88 @@ func JeanSearch(query string, limit int) string {
 		}
 		// Départage seulement : au plus +10 % pour une note toute fraîche.
 		score *= 1 + 0.1*math.Exp(-now.Sub(e.When).Hours()/(24*90))
-		hits = append(hits, hit{e, matched, score})
+		hits = append(hits, hit{i, matched, score})
 	}
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].matched != hits[j].matched {
-			return hits[i].matched > hits[j].matched
+	sort.SliceStable(hits, func(a, b int) bool {
+		if hits[a].matched != hits[b].matched {
+			return hits[a].matched > hits[b].matched
 		}
-		return hits[i].score > hits[j].score
+		return hits[a].score > hits[b].score
 	})
+	out := make([]int, len(hits))
+	for k, h := range hits {
+		out[k] = h.i
+	}
+	return out
+}
+
+// jeanStopWords : mots trop courants pour départager deux souvenirs. Jean écrit
+// désormais ses recherches en phrases ; sans ce filtre, le secours par mots
+// trouvait « la » ou « pour » dans chaque entrée et renvoyait n'importe quoi.
+var jeanStopWords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields("les des une un aux avec pour par sur dans chez qui que quoi dont est sont etait ete avait avons avez ont " +
+		"mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs ce cet cette ces cela ceci ca il elle ils elles nous vous on je tu " +
+		"ne pas plus moins tres bien aussi mais donc car comme quand ou sans sous entre vers depuis avant apres fait faire dit dire " +
+		"tout tous toute toutes quel quelle quels quelles parle parler parle propos sujet souvenir chose choses " +
+		"the and for with about from that this what when where which who have has had was were are you your our") {
+		m[w] = true
+	}
+	return m
+}()
+
+// jeanSearchTerms : les termes utiles d'une requête (minuscules, sans accents,
+// sans ponctuation ni mots vides, 3 lettres au moins).
+func jeanSearchTerms(query string) []string {
+	var out []string
+	for _, t := range uniqueTerms(foldSearch(query)) {
+		t = strings.TrimFunc(t, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+		if len([]rune(t)) >= 3 && !jeanStopWords[t] {
+			out = append(out, t)
+		}
+	}
+	return uniqueTerms(strings.Join(out, " "))
+}
+
+// jeanSemanticFloor : sous cette similarité, un résultat du sens n'a rien à voir
+// avec la requête (mesuré : 0,21 à 0,35 pour des questions sans réponse dans le
+// journal, 0,30 au minimum pour un vrai souvenir ; on ne coupe que le net bruit).
+const jeanSemanticFloor = 0.25
+
+// JeanSearch cherche dans le journal. Par le SENS quand c'est possible (voir
+// jean_embed.go : mesuré 92 % de souvenirs retrouvés dans les 5 premiers contre
+// 43 % par mots, sur des questions reformulées) ; sinon par mots (couverture des
+// termes puis rareté, fraîcheur en départage). Chaque note renvoyée voit son
+// compteur de rappels augmenter.
+func JeanSearch(query string, limit int) string {
+	if limit <= 0 || limit > 15 {
+		limit = 6
+	}
+	if strings.TrimSpace(query) == "" {
+		return "[erreur] requête vide"
+	}
+	terms := jeanSearchTerms(query)
+	if len(terms) == 0 {
+		terms = uniqueTerms(foldSearch(query)) // que des mots courts : on les garde
+	}
+	jeanMu.Lock()
+	defer jeanMu.Unlock()
+	all := jeanJournalAll()
+	now := time.Now()
+	type hit struct{ e jeanEntry }
+	var hits []hit
+	if sem, cos := jeanSemanticRank(query, all); sem != nil {
+		for _, i := range sem {
+			if cos[i] < jeanSemanticFloor {
+				break
+			}
+			hits = append(hits, hit{all[i]})
+		}
+	} else {
+		for _, i := range jeanKeywordRank(terms, all, now) {
+			hits = append(hits, hit{all[i]})
+		}
+	}
 	fiches := jeanFicheHits(terms)
 	if len(hits) == 0 && len(fiches) == 0 {
 		return "[aucun résultat] (essaie d'autres mots, un synonyme, ou un seul mot-clé)"
@@ -533,8 +602,8 @@ func jeanTools() []Tool {
 		return Tool{Type: "function", Function: ToolFunction{Name: name, Description: desc, Parameters: params}}
 	}
 	return append([]Tool{
-		mk("jean_search", "Search your journal (all past conversations and notes) by keywords.",
-			obj(map[string]any{"query": str("Keywords"), "limit": map[string]any{"type": "integer", "description": "Default 6"}}, "query")),
+		mk("jean_search", "Search your journal (all past conversations and notes) by meaning: write the query as one natural sentence describing what you look for, not keywords.",
+			obj(map[string]any{"query": str("One natural sentence describing what you are looking for (the topic, the situation), not a list of keywords"), "limit": map[string]any{"type": "integer", "description": "Default 6"}}, "query")),
 		mk("jean_remember", "Save or REPLACE a lasting fact in the user's profile (always visible to you). Same key = replaces the old value.",
 			obj(map[string]any{"key": str("Short dotted key, e.g. family.mother.birthday"), "value": str("One short line")}, "key", "value")),
 		mk("jean_forget", "Remove a profile line or a lesson (lecon-N); they stay findable in the journal. Or archive a fiche no longer useful (still findable, reading it brings it back).",

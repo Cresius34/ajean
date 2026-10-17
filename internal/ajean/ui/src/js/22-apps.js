@@ -82,8 +82,15 @@ function renderApps(){
   document.getElementById('apps-empty-txt').textContent = at('empty');
   document.getElementById('apps-foot').textContent = APPS.length ? at('count', {n: APPS.length, s: APPS.length > 1 ? 's' : ''}) : '';
 }
-function newAppPrompt(){
+async function newAppPrompt(){
   closeAppsView();
+  // L'outil app n'existe qu'en Projet et en Jean : Rapide n'a que le terminal,
+  // Modèle de base aucun outil. Sans bascule, la demande partait dans un mode
+  // où elle ne pouvait pas aboutir.
+  if(MODE === 'fast' || MODE === 'base'){
+    await pickMode('project');
+    if(MODE !== 'project') return; // mode agent refusé
+  }
   const ta = document.getElementById('input');
   ta.value = at('new_prompt'); autoGrow(ta); if(typeof syncSendBtn==='function') syncSendBtn();
   ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);

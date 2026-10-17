@@ -733,6 +733,59 @@ func previewArg(args, key string) string {
 	return b.String()
 }
 
+// streamBodyWatch suit, sur les arguments JSON d'un appel d'outil d'écriture qui
+// ne font que s'ALLONGER, l'apparition d'un saut de ligne dans le corps à
+// afficher — SANS redécoder ce corps à chaque chunk de flux.
+//
+// Pourquoi : le corps d'un `write` / `mem_add` peut faire des dizaines de
+// kilo-octets et arrive un token à la fois (~25 000 chunks pour 100 Ko). Le
+// redécoder ET le recompter à CHAQUE chunk coûtait O(n²) — plusieurs secondes de
+// CPU et autant de déchets à ramasser — dans le processus qui relaie aussi, en
+// direct, les jetons vers l'interface : le flux s'en trouvait retardé. Ici le
+// coût par chunk est celui du seul segment nouveau, donc linéaire au total.
+//
+// Comme les arguments ne font que s'allonger, un index « seen » suffit : chaque
+// octet n'est parcouru qu'une fois sur toute la durée de l'appel.
+type streamBodyWatch struct {
+	seen  int  // longueur d'arguments déjà parcourue
+	carry bool // l'octet parcouru précédent était un « \ » : échappement en cours
+	marks int  // sauts de ligne repérés depuis le début (monotone croissant)
+}
+
+// grew : args (qui ne fait que s'allonger) a-t-il gagné un saut de ligne depuis
+// le dernier appel ? On repère le « \n » échappé (cas normal d'une chaîne JSON)
+// ET un vrai octet de saut de ligne (JSON imprimé ou malformé). Le repérage est
+// volontairement LARGE : un faux positif ne coûte qu'un décodage de trop, alors
+// qu'un saut manqué figerait l'aperçu en direct jusqu'à la ligne suivante.
+//
+// Un « \ » coupé en deux par le découpage du flux (fin de chunk) est retenu par
+// carry, sinon le « n » du chunk suivant ne serait pas vu comme un échappement et
+// la ligne n'apparaîtrait jamais.
+func (w *streamBodyWatch) grew(args string) bool {
+	if w.seen >= len(args) {
+		return false
+	}
+	seg := args[w.seen:]
+	w.seen = len(args)
+	before := w.marks
+	for i := 0; i < len(seg); i++ {
+		if w.carry {
+			w.carry = false
+			if seg[i] == 'n' {
+				w.marks++
+			}
+			continue
+		}
+		switch seg[i] {
+		case '\n':
+			w.marks++
+		case '\\':
+			w.carry = true
+		}
+	}
+	return w.marks > before
+}
+
 // StatsEvent carries llama.cpp's per-completion timing (final chunk).
 type StatsEvent struct {
 	PromptTokens    int     `json:"prompt_tokens,omitempty"`
@@ -1115,6 +1168,10 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 		usageGen, genChunks := 0, 0
 		lastPreview := ""   // last command preview emitted (to stream the typing)
 		lastBodyLines := -1 // lignes déjà diffusées du corps en cours d'écriture
+		// Suit les sauts de ligne du corps sans le redécoder à chaque chunk (voir
+		// streamBodyWatch) : une grosse écriture allongerait sinon un décodage
+		// quadratique, dans le processus qui relaie les jetons vers l'interface.
+		var bodyWatch streamBodyWatch
 		// argToks : tokens produits pour écrire les ARGUMENTS d'outil dans cette
 		// complétion (≈ 1 par chunk de flux portant du texte d'arguments). Envoyé en
 		// CUMUL sur les événements tool_used pour alimenter le compteur du bas.
@@ -1304,13 +1361,18 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					// contenu à chaque fois (coût quadratique, et c'est ce flot qui saturait
 					// le rendu mobile) ; à la ligne, le nombre d'événements est celui du
 					// fichier et l'animation reste fluide.
+					//
+					// On ne DÉCODE le corps (previewArg) que lorsqu'un nouveau saut de ligne
+					// a pu apparaître — y compris au tout premier passage, où lastBodyLines
+					// vaut -1 : il faut alors livrer la première ligne même si aucun « \n »
+					// n'est encore arrivé.
 					body := ""
-					if bk := writeBodyKey(cname); bk != "" {
+					bk := writeBodyKey(cname)
+					if bk == "" && cname == "app" {
+						bk = appBodyKey(cur.Function.Arguments)
+					}
+					if bk != "" && (lastBodyLines < 0 || bodyWatch.grew(cur.Function.Arguments)) {
 						body = previewArg(cur.Function.Arguments, bk)
-					} else if cname == "app" {
-						if bk := appBodyKey(cur.Function.Arguments); bk != "" {
-							body = previewArg(cur.Function.Arguments, bk)
-						}
 					}
 					grew := body != "" && strings.Count(body, "\n") > lastBodyLines
 					if (p != "" && p != lastPreview) || grew {

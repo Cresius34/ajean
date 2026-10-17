@@ -286,8 +286,6 @@ func shellName() string {
 // replacing any existing file. This is the escape hatch from shell quoting: a
 // model with only a shell has to build files with echo/python -c, which is
 // unreliable everywhere and outright broken on cmd.exe.
-func fileWrite(path, content string) string { return fileWriteIn(context.Background(), path, content) }
-
 func fileWriteIn(ctx context.Context, path, content string) string {
 	if strings.TrimSpace(path) == "" {
 		return "[erreur] chemin vide"

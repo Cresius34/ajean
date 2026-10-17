@@ -74,12 +74,17 @@ func compactEnabled() bool {
 // ctxWindow renvoie la fenêtre de contexte configurée (config.env CTX), 32768
 // par défaut — la même valeur que celle passée à llama-server au lancement.
 func ctxWindow() int {
-	if v := ReadConfig()["CTX"]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
+	cfg := ReadConfig()
+	n := 32768
+	if v := cfg["CTX"]; v != "" {
+		if c, err := strconv.Atoi(v); err == nil && c > 0 {
+			n = c
 		}
 	}
-	return 32768
+	// Le moteur MoE en mode hors RAM plafonne lui-même le contexte (moeDropMaxCtx) :
+	// lire le CTX brut faisait afficher 168K et compacter trop tard, alors que le
+	// moteur refusait tout prompt au-delà de 131K.
+	return moeEffectiveCtx(cfg, n)
 }
 
 // compactMaxTokens : plafond absolu du seuil de compactage (clé appareil

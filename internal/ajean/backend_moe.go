@@ -1302,6 +1302,16 @@ type moeSettingsReq struct {
 // sur une carte de 16 Go.
 const moeMaxReserveMiB = 8192
 
+// moeEffectiveCtx : le contexte que le moteur appliquera vraiment pour cette
+// config. En mode hors RAM (carte d'aide, MOE_DROP), moeBuildConfig le ramène à
+// moeDropMaxCtx ; la jauge et le compactage doivent voir la même limite.
+func moeEffectiveCtx(cfg map[string]string, ctx int) int {
+	if isMoeConfig(cfg) && cfg["MOE_DROP"] == "1" && moeHelperOn(cfg) && !moeLayerSplit(cfg) && ctx > moeDropMaxCtx {
+		return moeDropMaxCtx
+	}
+	return ctx
+}
+
 // moeDisplayReserve : VRAM à laisser libre sur la carte principale (MOE_VRAM_RESERVE,
 // en Mio), pour l'écran et les applications du bureau quand cette carte gère
 // aussi l'affichage (#147). 0 = aucune réserve imposée par ajean.

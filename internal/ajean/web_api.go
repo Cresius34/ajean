@@ -63,12 +63,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 			health, cloudErr = externalServiceReady(cfg)
 		}
 	}
-	ctx := 32768
-	if v := ReadConfig()["CTX"]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			ctx = n
-		}
-	}
+	ctx := ctxWindow() // contexte réellement appliqué par le moteur
 	// Si le modèle n'est pas prêt, on regarde POURQUOI : une tentative de
 	// chargement qui a échoué (souvent un modèle incompatible avec le moteur)
 	// doit être signalée clairement plutôt que de laisser un « chargement… »

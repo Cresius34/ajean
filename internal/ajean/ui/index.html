@@ -1760,6 +1760,16 @@ button.app-card-open:hover{background:var(--text);color:var(--bg);opacity:.85}
 @media (max-width:359px){.apps-grid{grid-template-columns:repeat(3,1fr)}}
 .compact-max-row select{order:2;margin-left:auto;width:auto;min-width:0;flex:none;font-size:12.5px}
 .compact-max-row select:disabled{opacity:.5}
+.task-history{display:flex;flex-direction:column;gap:4px}
+.th-row{border-radius:12px;background:var(--t1);overflow:hidden}
+button.th-head{display:flex;align-items:center;gap:10px;width:100%;min-height:0;margin:0;padding:9px 12px;border:none;border-radius:0;background:transparent;color:var(--text);font-size:12.5px;text-align:left;cursor:pointer}
+button.th-head:hover{background:var(--t1)}
+.th-when{font-weight:500}
+.th-meta{flex:1;min-width:0;color:var(--dim);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.th-error .th-meta{color:var(--err)}
+.th-chev{flex:none;color:var(--dim);transition:transform .2s var(--ease)}
+.th-row.open .th-chev{transform:rotate(90deg)}
+.th-body{margin:0 8px 8px;max-height:320px;overflow:auto}
 </style></head><body>
 <button id="menubtn" onclick="toggleSide()" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button id="lc-chip" onclick="lcChipOpen()" hidden></button>
@@ -2430,6 +2440,10 @@ button.app-card-open:hover{background:var(--text);color:var(--bg);opacity:.85}
       <div id="task-result-block" class="pe-group" style="display:none">
         <div class="pe-gh"><span data-i18n="task.last_result">Dernier résultat</span> <span id="task-result-when" class="pe-sub" style="display:inline;margin:0"></span></div>
         <div id="task-result" class="task-report"></div>
+      </div>
+      <div id="task-history-block" class="pe-group" style="display:none">
+        <div class="pe-gh"><span data-i18n="task.history">Réponses précédentes</span></div>
+        <div id="task-history" class="task-history"></div>
       </div>
       <div class="pe-group">
         <div class="pe-gh" data-i18n="task.name_heading">Nom</div>
@@ -3421,6 +3435,9 @@ fr: {
   "task.title": "Tâche planifiée",
   "task.close_aria": "Fermer",
   "task.last_result": "Dernier résultat",
+  "task.history": "Réponses précédentes",
+  "tasks.history_error": "échec",
+  "tasks.history_stopped": "interrompue",
   "task.name_heading": "Nom",
   "task.name_placeholder": "Nom de la tâche",
   "task.type_heading": "Type",
@@ -4770,6 +4787,9 @@ en: {
   "task.title": "Scheduled task",
   "task.close_aria": "Close",
   "task.last_result": "Last result",
+  "task.history": "Previous answers",
+  "tasks.history_error": "failed",
+  "tasks.history_stopped": "stopped",
   "task.name_heading": "Name",
   "task.name_placeholder": "Task name",
   "task.type_heading": "Type",
@@ -11283,6 +11303,7 @@ function openTask(id){
   showModal('task-modal');
 }
 function renderTaskResult(tk){
+  renderTaskHistory(tk);
   const block = document.getElementById('task-result-block');
   const box = document.getElementById('task-result');
   const when = document.getElementById('task-result-when');
@@ -11307,6 +11328,36 @@ function renderTaskResult(tk){
   const rep = (tk.last_report||'').trim();
   if(rep){ box.classList.add('md-report'); box.innerHTML = md(rep); }
   else { box.classList.add('report-empty'); box.textContent = t('tasks.result_empty'); }
+}
+function renderTaskHistory(tk){
+  const block = document.getElementById('task-history-block');
+  const box = document.getElementById('task-history');
+  const runs = (tk && tk.history || []).slice(1);
+  block.style.display = runs.length ? '' : 'none';
+  box.textContent = '';
+  runs.forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'th-row th-'+(r.status||'ok');
+    const head = document.createElement('button');
+    head.type = 'button'; head.className = 'th-head';
+    const st = r.status === 'error' ? t('tasks.history_error') : r.status === 'stopped' ? t('tasks.history_stopped') : '';
+    head.innerHTML = '<span class="th-when"></span><span class="th-meta"></span><svg class="th-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+    head.querySelector('.th-when').textContent = new Date(r.at).toLocaleString();
+    head.querySelector('.th-meta').textContent = [r.dur_ms ? fmtDur(r.dur_ms) : '', st].filter(Boolean).join('  ·  ');
+    const body = document.createElement('div');
+    body.className = 'task-report th-body'; body.hidden = true;
+    head.onclick = ()=>{
+      if(!body.dataset.done){
+        body.dataset.done = '1';
+        if(r.status === 'error'){ body.classList.add('report-err'); body.textContent = t('tasks.result_failed_prefix')+(r.error||t('tasks.result_unknown_error')); }
+        else if((r.report||'').trim()){ body.classList.add('md-report'); body.innerHTML = md(r.report); }
+        else { body.classList.add('report-empty'); body.textContent = r.status === 'stopped' ? t('tasks.history_stopped') : t('tasks.result_empty'); }
+      }
+      body.hidden = !body.hidden; row.classList.toggle('open', !body.hidden);
+    };
+    row.append(head, body);
+    box.appendChild(row);
+  });
 }
 function closeTask(){ hideModal('task-modal'); taskEditing = null; }
 function fillPresetSelect(selected){

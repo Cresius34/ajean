@@ -82,6 +82,28 @@ func ctxWindow() int {
 	return 32768
 }
 
+// compactMaxTokens : plafond absolu du seuil de compactage (clé appareil
+// COMPACT_MAX, en jetons), 0 = aucun. Sans plafond le seuil suit la fenêtre
+// annoncée : à 1M de contexte il était à 750 000 et la compaction ne se
+// déclenchait jamais, alors qu'un petit modèle décroche bien avant (#142).
+func compactMaxTokens() int {
+	n, err := strconv.Atoi(strings.TrimSpace(ReadConfig()["COMPACT_MAX"]))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return max(n, 8192) // en dessous, on compacterait à chaque message
+}
+
+// compactThreshold : nombre de jetons à partir duquel on compacte, 75 % de la
+// fenêtre, ramené au plafond COMPACT_MAX s'il est plus bas.
+func compactThreshold() int {
+	th := int(float64(ctxWindow()) * compactTriggerFrac)
+	if m := compactMaxTokens(); m > 0 && m < th {
+		th = m
+	}
+	return th
+}
+
 // compactSummaryBudget renvoie le budget en tokens du résumé, adapté à la
 // fenêtre. Assez pour PORTER LE FIL (la demande, les faits déjà trouvés, les
 // décisions, l'état d'avancement) sans jamais le perdre — c'était la plainte de
@@ -213,7 +235,7 @@ func compactWouldTrigger(msgs []Message, knownTokens int) bool {
 	if used <= 0 {
 		used = estimateTokens(msgs)
 	}
-	return used >= int(float64(ctxWindow())*compactTriggerFrac)
+	return used >= compactThreshold()
 }
 
 // compactLogOut : destination de logCompact. Le chat terminal la coupe, sa
@@ -227,7 +249,7 @@ var compactLogOut io.Writer = os.Stderr
 // été atteint ou si la réduction a été refusée.
 func logCompact(phase string, used int, before, after []Message, changed bool) {
 	fmt.Fprintf(compactLogOut, "[compact] %s ctx=%d seuil=%d/%d est_avant=%d est_apres=%d msgs=%d→%d changé=%v\n",
-		phase, used, int(float64(ctxWindow())*compactTriggerFrac), ctxWindow(),
+		phase, used, compactThreshold(), ctxWindow(),
 		estimateTokens(before), estimateTokens(after), len(before), len(after), changed)
 }
 

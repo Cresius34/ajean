@@ -199,6 +199,12 @@ async function loadAgent(){
   const on = s.enabled;
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
+  const cm = document.getElementById('compact-max');
+  if(cm){
+    const v = String(s.compact_max || 0);
+    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(Math.round(+v/1024)+'K', v));
+    cm.value = v; cm.disabled = s.compact === false;
+  }
   syncModeWithAgent();
   document.getElementById('brand').classList.toggle('agent', on);
   setAgentGate(on);
@@ -437,6 +443,14 @@ async function enableAgent(){
 async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;
   await jpost('/api/agent/compact',{on});
+  const cm=document.getElementById('compact-max'); if(cm) cm.disabled=!on;
+}
+// Plafond du seuil de compactage (#142) : 0 = 75 % de la fenêtre du modèle.
+async function setCompactMax(){
+  const on=document.getElementById('compact-toggle').checked;
+  const max=+document.getElementById('compact-max').value;
+  const r=await jpost('/api/agent/compact',{on, max});
+  if(r && r.ok===false) toast(r.error||'erreur');
 }
 // Mode mémoire (4 états, par projet) — indépendant du mode agent. La description
 // de chaque mode vit désormais sous chaque option (voir .mem-opt-d dans le

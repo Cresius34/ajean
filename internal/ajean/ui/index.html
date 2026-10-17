@@ -1758,6 +1758,8 @@ button.app-card-open:hover{background:var(--text);color:var(--bg);opacity:.85}
   .apps-new{width:36px;padding:0;justify-content:center}
 }
 @media (max-width:359px){.apps-grid{grid-template-columns:repeat(3,1fr)}}
+.compact-max-row select{order:2;margin-left:auto;width:auto;min-width:0;flex:none;font-size:12.5px}
+.compact-max-row select:disabled{opacity:.5}
 </style></head><body>
 <button id="menubtn" onclick="toggleSide()" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button id="lc-chip" onclick="lcChipOpen()" hidden></button>
@@ -2036,6 +2038,7 @@ button.app-card-open:hover{background:var(--text);color:var(--bg);opacity:.85}
     <div class="subhead" data-i18n="settings.general_subhead">Général</div>
     <div class="slist">
         <label class="switchrow agent-gated"><span class="switch"><input type="checkbox" id="compact-toggle" onchange="toggleCompact()"><span class="slider"></span></span> <span data-i18n="agent.compact_toggle">compactage automatique du contexte</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_help" data-i18n-html>activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.</span></span></label>
+        <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="ctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="mem-enc-toggle" onchange="toggleMemEncrypt()"><span class="slider"></span></span> <span data-i18n="agent.encrypt_toggle">activer le chiffrement</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.encrypt_help" data-i18n-html>Chiffre ta <b>mémoire</b> ET tes <b>conversations</b> au repos (AES-256), protégées par ta <b>clé d'accès</b> : si tu as accès à l'interface, c'est déjà déverrouillé ; sinon on te demande ta clé d'accès. Une <b>clé de récupération</b> t'est donnée à l'activation (garde-la). Rien n'est perdu : snapshots automatiques avant chaque bascule.</span></span></label>
     </div>
@@ -3133,6 +3136,9 @@ fr: {
   "agent.settings_subhead": "Paramètres",
   "agent.compact_toggle": "compactage automatique du contexte",
   "agent.compact_help": "activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.",
+  "agent.compact_max": "compacter au plus tard à",
+  "agent.compact_max_auto": "75 % du contexte",
+  "agent.compact_max_help": "Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.",
   "agent.push_toggle": "me prévenir quand la réponse est prête",
   "agent.push_help": "Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.",
   "agent.encrypt_toggle": "activer le chiffrement",
@@ -4479,6 +4485,9 @@ en: {
   "agent.settings_subhead": "Settings",
   "agent.compact_toggle": "automatic context compaction",
   "agent.compact_help": "on by default: when the conversation nears the context limit, old turns are automatically summarized (Hermes-style) instead of forcing you to \"clear\". Near-unlimited conversations without losing the thread.",
+  "agent.compact_max": "compact at the latest at",
+  "agent.compact_max_auto": "75% of the context",
+  "agent.compact_max_help": "By default, the context is compacted at 75% of the model's window. With a very large window this threshold is almost never reached and long conversations get slow. A cap compacts earlier, whatever the window.",
   "agent.push_toggle": "notify me when the response is ready",
   "agent.push_help": "The server sends you a <b>notification</b> at the end of each response, even with the app closed or the phone locked. On iPhone: <b>first add AJEAN to the home screen</b>, then enable it from the installed app. Must be set up on each device.",
   "agent.encrypt_toggle": "enable encryption",
@@ -6766,6 +6775,12 @@ async function loadAgent(){
   const on = s.enabled;
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
+  const cm = document.getElementById('compact-max');
+  if(cm){
+    const v = String(s.compact_max || 0);
+    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(Math.round(+v/1024)+'K', v));
+    cm.value = v; cm.disabled = s.compact === false;
+  }
   syncModeWithAgent();
   document.getElementById('brand').classList.toggle('agent', on);
   setAgentGate(on);
@@ -6949,6 +6964,13 @@ async function enableAgent(){
 async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;
   await jpost('/api/agent/compact',{on});
+  const cm=document.getElementById('compact-max'); if(cm) cm.disabled=!on;
+}
+async function setCompactMax(){
+  const on=document.getElementById('compact-toggle').checked;
+  const max=+document.getElementById('compact-max').value;
+  const r=await jpost('/api/agent/compact',{on, max});
+  if(r && r.ok===false) toast(r.error||'erreur');
 }
 function setMemModeUI(m){
   const r=document.querySelector('input[name="mem-mode-seg"][value="'+m+'"]');

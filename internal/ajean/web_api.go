@@ -681,7 +681,7 @@ func handleAgent(w http.ResponseWriter, r *http.Request) {
 	if out == nil {
 		out = []map[string]any{}
 	}
-	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
+	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "compact_max": compactMaxTokens(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
 }
 
 // memScope exécute fn dans le contexte mémoire d'un projet donné (pour voir/éditer
@@ -728,12 +728,29 @@ func handleMemoryMode(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCompactToggle active/désactive le compactage automatique du contexte
-// (config.env COMPACT). On=compacte (défaut), off=jamais.
+// (config.env COMPACT). On=compacte (défaut), off=jamais. « max » (facultatif)
+// règle le plafond du seuil en jetons (COMPACT_MAX, 0 = aucun) ; absent, il
+// n'est pas touché.
 func handleCompactToggle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		On bool `json:"on"`
+		On  bool `json:"on"`
+		Max *int `json:"max"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Max != nil {
+		if *req.Max < 0 || *req.Max > 1<<20 {
+			sendJSON(w, 400, map[string]any{"ok": false, "error": "plafond hors limites"})
+			return
+		}
+		v := ""
+		if *req.Max > 0 {
+			v = strconv.Itoa(*req.Max)
+		}
+		if err := SetConfigKey("COMPACT_MAX", v); err != nil {
+			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+	}
 	val := ""
 	if !req.On {
 		val = "off"
@@ -742,7 +759,7 @@ func handleCompactToggle(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "compact": compactEnabled()})
+	sendJSON(w, 200, map[string]any{"ok": true, "compact": compactEnabled(), "compact_max": compactMaxTokens()})
 }
 
 func handleAgentToggle(w http.ResponseWriter, r *http.Request) {

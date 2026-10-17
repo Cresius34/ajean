@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -83,12 +85,18 @@ func validExternalURL(raw string) (string, error) {
 // L'URL est passée en argument, jamais par un shell : c'est ce qui rend le
 // contrôle de schéma suffisant.
 func launchExternalBrowser(raw string) (string, error) {
+	// Linux sans écran (serveur joint par un tunnel sur localhost) : xdg-open
+	// « réussit » sans rien ouvrir, et le client croirait le lien ouvert. On
+	// échoue franchement pour qu'il retombe sur window.open, sur son appareil.
+	if runtime.GOOS == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return "", fmt.Errorf("pas d'écran sur cette machine")
+	}
 	if pref := linkBrowserPref(); pref != "auto" {
 		bin := resolveNamedBrowser(pref)
 		if bin == "" {
 			return "", fmt.Errorf("navigateur %s introuvable sur cette machine", pref)
 		}
-		if err := exec.Command(bin, raw).Start(); err != nil {
+		if err := startDetached(exec.Command(bin, raw)); err != nil {
 			return "", err
 		}
 		return pref, nil
@@ -107,12 +115,24 @@ func launchExternalBrowser(raw string) (string, error) {
 	}
 	for _, n := range []string{"chrome", "edge"} {
 		if bin := resolveNamedBrowser(n); bin != "" {
-			if err := exec.Command(bin, raw).Start(); err == nil {
+			if err := startDetached(exec.Command(bin, raw)); err == nil {
 				return n, nil
 			}
 		}
 	}
 	return "", fmt.Errorf("aucun navigateur n'a pu être lancé")
+}
+
+// startDetached lance le navigateur et le récupère quand il se termine : sans
+// Wait, chaque lien cliqué laissait un processus zombie jusqu'à l'arrêt d'AJEAN
+// (Linux, macOS). Le plus souvent le lancement rend la main tout de suite à une
+// instance déjà ouverte.
+func startDetached(c *exec.Cmd) error {
+	if err := c.Start(); err != nil {
+		return err
+	}
+	go func() { _ = c.Wait() }()
+	return nil
 }
 
 // handleOpenURL ouvre un lien externe dans le navigateur choisi.

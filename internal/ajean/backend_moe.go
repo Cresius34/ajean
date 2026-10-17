@@ -696,11 +696,18 @@ func copyFile(src, dst string) error {
 // ---------------------------------------------------------------------------
 
 // moeTuning : réglages validés sur le serveur de test (2026-10-05), ajoutés
-// à la config de l'installeur. Chacun a été mesuré en A/B.
+// à la config de l'installeur. Chacun a été mesuré en A/B, en mode carte d'aide
+// (experts de la seconde carte hors RAM), sous Linux, RTX 5060 Ti 16 Go + RTX
+// 3070 8 Go, 47 Go de RAM. Ailleurs, le signe d'un réglage peut changer.
 //
-//   - --prefill 16384     : +15 % de lecture sur les longs prompts (40K) ;
-//   - --short-read 150    : les petits ajouts (< 150 jetons) sont lus comme en
-//     génération, sans le coût fixe du chemin par blocs : ~40 % plus rapides ;
+//   - --prefill 16384     : +15 % de lecture sur les longs prompts (40K), car le
+//     chemin du prompt y est limité par la relecture des experts de la carte
+//     d'aide. PAS appliqué en partage des couches : tout y est en RAM et des
+//     blocs plus gros affament le cache des cartes (mesuré -9 % sur une autre
+//     machine, #129). Le défaut du moteur y reste ;
+//   - --short-read 150    : un petit ajout (< 150 jetons) est lu comme en
+//     génération, sans le coût fixe du chemin par blocs : ~40 % plus rapide pris
+//     isolément (le gain sur le temps total dépend de la part de ces ajouts) ;
 //   - --prompt-cache-root 256 : point de reprise posé à la fin du prompt système
 //     (défaut 2048, jamais atteint par ajean) : une nouvelle conversation
 //     démarre en ~0,3 s au lieu de 4-5 s.
@@ -776,12 +783,15 @@ func moeBuildConfig(base map[string]any, cfg map[string]string, apiKey string) (
 	} else {
 		return nil, fmt.Errorf("configuration du moteur sans « args »")
 	}
+	layers := moeLayerSplit(cfg)
 	for flag, v := range moeTuning {
+		if layers && flag == "--prefill" {
+			continue // mesuré défavorable en partage des couches (#129)
+		}
 		args = setArg(args, flag, v)
 	}
 	helper := strings.TrimSpace(cfg["MOE_HELPER_GPU"])
 	hasHelper := moeHelperOn(cfg)
-	layers := moeLayerSplit(cfg)
 	if layers {
 		// Partage des couches : le serveur du moteur le fait de lui-même quand sa
 		// clé « gpu » liste plusieurs cartes (--layer-split auto, réparti selon la

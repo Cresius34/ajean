@@ -126,12 +126,13 @@ type scriptInfo struct {
 // d'avec le workspace jetable, pas d'un verrou.
 // La mémoire du mode Jean (memory/_jean) en fait partie : sinon bash/write/edit
 // la lisaient ou la modifiaient en contournant ses outils et leurs garde-fous.
-func toolOnlyDirs() []string { return []string{memoryDir(), jeanDir()} }
+// Les apps (apps/) aussi : elles ne se touchent que par l'outil app.
+func toolOnlyDirs() []string { return []string{memoryDir(), jeanDir(), appsDir()} }
 
 // toolOnlyLabel donne le nom des outils à utiliser à la place d'un accès direct
 // (seule la mémoire est concernée aujourd'hui, voir toolOnlyDirs).
 func toolOnlyLabel() string {
-	return "les outils mémoire (mem_* ou, en mode Jean, jean_*)"
+	return "l'outil memory (ou, en mode Jean, l'outil jean) ou, pour les apps, l'outil app"
 }
 
 // guardToolOnlyPath refuse un accès write/edit à un chemin (déjà résolu) situé

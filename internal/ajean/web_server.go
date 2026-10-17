@@ -141,6 +141,10 @@ func newWebMux() *http.ServeMux {
 	// Pages publiques : le HTML et le JS ne contiennent aucun secret. Toute la
 	// donnée et toutes les actions passent par /api/* qui, lui, exige la clé.
 	mux.HandleFunc("/", handleIndex)
+	// API Anthropic (Claude Code sur le réseau local) : clé API de la machine
+	// exigée, traduction vers le preset actif (anthropic_api.go).
+	mux.Handle("/v1/messages", anthropicHandler())
+	mux.Handle("/v1/messages/count_tokens", anthropicHandler())
 	mux.HandleFunc("/marked.min.js", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := uiFS.ReadFile("ui/marked.min.js")
 		w.Header().Set("Content-Type", "application/javascript")
@@ -176,6 +180,7 @@ func newWebMux() *http.ServeMux {
 	// api enregistre une route /api/* protégée par la clé de pilotage (web_auth.go).
 	api := func(path string, h http.HandlerFunc) { mux.HandleFunc(path, requireWebAuth(h)) }
 	api("/api/ping", handlePing)
+	registerAppRoutes(api) // apps créées par l'IA (apps_web.go)
 	api("/api/status", handleStatus)
 	api("/api/service/log", handleServiceLog) // journal du service pour diagnostiquer un modèle qui ne charge pas
 	api("/api/vram", handleVram)

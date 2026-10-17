@@ -1,47 +1,34 @@
-Nouveau moteur MoE pour Qwen3.8 Flash Next, plus rapide en génération comme en lecture des messages courts.
+Applications créées par l'IA, et une API Anthropic pour brancher Claude Code sur n'importe quel modèle.
 
-## Moteur AJEAN MoE 1.1
+## Applications
 
-Le moteur optimisé de Qwen3.8 Flash Next passe en version 1.1. Mesures sur la machine de test (RTX 5060 Ti 16 Go + RTX 3070 8 Go, 46 Go de RAM, Swift 1.5 IQ3_XXS) :
+- **Nouvel écran Applications** (icône dans le menu latéral) : en mode agent, il suffit de demander « Crée-moi une app qui… ». L'IA écrit une petite application (HTML, CSS, JavaScript) qui s'ouvre en plein écran dans AJEAN, en local comme sur app.ajean.link.
+- **Les données passent par des scripts** que l'IA écrit et teste pour chaque app (Python ou autre interpréteur présent sur la machine). L'app les appelle, garde sa propre mémoire et ses propres fichiers, et peut demander une réponse au modèle actif.
+- **Bac à sable** : une app n'a aucun accès au réseau, ni à la page d'AJEAN, ni aux autres apps. Elle ne voit que ses propres scripts et ses propres données. Ouvrir un lien externe demande une confirmation qui affiche l'adresse complète.
+- **Versions** : chaque modification crée une nouvelle version, et une version précédente peut être rouverte depuis le menu de l'app. Une erreur dans une app s'affiche en haut de l'écran, avec un bouton pour demander la correction à l'IA.
+- Une carte « Ouvrir » apparaît dans la conversation après chaque création ou modification.
 
-- **Génération** : environ 70 à 76 jetons par seconde, contre 62 à 63 avec la 1.0.
-- **Messages courts** : avec une deuxième carte, ses experts sont désormais calculés par elle pendant la lecture du prompt, au lieu d'être recopiés vers la carte principale par son lien PCIe. Un ajout de 100 jetons dans une conversation passe de 1,2 s à 0,85 s avant le premier mot, un ajout de 200 jetons de 2,0 s à 1,1 s.
-- **Longs prompts** : environ 1 000 jetons par seconde à partir de 10 000 jetons, sans changement.
-- **Experts gardés par la deuxième carte** : environ 230 de plus, en réduisant sa réserve de mémoire libre (l'encodeur d'images y tourne toujours).
+## API Anthropic (Claude Code)
 
-La mise à jour est automatique : au premier lancement d'un modèle installé avec la 1.0, le moteur 1.1 est téléchargé (environ 340 Mo) et la configuration reprise. Les modèles déjà téléchargés servent tels quels. En cas d'échec, la 1.0 continue de tourner.
+- **AJEAN répond aussi au format Anthropic** (`/v1/messages`), en plus du format OpenAI. Claude Code se branche directement sur le modèle actif :
 
-À savoir :
+  ```
+  ANTHROPIC_BASE_URL=http://<machine>:8090 ANTHROPIC_AUTH_TOKEN=<clé API de la machine> claude
+  ```
 
-- Le moteur saute désormais, pendant la génération, certains experts de faible poids absents de la carte. Les réponses peuvent donc différer très légèrement de celles de la 1.0, pour un gain de vitesse de 10 à 20 %.
-- En mode « experts de la deuxième carte hors RAM », le contexte est plafonné à 131 072 jetons : cette version demande environ 1 Go de RAM de plus, et au-delà la mémoire ne suffisait plus sur une machine de 46 Go. Le calcul de la RAM nécessaire avant installation a été ajusté en conséquence.
-- Le raccourci du niveau de réflexion est toujours proposé avec ce moteur, et le niveau choisi est gardé dans le preset au lieu de revenir au défaut à chaque changement de modèle.
+  L'adresse publique `https://<machine>.oai.ajean.link` fonctionne de la même façon quand l'accès OpenAI public est activé.
+- **Plus besoin de retoucher le chat template du modèle.** Les requêtes de Claude Code étaient refusées par beaucoup de templates d'origine (prompt système en plusieurs blocs, résultats d'outils dans les messages utilisateur, réflexion rejouée). AJEAN remet désormais la conversation au format attendu avant de l'envoyer au moteur : un seul message système en tête, contenus aplatis, résultats d'outils à leur place.
+- Fonctionne avec tous les presets : llama.cpp, moteur MoE, API externe et GPU Cloud. Les appels d'outils, la réflexion et le flux en direct sont traduits. Le nom de modèle demandé par Claude Code est ignoré : c'est le preset actif qui répond.
+- La clé API de la machine est exigée (en-tête `x-api-key` ou `Authorization`). Sans clé configurée, seuls les appels depuis la machine elle-même sont acceptés.
 
-## Téléchargements
+## Assistant
 
-- **Pause et reprise** : un téléchargement de modèle peut être mis en pause puis repris là où il s'était arrêté. Aucune connexion ne reste ouverte pendant la pause.
-
-## Jean
-
-- **Consolidation la nuit seulement** : le rangement de la mémoire de Jean ne démarre plus qu'entre 3 h et 5 h (heure de l'utilisateur). En journée, il occupait les cartes et faisait croire à une utilisation inexpliquée.
-
-## Cloud (Modal)
-
-- **Modèle de brouillon et budget de sortie** : un preset Modal peut utiliser un modèle de brouillon GGUF pour le décodage spéculatif, et fixer un budget de jetons en sortie. Les presets existants ne sont pas redéployés.
-- **URL de déploiement coupée** : une URL renvoyée sur deux lignes par Modal n'empêche plus la connexion.
-
-## Mac
-
-- **Panneau Appareil sur Apple Silicon** : la mémoire unifiée est affichée comme mémoire GPU, et une température inconnue n'est plus montrée.
-
-## Corrections
-
-- **Compactage** : les archives de rappel sont écrites en une seule fois, et le compactage se fait sans rappel au lieu d'échouer si la base est indisponible.
-
-## Non testé
-
-- L'installation à neuf du moteur MoE 1.1 n'a pas été testée de bout en bout : seule la mise à jour depuis la 1.0 l'a été.
+- **Outils regroupés par domaine** (mémoire, web, navigateur, tâches, fichiers…) : le modèle voit un outil par domaine avec une action à choisir, au lieu d'une longue liste. Le prompt système est plus court, ce qui allège la lecture de chaque nouveau message.
 
 ## Mise à jour
 
-    ajean update
+```
+ajean update
+```
+
+Non testé à ce jour : Claude Code via l'adresse publique `oai.ajean.link` (testé en réseau local seulement) et les Applications sous Windows et macOS (testées sous Linux).

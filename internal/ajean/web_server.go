@@ -405,10 +405,6 @@ func killPid(pid int, force bool) {
 	_ = exec.Command("kill", sig, strconv.Itoa(pid)).Run()
 }
 
-// pidOnPort returns the PID and command name of the process listening on the
-// given TCP port, via `ss` (Linux) with an `lsof` fallback, or `netstat -ano`
-// on Windows. Returns 0 if none is found or if the tools can't see it (e.g.
-// owned by another user).
 // pidFromNetstat : le PID à l'écoute sur ce port, d'après une sortie de
 // `netstat -ano -p tcp`. Fonction pure, donc vérifiable avec de la sortie
 // étrangère sur un runner anglais.
@@ -439,6 +435,10 @@ func pidFromNetstat(out string, port int) int {
 	return 0
 }
 
+// pidOnPort returns the PID and command name of the process listening on the
+// given TCP port, via `ss` (Linux) with an `lsof` fallback, or `netstat -ano`
+// on Windows. Returns 0 if none is found or if the tools can't see it (e.g.
+// owned by another user).
 func pidOnPort(port int) (int, string) {
 	if runtime.GOOS == "windows" {
 		// netstat -ano : "  TCP    0.0.0.0:8090   0.0.0.0:0   LISTENING   1234"

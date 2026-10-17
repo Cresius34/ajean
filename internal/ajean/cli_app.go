@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -117,9 +118,7 @@ func waitServerReady(url string) {
 // On le sonde au lieu de le déduire — n'importe quel logiciel peut occuper 8090,
 // et lui ouvrir la fenêtre à sa place est pire que d'échouer franchement.
 //
-// /api/ping est le discriminant : il répond {"ok":true,"service":"ajean",…}. La
-// clé de pilotage est jointe quand elle existe, sinon une instance protégée
-// répondrait 401 et passerait pour un intrus.
+// /api/ping est le discriminant : il répond {"ok":true,"service":"ajean",…}.
 func ajeanAnswersOn(port int) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
@@ -128,14 +127,17 @@ func ajeanAnswersOn(port int) bool {
 	if err != nil {
 		return false
 	}
-	if k := readWebKey(); k != "" {
-		req.Header.Set("Authorization", "Bearer "+k)
-	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
+	// Instance protégée par une clé de pilotage : elle refuse le ping (le serveur
+	// ne garde que l'empreinte de la clé, on n'a rien à présenter), mais son refus
+	// porte la signature d'AJEAN (requireWebAuth).
+	if resp.StatusCode == http.StatusUnauthorized {
+		return strings.Contains(resp.Header.Get("WWW-Authenticate"), `realm="ajean"`)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return false
 	}

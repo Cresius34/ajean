@@ -68,7 +68,15 @@ func TestAjeanAnswersOn(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "un AJEAN protégé qui refuse la clé",
+			name: "un AJEAN protégé par une clé de pilotage",
+			h: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="ajean"`)
+				w.WriteHeader(http.StatusUnauthorized)
+			},
+			want: true,
+		},
+		{
+			name: "un autre serveur qui refuse l'accès",
 			h:    func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusUnauthorized) },
 			want: false,
 		},

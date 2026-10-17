@@ -316,6 +316,8 @@ type moeDetails struct {
 	HelperOn  bool `json:"helper_on"`
 	Split     bool `json:"split_layers"` // les deux cartes se partagent les couches
 	Vision    bool `json:"vision"`
+	// Reserve : VRAM laissée libre sur la carte principale (écran, bureau), en Mio.
+	Reserve int `json:"reserve_mib"`
 }
 
 // moeDetailsFor lit un preset installé et calcule sa config de lancement.
@@ -375,6 +377,7 @@ func moeDetailsFor(presetID string, env moeEnv) *moeDetails {
 		}
 	}
 	d.Vision = pc["MOE_VISION"] != "0"
+	d.Reserve = moeDisplayReserve(pc)
 	if v, ok := out["vision"].(map[string]any); ok && d.Vision {
 		if dev, has := v["cuda_device"]; has {
 			d.VisionGPU = gpuName(fmt.Sprint(dev))
@@ -822,6 +825,11 @@ func moeBuildConfig(base map[string]any, cfg map[string]string, apiKey string) (
 				v["cuda_device"] = n
 			}
 		}
+	}
+	// VRAM laissée libre sur la carte principale (écran, bureau) : posée après le
+	// mode d'aide, qui retire la réserve de l'installeur (#147).
+	if mib := moeDisplayReserve(cfg); mib > 0 {
+		args = setArg(args, "--vram-reserve-mib", strconv.Itoa(mib))
 	}
 	// Mode « peu de RAM » : l'installeur écrit --mmap-experts / --resident-experts.
 	// ajean applique à la place la variante mesurée avec la carte d'aide : le pack
@@ -1285,6 +1293,24 @@ type moeSettingsReq struct {
 	// Split : rôle de la seconde carte, « helper » (aide aux experts) ou
 	// « layers » (partage des couches). Vide = inchangé (anciens clients).
 	Split string `json:"split"`
+	// Reserve : VRAM laissée libre sur la carte principale, en Mio (0 = aucune).
+	// Absent = inchangé (anciens clients).
+	Reserve *int `json:"reserve_mib"`
+}
+
+// moeMaxReserveMiB : au-delà, il ne resterait presque rien pour les experts
+// sur une carte de 16 Go.
+const moeMaxReserveMiB = 8192
+
+// moeDisplayReserve : VRAM à laisser libre sur la carte principale (MOE_VRAM_RESERVE,
+// en Mio), pour l'écran et les applications du bureau quand cette carte gère
+// aussi l'affichage (#147). 0 = aucune réserve imposée par ajean.
+func moeDisplayReserve(cfg map[string]string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(cfg["MOE_VRAM_RESERVE"]))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return min(n, moeMaxReserveMiB)
 }
 
 // moeMaxCtx : contexte natif maximal de Qwen3.8 Flash Next.
@@ -1302,6 +1328,8 @@ func moeApplySettings(content string, r moeSettingsReq) (string, error) {
 		return "", fmt.Errorf("MTP hors limites : %d", r.Spec)
 	case r.Split != "" && r.Split != "helper" && r.Split != "layers":
 		return "", fmt.Errorf("répartition inconnue : %s", r.Split)
+	case r.Reserve != nil && (*r.Reserve < 0 || *r.Reserve > moeMaxReserveMiB):
+		return "", fmt.Errorf("réserve de VRAM hors limites : %d Mio", *r.Reserve)
 	}
 	set := map[string]string{
 		"CTX": strconv.Itoa(r.Ctx), "MOE_KV": r.KV, "MOE_SPEC": strconv.Itoa(r.Spec),
@@ -1312,6 +1340,12 @@ func moeApplySettings(content string, r moeSettingsReq) (string, error) {
 		// « helper » est le défaut : la clé disparaît plutôt que d'être écrite
 		set["MOE_SPLIT"] = map[bool]string{true: "layers", false: ""}[r.Split == "layers"]
 	}
+	if r.Reserve != nil {
+		set["MOE_VRAM_RESERVE"] = "" // 0 : la clé disparaît
+		if *r.Reserve > 0 {
+			set["MOE_VRAM_RESERVE"] = strconv.Itoa(*r.Reserve)
+		}
+	}
 	var lines []string
 	for _, l := range strings.Split(strings.TrimRight(content, "\n"), "\n") {
 		k, _, _ := strings.Cut(strings.TrimSpace(l), "=")
@@ -1320,8 +1354,8 @@ func moeApplySettings(content string, r moeSettingsReq) (string, error) {
 		}
 		lines = append(lines, l)
 	}
-	for _, k := range []string{"CTX", "MOE_KV", "MOE_SPEC", "MOE_VISION", "MOE_HELPER", "MOE_SPLIT"} {
-		if v, ok := set[k]; ok && (v != "" || k != "MOE_SPLIT") {
+	for _, k := range []string{"CTX", "MOE_KV", "MOE_SPEC", "MOE_VISION", "MOE_HELPER", "MOE_SPLIT", "MOE_VRAM_RESERVE"} {
+		if v, ok := set[k]; ok && v != "" {
 			lines = append(lines, k+"="+v)
 		}
 	}

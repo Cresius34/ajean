@@ -1904,10 +1904,6 @@ button.th-head:hover{background:var(--t1)}
           <div><div class="link-perk-t" data-i18n="link.perk_remote_t">Accès distant sécurisé</div><div class="link-perk-d" data-i18n="link.perk_remote_d">Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout — le relais ne voit rien.</div></div>
         </div>
         <div class="link-perk">
-          <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <div><div class="link-perk-t" data-i18n="link.perk_support_t">Support dédié par chat</div><div class="link-perk-d" data-i18n="link.perk_support_d">Une messagerie dédiée pour répondre à toutes vos questions, directement depuis l'application.</div></div>
-        </div>
-        <div class="link-perk">
           <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
           <div><div class="link-perk-t" data-i18n="link.perk_backup_t">Sauvegarde intégrée</div><div class="link-perk-d" data-i18n="link.perk_backup_d">Vos réglages, presets, historique et mémoire sauvegardés automatiquement, chiffrés avant l'envoi.</div></div>
         </div>
@@ -1949,7 +1945,7 @@ button.th-head:hover{background:var(--t1)}
         </div>
       </div>
     </div>
-    <div id="remote-perks-mini" class="link-perks-mini" style="display:none" data-i18n="link.perks_mini" data-i18n-html>Inclus dans <b>AJEAN LINK</b> : accès distant chiffré de bout en bout · support dédié par chat · sauvegarde de vos réglages, presets, historique et mémoire.</div>
+    <div id="remote-perks-mini" class="link-perks-mini" style="display:none" data-i18n="link.perks_mini" data-i18n-html>Inclus dans <b>AJEAN LINK</b> : accès distant chiffré de bout en bout · sauvegarde de vos réglages, presets, historique et mémoire.</div>
   </details>
   <details id="lc-details"><summary><span class="stitle" data-i18n="engine.title">Engine</span></summary>
     <div class="slist">
@@ -3245,12 +3241,10 @@ fr: {
   "link.perks_heading": "Passez à AJEAN LINK",
   "link.perk_remote_t": "Accès distant sécurisé",
   "link.perk_remote_d": "Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout — le relais ne voit rien.",
-  "link.perk_support_t": "Support dédié par chat",
-  "link.perk_support_d": "Une messagerie dédiée pour répondre à toutes vos questions, directement depuis l'application.",
   "link.perk_backup_t": "Sauvegarde intégrée",
   "link.perk_backup_d": "Vos réglages, presets, historique et mémoire sauvegardés automatiquement, chiffrés avant l'envoi.",
   "link.price_note": "4,80 €/mois · sans engagement, résiliable à tout moment",
-  "link.perks_mini": "Inclus dans <b>AJEAN LINK</b> : accès distant chiffré de bout en bout · support dédié par chat · sauvegarde de vos réglages, presets, historique et mémoire.",
+  "link.perks_mini": "Inclus dans <b>AJEAN LINK</b> : accès distant chiffré de bout en bout · sauvegarde de vos réglages, presets, historique et mémoire.",
   "link.remote_address_label": "Votre adresse d'accès distant",
   "link.copy_title": "copier",
   "link.open_title": "ouvrir",
@@ -4601,12 +4595,10 @@ en: {
   "link.perks_heading": "Upgrade to AJEAN LINK",
   "link.perk_remote_t": "Secure remote access",
   "link.perk_remote_d": "Reach your AJEAN server from anywhere and from any app, end-to-end encrypted — the relay sees nothing.",
-  "link.perk_support_t": "Dedicated chat support",
-  "link.perk_support_d": "A dedicated inbox to answer all your questions, right from the app.",
   "link.perk_backup_t": "Built-in backup",
   "link.perk_backup_d": "Your settings, presets, history and memory backed up automatically, encrypted before upload.",
   "link.price_note": "€4.80/month · no commitment, cancel anytime",
-  "link.perks_mini": "Included with <b>AJEAN LINK</b>: end-to-end encrypted remote access · dedicated chat support · backup of your settings, presets, history and memory.",
+  "link.perks_mini": "Included with <b>AJEAN LINK</b>: end-to-end encrypted remote access · backup of your settings, presets, history and memory.",
   "link.remote_address_label": "Your remote access address",
   "link.copy_title": "copy",
   "link.open_title": "open",
@@ -6673,9 +6665,8 @@ async function loadCfg(){
       rows.push(row('CTX', d.ctx));
       rows.push(row('KV', d.kv+(d.kv_resident ? ' · '+k(d.kv_resident)+' VRAM' : '')));
       rows.push(row('MTP', d.spec));
-      rows.push(row('PREFILL', k(d.prefill)));
+      rows.push(row('PREFILL', d.prefill ? k(d.prefill) : 'auto'));
       rows.push(row('EXPERTS', d.drop ? 'mlock' : d.mmap ? 'mmap' : 'RAM', d.drop ? t('moe.d_drop') : d.mmap ? t('moe.d_mmap') : t('moe.d_inram')));
-      if(d.vision_gpu) rows.push(row('VISION', 'on', d.vision_gpu));
     }else if(c.CTX) rows.push(row('CTX', c.CTX));
     swapContent(document.getElementById('cfg'), rows.join(''));
     updateReasonBtn(c.REASONING_EFFORT || '', true);
@@ -12641,8 +12632,12 @@ function renderApps(){
   document.getElementById('apps-empty-txt').textContent = at('empty');
   document.getElementById('apps-foot').textContent = APPS.length ? at('count', {n: APPS.length, s: APPS.length > 1 ? 's' : ''}) : '';
 }
-function newAppPrompt(){
+async function newAppPrompt(){
   closeAppsView();
+  if(MODE === 'fast' || MODE === 'base'){
+    await pickMode('project');
+    if(MODE !== 'project') return; 
+  }
   const ta = document.getElementById('input');
   ta.value = at('new_prompt'); autoGrow(ta); if(typeof syncSendBtn==='function') syncSendBtn();
   ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);

@@ -103,6 +103,8 @@ func newWebMux() *http.ServeMux {
 		// projet actif soient corrects dès le premier accès.
 		ensureDefaultProject()
 		LoadConversation()
+		// Sommeil de Jean : reprogrammé après un redémarrage (#154).
+		jeanConsolidateArmAtStart()
 	})
 	// Pré-chauffe les serveurs MCP en tâche de fond : sinon le handshake (plusieurs
 	// secondes pour un serveur lancé via npx) est payé par le premier message.

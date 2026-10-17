@@ -62,6 +62,42 @@ func jeanConsolidateArmLocked(d time.Duration) {
 	jeanConsolidateTimer.t = time.AfterFunc(d, runJeanConsolidate)
 }
 
+// jeanConsolidateArmAtStart : au démarrage du serveur. Le minuteur ne vit qu'en
+// mémoire et n'était armé que par un échange avec Jean : une machine relancée
+// sans lui parler ne consolidait jamais, même si sa mémoire avait changé la
+// veille. On l'arme donc ici dès que la mémoire a bougé depuis la dernière
+// consolidation (comparaison des dates, qui survit au redémarrage).
+func jeanConsolidateArmAtStart() {
+	if !jeanReflectEnabled() || !jeanMemChangedSinceConsolidation() {
+		return
+	}
+	d := jeanUntilSleepWindow(time.Now())
+	if d == 0 {
+		d = 5 * time.Minute // déjà dans la plage : laisser le moteur démarrer
+	}
+	jeanReflect.mu.Lock()
+	jeanConsolidateArmLocked(d)
+	jeanReflect.mu.Unlock()
+	fmt.Fprintf(os.Stderr, "[jean] consolidation programmée vers %s (mémoire modifiée depuis la dernière)\n", time.Now().Add(d).In(loc(defaultTaskTZ())).Format("02/01 15:04"))
+}
+
+// jeanTurnCaps : les réglages du dernier tour Jean, ou ceux d'un tour Jean par
+// défaut si aucun n'a eu lieu depuis le démarrage (consolidation armée par
+// jeanConsolidateArmAtStart). Sans ça elle serait partie sans aucun outil.
+// Appelée sous jeanReflect.mu.
+func jeanTurnCapsLocked() (Caps, float64) {
+	caps, temp := jeanReflect.caps, jeanReflect.temp
+	if !caps.Jean {
+		caps = globalCaps()
+		caps.Mem = MemOff
+		caps.Jean = true
+	}
+	if temp == 0 {
+		temp = 0.7
+	}
+	return caps, temp
+}
+
 // Le sommeil ne démarre que la nuit, entre 3 h et 5 h à l'heure de l'utilisateur :
 // en journée il occupait les cartes et faisait croire à une utilisation inconnue.
 const (
@@ -92,6 +128,7 @@ func runJeanConsolidate() {
 			jeanReflect.mu.Lock()
 			jeanConsolidateArmLocked(d)
 			jeanReflect.mu.Unlock()
+			fmt.Fprintf(os.Stderr, "[jean] consolidation reportée à la plage de nuit (%s)\n", time.Now().Add(d).In(loc(defaultTaskTZ())).Format("02/01 15:04"))
 			return
 		}
 	}
@@ -136,7 +173,7 @@ func runJeanConsolidate() {
 		jeanReflect.mu.Unlock()
 		return
 	}
-	caps, temp := jeanReflect.caps, jeanReflect.temp
+	caps, temp := jeanTurnCapsLocked()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	ctx = context.WithValue(ctx, jeanReflectKey{}, true)
 	jeanReflect.cancel = cancel

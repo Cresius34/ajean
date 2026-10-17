@@ -99,7 +99,7 @@ func TestAppScriptRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	// L'entrée arrive sur stdin, intacte, même avec des caractères de shell.
-	src := "import sys,json,os\nd=json.load(sys.stdin)\nprint(json.dumps({'echo':d,'cwd_ok':os.getcwd()==os.environ['AJEAN_APP_DATA']}))\n"
+	src := "import sys,json,os\nd=json.load(sys.stdin)\nprint(json.dumps({'echo':d,'cwd_ok':os.path.realpath(os.getcwd())==os.path.realpath(os.environ['AJEAN_APP_DATA'])}))\n"
 	if err := writeAppScript("test", "echo.py", src); err != nil {
 		t.Fatal(err)
 	}

@@ -2051,6 +2051,15 @@ button.th-head:hover{background:var(--t1)}
         <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="ctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="mem-enc-toggle" onchange="toggleMemEncrypt()"><span class="slider"></span></span> <span data-i18n="agent.encrypt_toggle">activer le chiffrement</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.encrypt_help" data-i18n-html>Chiffre ta <b>mémoire</b> ET tes <b>conversations</b> au repos (AES-256), protégées par ta <b>clé d'accès</b> : si tu as accès à l'interface, c'est déjà déverrouillé ; sinon on te demande ta clé d'accès. Une <b>clé de récupération</b> t'est donnée à l'activation (garde-la). Rien n'est perdu : snapshots automatiques avant chaque bascule.</span></span></label>
+        <label class="switchrow"><span data-i18n="settings.link_browser_label">liens externes dans</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="settings.link_browser_help" data-i18n-html>Les liens cliqués dans AJEAN s'ouvrent dans ce navigateur. La fenêtre AJEAN elle-même ne change pas : seuls les liens cliqués changent de navigateur. « Navigateur par défaut » suit le réglage de ta machine et couvre aussi les navigateurs absents de cette liste.</span></span>
+          <select id="link-browser" class="sctl" onchange="setLinkBrowser(this.value)">
+            <option value="auto" data-i18n="settings.link_browser_auto">navigateur par défaut</option>
+            <option value="chrome">Google Chrome</option>
+            <option value="edge">Microsoft Edge</option>
+            <option value="brave">Brave</option>
+            <option value="chromium">Chromium</option>
+          </select>
+        </label>
     </div>
   </details>
   </div>
@@ -3367,6 +3376,10 @@ fr: {
   "chat.mode_base_hint": "sans agent ni outils",
   "settings.section_title": "Paramètres",
   "settings.general_subhead": "Général",
+  "settings.link_browser_label": "liens externes dans",
+  "settings.link_browser_auto": "navigateur par défaut",
+  "settings.link_browser_saved": "réglage enregistré",
+  "settings.link_browser_help": "Les liens cliqués dans AJEAN s'ouvrent dans ce navigateur. La fenêtre AJEAN elle-même ne change pas : seuls les liens cliqués changent de navigateur. « Navigateur par défaut » suit le réglage de ta machine et couvre aussi les navigateurs absents de cette liste.",
   "chat.projects_button_title": "Projets (mémoire + conversations cloisonnées)",
   "chat.input_placeholder": "Discuter avec Jean",
   "chat.plus_button_title": "Ajouter",
@@ -4719,6 +4732,10 @@ en: {
   "chat.mode_base_hint": "no agent, no tools",
   "settings.section_title": "Settings",
   "settings.general_subhead": "General",
+  "settings.link_browser_label": "external links in",
+  "settings.link_browser_auto": "system default",
+  "settings.link_browser_saved": "setting saved",
+  "settings.link_browser_help": "Links clicked in AJEAN open in this browser. The AJEAN window itself does not change: only clicked links switch browser. “System default” follows your machine's setting and also covers browsers missing from this list.",
   "chat.projects_button_title": "Projects (isolated memory + conversations)",
   "chat.input_placeholder": "Chat with Jean",
   "chat.plus_button_title": "Add",
@@ -5877,6 +5894,7 @@ async function loadPrefs(){
         const v=p.prefs[o.id.replace('-','_')];
         if(v!==undefined) applyView(o.id, v==='1');
       });
+      if(p.prefs.link_browser) applyLinkBrowser(p.prefs.link_browser);
     }
   }catch(e){}
 }
@@ -7183,8 +7201,31 @@ async function clearCrawlKey(){
   renderInternet(await jpost('/api/internet',{key:''}));
   toast(t('settings.internet.key_removed'));
 }
+const LINK_BROWSERS=['auto','chrome','edge','brave','chromium'];
+async function loadOpen(){
+  try{
+    const r=await jget('/api/open');
+    const sel=document.getElementById('link-browser');
+    if(!r || !r.ok || !r.available || !sel) return;
+    for(const o of sel.options){
+      o.disabled = o.value==='auto' ? false : r.available[o.value]===false;
+    }
+  }catch(e){}
+}
+function applyLinkBrowser(v){
+  const val=LINK_BROWSERS.indexOf(v)>=0 ? v : 'auto';
+  try{ localStorage.setItem('ajean-link-browser', val); }catch(e){}
+  const sel=document.getElementById('link-browser');
+  if(sel && document.activeElement!==sel) sel.value=val;
+  return val;
+}
+async function setLinkBrowser(v){
+  const val=applyLinkBrowser(v);
+  await jpost('/api/prefs',{link_browser:val});
+  toast(t('settings.link_browser_saved'));
+}
 async function loadAll(){
-  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
+  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
   releaseHeights(); 
 }
 async function act(a){
@@ -10911,13 +10952,30 @@ async function attachPaths(){
   return ATTACH.filter(a=>a.state==='ok'&&a.path).map(a=>a.path);
 }
 renderAttach();
+function ajeanLocalUI(){
+  const h=location.hostname;
+  return h==='localhost' || h==='127.0.0.1' || h==='::1' || h==='[::1]';
+}
+async function openExternalLink(href){
+  if(ajeanLocalUI()){
+    try{
+      const ac=new AbortController(), timer=setTimeout(()=>ac.abort(),2000);
+      const r=await jfetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:href}),signal:ac.signal});
+      clearTimeout(timer);
+      const j=await r.json();
+      if(j && j.ok) return;
+      if(j && j.error) toast(j.error);
+    }catch(_){}
+  }
+  window.open(href, '_blank', 'noopener');
+}
 document.addEventListener('click', (e)=>{
   if(e.defaultPrevented || e.button!==0) return;
   const a=e.target.closest && e.target.closest('a[href]'); if(!a) return;
   let u; try{ u=new URL(a.getAttribute('href'), location.href); }catch(_){ return; }
   if(!/^https?:$/.test(u.protocol) || u.origin===location.origin) return;
   e.preventDefault();
-  window.open(u.href, '_blank', 'noopener');
+  openExternalLink(u.href);
 }, true);
 let LB = null;
 const LB_EASE = 'cubic-bezier(.2,.8,.2,1)';

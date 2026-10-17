@@ -256,6 +256,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/mcp/timeouts/save", handleMCPTimeoutsSave)
 	api("/api/memory", handleMemoryMode)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
+	api("/api/open", handleOpenURL)    // ouvre un lien externe dans le navigateur choisi (la fenêtre AJEAN ne bouge pas)
 	api("/api/prefs", handleWebPrefs)
 	api("/api/sysprompt", handleSysPrompt)
 	// Alias rétro-compat : l'ancien portail ajean.link (dépôt ajean-relay) pilote

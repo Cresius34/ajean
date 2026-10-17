@@ -250,19 +250,27 @@ func (p *jeanEmbedProc) stopFor(why string, wait time.Duration) {
 	}
 }
 
-// jeanEmbed calcule les vecteurs (normalisés) de textes déjà préfixés. wait :
-// démarrer le moteur s'il est arrêté (indexeur) ; sinon (recherche) on ne le
-// lance qu'en fond et on échoue tout de suite, la recherche par mots répond.
-func jeanEmbed(ctx context.Context, texts []string, wait bool) ([][]float32, error) {
+// jeanEmbed calcule les vecteurs (normalisés) de textes déjà préfixés. Le moteur
+// est démarré s'il est arrêté (il s'éteint après jeanEmbedIdle) : ~2 s à froid.
+// La recherche n'attend que jusqu'à l'échéance de ctx ; au-delà, le démarrage
+// continue en fond et la recherche par mots répond pour cette fois.
+func jeanEmbed(ctx context.Context, texts []string) ([][]float32, error) {
 	port, ok := jeanEmbedEngine.running()
 	if !ok {
-		if !wait {
-			go func() { _, _ = jeanEmbedEngine.ensure() }()
-			return nil, fmt.Errorf("moteur d'embeddings en cours de démarrage")
+		type res struct {
+			port int
+			err  error
 		}
-		var err error
-		if port, err = jeanEmbedEngine.ensure(); err != nil {
-			return nil, err
+		ch := make(chan res, 1)
+		go func() { p, err := jeanEmbedEngine.ensure(); ch <- res{p, err} }()
+		select {
+		case r := <-ch:
+			if r.err != nil {
+				return nil, r.err
+			}
+			port = r.port
+		case <-ctx.Done():
+			return nil, fmt.Errorf("moteur d'embeddings en cours de démarrage")
 		}
 	}
 	body, _ := json.Marshal(map[string]any{"model": "embed", "input": texts})
@@ -465,7 +473,7 @@ func jeanEmbedIndexOnce(ctx context.Context, budget int) (int, error) {
 			for i := range texts {
 				texts[i] = jeanEmbedDocText(todo[i])
 			}
-			vs, err := jeanEmbed(ctx, texts, true)
+			vs, err := jeanEmbed(ctx, texts)
 			if err != nil {
 				if changed {
 					jeanEmbedSave(file, idx)
@@ -555,9 +563,9 @@ func jeanSemanticRank(query string, all []jeanEntry) ([]int, map[int]float32) {
 	if !jeanEmbedEnabled() || len(all) == 0 {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // démarrage à froid compris
 	defer cancel()
-	vs, err := jeanEmbed(ctx, []string{jeanEmbedQueryText(query)}, false)
+	vs, err := jeanEmbed(ctx, []string{jeanEmbedQueryText(query)})
 	if err != nil {
 		return nil, nil
 	}

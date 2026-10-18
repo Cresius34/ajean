@@ -20,9 +20,15 @@ var BuildFlavor string
 
 const parallelMemoryRevision = 6
 
+// buildFlavorSuffix is the public identity of this build: base v0.18.4 plus the
+// three tracks it carries (internet/crawl4ai repair, EmbeddingGemma 2 engine,
+// AMD MoE Strata backend). Must stay identical to cmd/ajean-memory-test
+// versioninfo.json StringFileInfo.ProductVersion, checked by TestVersionFlavor.
+const buildFlavorSuffix = "+crawl4ai-repair+embeddingv2+AMDmoe"
+
 func displayVersion() string {
 	if parallelBuild() {
-		return fmt.Sprintf("%s-embedding-test.%d", Version, parallelMemoryRevision)
+		return Version + buildFlavorSuffix
 	}
 	return Version
 }

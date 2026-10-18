@@ -3,30 +3,30 @@
     "FileVersion": {
       "Major": 0,
       "Minor": 18,
-      "Patch": 1,
-      "Build": 5
+      "Patch": 4,
+      "Build": 0
     },
     "ProductVersion": {
       "Major": 0,
       "Minor": 18,
-      "Patch": 1,
-      "Build": 5
+      "Patch": 4,
+      "Build": 0
     },
     "FileFlagsMask": "3f",
-    "FileFlags": "02",
+    "FileFlags": "00",
     "FileOS": "040004",
     "FileType": "01",
     "FileSubType": "00"
   },
   "StringFileInfo": {
     "CompanyName": "AJEAN contributors",
-    "FileDescription": "AJEAN Mémoire TEST — prototype parallèle EmbeddingGemma 2",
+    "FileDescription": "AJEAN Mémoire TEST — v0.18.4 : repair crawl4ai, moteur EmbeddingGemma 2, MoE AMD Strata",
     "InternalName": "ajean-memoire-test",
     "LegalCopyright": "Copyright (c) 2026 AJEAN contributors. MIT License.",
     "OriginalFilename": "ajean-memoire-test.exe",
     "ProductName": "AJEAN Mémoire TEST",
-    "FileVersion": "0.18.1-embedding-test.5",
-    "ProductVersion": "0.18.1-embedding-test.5",
+    "FileVersion": "0.18.4+crawl4ai-repair+embeddingv2+AMDmoe",
+    "ProductVersion": "0.18.4+crawl4ai-repair+embeddingv2+AMDmoe",
     "Comments": "https://github.com/nathaninline/ajean — projet open source (MIT)"
   },
   "VarFileInfo": {

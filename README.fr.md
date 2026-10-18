@@ -20,6 +20,7 @@ AJEAN s'occupe de tout ce qui entoure le modèle. Le modèle lui-même tourne su
 
 - [Installation](#installation)
 - [Utiliser AJEAN](#utiliser-ajean)
+- [Le moteur MoE](#le-moteur-moe)
 - [Ce que l'IA sait faire](#ce-que-lia-sait-faire)
 - [Modèles et moteur](#modèles-et-moteur)
 - [Accès de partout](#accès-de-partout)
@@ -129,6 +130,20 @@ ajean chat
 ```
 
 Une discussion légère dans le terminal, indépendante de l'interface web, avec trois outils (`bash`, `write`, `edit`) qui agissent **dans le dossier où vous la lancez**. Pratique pour travailler sur un dossier de projet.
+
+---
+
+## Le moteur MoE
+
+Le moteur **MoE** fait tourner un modèle à experts mélangés sous Windows, avec des experts chargés à la demande, sous le moteur **Strata**. C'est un second moteur, installé et mis à jour depuis la section **Moteur** de l'interface. Ce n'est pas le même binaire que llama.cpp : chaque preset utilise le moteur qu'il déclare, et les deux cohabitent.
+
+L'installation se fait dans l'interface : choisir la famille de carte (**AMD · HIP** pour une Radeon, **NVIDIA · CUDA** pour une GeForce), puis la famille de modèle et la quantification, le contexte et la réserve de mémoire. L'installeur prépare le moteur, crée le preset, puis lance le chargement du modèle. **Tester réponse et appel d'outil** vérifie une réponse exacte puis un appel OpenAI avec arguments JSON, sans exécuter cet outil ; le rapport daté est écrit dans `data/moe/proofs/`.
+
+Un preset MoE est un fichier `.env` de `presets/` : ce sont `ENGINE=moe` et `MOE_RUNTIME=strata-windows` qui en font un preset MoE, avec `MOE_BACKEND` (`hip` pour AMD, `cuda` pour NVIDIA), `MOE_TOOLKIT` (`12` ou `13`), `MOE_SOURCE` (le dossier du moteur), `MOE_PYTHON`, `MOE_CONFIG` (le fichier de configuration du moteur, qui porte le modèle et sa quantification — il n'y a pas de clé `MOE_MODEL`), `MOE_KV`, `MOE_SPEC`, `CTX` et `MOE_VRAM_RESERVE`. Copier [docs/moe.env.example](docs/moe.env.example) dans `presets/`, puis `ajean switch`.
+
+**Le moteur MoE n'apparaît dans la liste que si un tel preset existe** — ce n'est pas la carte graphique qui décide de la liste. Un preset sans `ENGINE=moe` reste un preset llama.cpp, même si son modèle est un MoE.
+
+Mesuré sur une Radeon AI PRO R9700 (32 Go) avec un backend HIP et Flash Next Swift 1.5 IQ3_XXS : contexte de 126 976 jetons, profil d'experts de 24 576 cases chargé, touches de cache des experts à 94–97 %. Le moteur accepte aussi les cartes NVIDIA, **pas testé ici** ; la cohabitation avec Unreal n'est pas mesurée. Voir [docs/moe-windows-prototype.md](docs/moe-windows-prototype.md).
 
 ---
 

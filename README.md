@@ -20,6 +20,7 @@ AJEAN handles everything around the model. The model itself runs on [llama.cpp](
 
 - [Install](#install)
 - [Using AJEAN](#using-ajean)
+- [The MoE engine](#the-moe-engine)
 - [What the AI can do](#what-the-ai-can-do)
 - [Models and engine](#models-and-engine)
 - [Access from anywhere](#access-from-anywhere)
@@ -129,6 +130,39 @@ ajean chat
 ```
 
 A lightweight chat in the terminal, independent from the web interface, with three tools (`bash`, `write`, `edit`) that work **in the folder where you run it**. Handy for working on a project directory.
+
+---
+
+## The MoE engine
+
+The **MoE** engine runs a mixture-of-experts model on Windows with experts loaded on
+demand, under the **Strata** engine. It is a second engine, installed and updated from
+the **Engine** section of the interface. It is not the same binary as llama.cpp: each
+preset uses the engine it declares, and the two coexist.
+
+Installation, in the interface: choose the card family (**AMD · HIP** for a Radeon,
+**NVIDIA · CUDA** for a GeForce), then the model family and the quantization, the
+context, and the memory reserve. The installer prepares the engine, creates the preset,
+and starts loading the model. **Test reply and tool call** checks a literal
+answer, then an OpenAI tool call with JSON arguments, without executing the tool; the
+dated report is written in `data/moe/proofs/`.
+
+A MoE preset is a `.env` file in `presets/`: `ENGINE=moe` and `MOE_RUNTIME=strata-windows`
+are what make it a MoE preset, alongside `MOE_BACKEND` (`hip` for AMD, `cuda` for NVIDIA),
+`MOE_TOOLKIT` (`12` or `13`), `MOE_SOURCE` (the engine folder), `MOE_PYTHON`,
+`MOE_CONFIG` (the engine's configuration file, which carries the model and its
+quantization — there is no `MOE_MODEL` key), `MOE_KV`, `MOE_SPEC`, `CTX` and
+`MOE_VRAM_RESERVE`. Copy [docs/moe.env.example](docs/moe.env.example) into `presets/`,
+then `ajean switch`.
+
+**The MoE engine appears in the list only if such a preset exists** — the graphics card
+does not decide the list. A preset without `ENGINE=moe` stays a llama.cpp preset, even
+when its model is a MoE.
+
+Measured on a Radeon AI PRO R9700 (32 GB) with a HIP backend and Flash Next Swift 1.5
+IQ3_XXS: 126 976-token context, a 24 576-slot expert profile loaded, expert cache hits
+at 94–97 %. The engine also accepts NVIDIA cards, **not tested here**; cohabitation with
+Unreal has not been measured. See [docs/moe-windows-prototype.md](docs/moe-windows-prototype.md).
 
 ---
 

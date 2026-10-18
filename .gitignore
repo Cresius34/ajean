@@ -13,3 +13,67 @@
 Thumbs.db
 .idea/
 .vscode/
+
+# ------------------------------------------------------------------
+# Données d'installation : à garder HORS du dépôt.
+#
+# Règle : on ne pousse que ce qui ne peut pas être ré-installé par
+# le moteur lui-même (sur demande de l'utilisateur dans Ajean) ni
+# par l'utilisateur (les scripts d'installation du dépôt le font).
+#
+#   data/  : base de conversations (ajean.db), mémoire, jetons
+#            d'appareil (devices.json), presets de poste, captures,
+#            workspace, scripts de l'agent, moteur MoE installé
+#            (data\moe) et ses packs de poids (data\moe\data).
+#   models/: poids de génération (Swift/Qwen Flash Next) et d'embeddings.
+#
+# Les deux se reconstruisent :
+#   - moteur MoE + poids de génération : installés par le moteur sur
+#     demande dans Ajean (data\moe\installer-r6.ps1, manifest
+#     internal/ajean/moe_windows_manifest.json, téléchargements
+#     vérifiés par SHA-256) ;
+#   - runtime d'embeddings : tools\embedding-test (Construire-Portable,
+#     Installer-Modele, Copier-Presets) ;
+#   - ajean.db, devices.json, presets : créés au premier lancement.
+#
+# Le paquet de livraison applique la même règle :
+# data\scripts\Preparer-Paquet-Sans-Data.ps1
+# ------------------------------------------------------------------
+/data/
+/models/
+
+# Filet de sécurité, si ces noms apparaissent ailleurs que dans /data
+**/moe/data/
+**/moe/dl/
+**/moe/cache/
+**/moe/logs/
+**/moe/run/
+**/moe/proofs/
+
+# Poids et packs de poids, où qu'ils se trouvent
+*.gguf
+*.gguf.done
+*.safetensors
+/moe/**
+
+# Binaires et bibliothèques (le dépôt ne suit aucune source binaire)
+*.dll
+*.dylib
+*.so
+*.so.*
+*.bin
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# Secrets, base, et productions locales
+*.env
+*.pem
+*.key
+*.db
+*.sqlite
+*.sqlite3
+*.log
+/devices.json

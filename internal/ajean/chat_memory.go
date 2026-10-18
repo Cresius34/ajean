@@ -22,9 +22,11 @@ type MemPage struct {
 }
 
 type MemHit struct {
-	File    string
-	Title   string
-	Snippet string
+	File      string
+	Title     string
+	Snippet   string
+	StartLine int `json:",omitempty"`
+	EndLine   int `json:",omitempty"`
 }
 
 var memNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -77,7 +79,11 @@ func titleOf(content string) string {
 
 // MemList liste les pages mémoire (nom + titre), triées par nom.
 func MemList() []MemPage {
-	entries, err := os.ReadDir(memoryDir())
+	return memListIn(memoryDir())
+}
+
+func memListIn(root string) []MemPage {
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
@@ -95,7 +101,7 @@ func MemList() []MemPage {
 		if strings.EqualFold(e.Name(), "MEMORY.md") {
 			continue
 		}
-		txt, ok := memPageText(e.Name())
+		txt, ok := memPageTextIn(root, e.Name())
 		title := titleOf(txt)
 		if !ok {
 			title = "🔒 (chiffré — mémoire verrouillée)"
@@ -120,6 +126,10 @@ func MemList() []MemPage {
 //     (« Alice »). La fréquence est amortie (log) pour que le bourrage ne gagne
 //     pas, et un match dans le NOM ou le TITRE est fortement bonifié.
 func MemSearch(query string, limit int) []MemHit {
+	return memSearchIn(memoryDir(), query, limit)
+}
+
+func memSearchIn(root, query string, limit int) []MemHit {
 	if limit <= 0 || limit > 30 {
 		limit = 8
 	}
@@ -134,8 +144,8 @@ func MemSearch(query string, limit int) []MemHit {
 	}
 	docs := make([]doc, 0)
 	df := make(map[string]int) // nb de pages contenant chaque terme
-	for _, p := range MemList() {
-		content, _ := memPageText(p.Name) // "" si chiffré et verrouillé : matche alors sur le nom seul
+	for _, p := range memListIn(root) {
+		content, _ := memPageTextIn(root, p.Name) // "" si chiffré et verrouillé : matche alors sur le nom seul
 		d := doc{
 			p:       p,
 			name:    strings.ToLower(p.Name),

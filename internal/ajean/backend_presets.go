@@ -57,6 +57,11 @@ func withDisplayName(content, name string) string {
 // CRAWL4AI_URL injectés rendraient la config active différente de TOUS les
 // presets, et aucun ne serait jamais détecté comme actif.
 func configFingerprint(m map[string]string) string {
+	if parallelBuild() {
+		if portable, err := normalizeParallelConfig(m); err == nil {
+			m = portable
+		}
+	}
 	pairs := make([]string, 0, len(m))
 	for k, v := range m {
 		if isPreservedKey(k) {
@@ -296,7 +301,27 @@ func applyPresetFile(target string) error {
 	if err != nil {
 		return err
 	}
+	previousMemory := readEmbeddingConfig()
 	next := parseEnv(string(src))
+	if parallelBuild() {
+		before := formatEnv(next)
+		next, err = prepareParallelPreset(next)
+		if err != nil {
+			return err
+		}
+		// A selected old preset must remain usable after the source disappears
+		// or the portable folder moves, including when selected again later.
+		if formatEnv(next) != before {
+			if err := parallelWritablePath(target); err != nil {
+				return err
+			}
+			id := strings.TrimSuffix(filepath.Base(target), ".env")
+			body := withDisplayName(formatEnv(next), presetDisplayName(string(src), id))
+			if err := os.WriteFile(target, []byte(body), 0o600); err != nil {
+				return err
+			}
+		}
+	}
 	// Ré-applique les réglages appareil par-dessus le preset — sauf ceux que le
 	// preset revendique explicitement (softPreservedKeys).
 	cur := ReadConfig()
@@ -314,6 +339,13 @@ func applyPresetFile(target string) error {
 	}
 	if err := WriteConfig(next); err != nil {
 		return err
+	}
+	if currentMemory := readEmbeddingConfig(); currentMemory != previousMemory {
+		stopEmbeddingServer()
+		if currentMemory.Enabled {
+			root, _ := filepath.Abs(memoryDir())
+			queueEmbeddingIndex(root, currentMemory)
+		}
 	}
 	// Mémorise QUEL preset a été chargé. Le marqueur « actif » se base dessus
 	// (ListPresets), et non plus seulement sur une empreinte de la config vivante :
@@ -424,6 +456,18 @@ func SavePreset(id, name, content string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("nom requis")
+	}
+	if id != "" {
+		if _, err := safePresetPath(id); err != nil {
+			return "", err
+		}
+	}
+	if parallelBuild() {
+		cfg, err := prepareParallelPreset(parseEnv(content))
+		if err != nil {
+			return "", err
+		}
+		content = formatEnv(cfg)
 	}
 	content = withDisplayName(content, name)
 	if id == "" {

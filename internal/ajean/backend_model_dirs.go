@@ -110,6 +110,14 @@ func baseName(p string) string {
 // autorisé », le moteur mourait en boucle, et le seul remède connu était
 // d'aller déclarer le dossier dans l'interface web.
 func resolveServeModelPath(name string) (string, error) {
+	if parallelBuild() && !filepath.IsAbs(name) && strings.ContainsAny(name, `/\`) {
+		p := filepath.Join(AjeanHome(), name)
+		if err := parallelWritablePath(p); err == nil && strings.EqualFold(filepath.Ext(p), ".gguf") {
+			if fi, e := os.Stat(p); e == nil && fi.Mode().IsRegular() {
+				return p, nil
+			}
+		}
+	}
 	p, err := resolveModelPath(name)
 	if err == nil {
 		return p, nil
@@ -202,6 +210,15 @@ func diskFree(dir string) int64 {
 // déclarés — sans quoi l'UI web permettrait d'écrire n'importe où sur la
 // machine.
 func resolveDownloadDir(dir string) (string, error) {
+	if parallelBuild() {
+		p := strings.TrimSpace(dir)
+		if p == "" {
+			p = modelsDir()
+		}
+		if err := parallelWritablePath(p); err != nil {
+			return "", err
+		}
+	}
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return modelsDir(), nil

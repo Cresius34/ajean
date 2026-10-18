@@ -2688,3 +2688,13 @@ button.th-head:hover{background:var(--t1)}
 .jm-embed .switch{flex:none}
 .jm-embed-t{min-width:0}
 .jm-embed-st{color:var(--dim);font-size:11.5px}
+
+
+/* The MoE panel keeps engine controls; this native editor changes its memory. */
+#modal.kind-moe-memory #m-engine-row,
+#modal.kind-moe-memory #m-run-row,
+#modal.kind-moe-memory #m-settings-row,
+#modal.kind-moe-memory #m-sampling-row,
+#modal.kind-moe-memory #m-gpu-group,
+#modal.kind-moe-memory #m-model-row > .pe-group > .pe-list > .pe-row:not(#m-memory-block){display:none!important}
+#moe-modal [hidden]{display:none!important}

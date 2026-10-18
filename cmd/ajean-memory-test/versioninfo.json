@@ -1,0 +1,38 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": {
+      "Major": 0,
+      "Minor": 18,
+      "Patch": 1,
+      "Build": 5
+    },
+    "ProductVersion": {
+      "Major": 0,
+      "Minor": 18,
+      "Patch": 1,
+      "Build": 5
+    },
+    "FileFlagsMask": "3f",
+    "FileFlags": "02",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "CompanyName": "AJEAN contributors",
+    "FileDescription": "AJEAN Mémoire TEST — prototype parallèle EmbeddingGemma 2",
+    "InternalName": "ajean-memoire-test",
+    "LegalCopyright": "Copyright (c) 2026 AJEAN contributors. MIT License.",
+    "OriginalFilename": "ajean-memoire-test.exe",
+    "ProductName": "AJEAN Mémoire TEST",
+    "FileVersion": "0.18.1-embedding-test.5",
+    "ProductVersion": "0.18.1-embedding-test.5",
+    "Comments": "https://github.com/nathaninline/ajean — projet open source (MIT)"
+  },
+  "VarFileInfo": {
+    "Translation": {
+      "LangID": "040C",
+      "CharsetID": "04B0"
+    }
+  }
+}

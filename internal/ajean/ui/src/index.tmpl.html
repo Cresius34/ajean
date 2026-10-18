@@ -41,6 +41,7 @@
     <!-- Logo + version, et dessous en petit : état du moteur (sans cadre). -->
     <div class="brandcol">
     <h1 id="brand" aria-label="ajean"><span id="brand-a"><svg viewBox="0 0 4 5" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="2" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="0" y="2" width="4" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/></svg></span><span id="brand-word"><svg viewBox="0 0 17 5" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="3" y="0" width="4" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="3" y="2" width="3" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="4" height="1"/><rect x="9" y="0" width="2" height="1"/><rect x="8" y="1" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="8" y="2" width="4" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="13" y="1" width="2" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="15" y="2" width="2" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/></svg></span><span id="ver" onclick="manualUpdateCheck()" style="cursor:pointer" title="vérifier les mises à jour" data-i18n="settings.check_update_title" data-i18n-attr="title"></span></h1>
+    <div id="memory-test-build" hidden></div>
     <div class="brand-sub">
       <span id="status-svc" class="statuspill" onclick="toggleSvcLog()" title="voir le journal du moteur" data-i18n="sidebar.status_svc_title" data-i18n-attr="title"><span class="skel skel-line" style="width:52px;height:8px;border-radius:999px"></span></span>
 
@@ -381,6 +382,12 @@
          exigent que les .switchrow soient enfants DIRECTS de .slist. -->
     <div class="subhead" data-i18n="settings.general_subhead">Général</div>
     <div class="slist">
+        <div class="switchrow" style="flex-wrap:wrap">
+          <span>Système mémoire</span>
+          <span class="help" tabindex="0" onclick="event.stopPropagation();this.classList.toggle('open')">?<span class="tip"><b>Classique</b> : recherche les mots dans les notes, sans encodeur supplémentaire.<br><b>Hybride</b> : combine cette recherche avec EmbeddingGemma 2 pour retrouver aussi les reformulations ; utilise CPU ou GPU selon les réglages mémoire.<br>Ce choix est la valeur générale. Un preset peut la remplacer explicitement. Le mode d’accès aux notes (toujours, recherche, à la demande, désactivé) reste indépendant.</span></span>
+          <span class="pe-selc" style="margin-left:auto"><select id="memory-system" aria-label="Système mémoire général" onchange="setMemorySystem(this.value)"><option value="classic">Classique</option><option value="hybrid">Hybride</option></select></span>
+          <small id="memory-system-effective" style="flex-basis:100%;opacity:.65"></small>
+        </div>
         <label class="switchrow agent-gated"><span class="switch"><input type="checkbox" id="compact-toggle" onchange="toggleCompact()"><span class="slider"></span></span> <span data-i18n="agent.compact_toggle">compactage automatique du contexte</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_help" data-i18n-html>activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.</span></span></label>
         <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="ctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
@@ -590,6 +597,17 @@
     </div>
     <div class="modal-body mform">
       <div id="moe-machine" class="muted" style="font-size:12px;line-height:1.5"></div>
+      <div class="fld" id="moe-windows-options" hidden>
+        <label class="fld-l">Moteur Windows portable</label>
+        <div class="slist moe-details">
+          <div class="moe-kv"><span>Accélération</span><select id="moe-backend" onchange="moeChangeBackend()"><option value="hip">AMD · HIP</option><option value="cuda">NVIDIA · CUDA</option></select></div>
+          <div data-moe-install-only class="moe-kv" id="moe-toolkit-row"><span>Paquet CUDA</span><select id="moe-toolkit"><option value="13">CUDA 13 · RTX récentes</option><option value="12">CUDA 12 · compatibilité</option></select></div>
+          <div data-moe-install-only class="moe-kv"><span>Contexte initial</span><input id="moe-install-context" type="number" min="32768" max="262144" step="4096" value="86016" style="width:95px"></div>
+          <div data-moe-install-only class="moe-kv"><span>Réserve VRAM pour Windows / Unreal (Mio)</span><input id="moe-install-reserve" type="number" min="0" max="65536" step="256" value="4096" style="width:80px"></div>
+          <div data-moe-install-only class="moe-kv"><span>Vision du modèle</span><input id="moe-install-vision" type="checkbox"></div>
+        </div>
+        <div id="moe-windows-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+      </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
         <div class="seg" id="moe-fams"></div>
@@ -608,6 +626,9 @@
         <div class="slist moe-details" id="moe-details"></div>
       </div>
       <div id="moe-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+      <button id="moe-memory-edit" type="button" class="pe-link" hidden onclick="moeEditMemory()">Réglages mémoire de ce preset</button>
+      <button id="moe-verify" type="button" hidden onclick="moeVerify()">Tester réponse et appel d’outil</button>
+      <div id="moe-verify-result" role="status" class="muted" style="font-size:12px;line-height:1.5"></div>
     </div>
     <div class="modal-foot">
       <div class="foot-l">
@@ -822,6 +843,7 @@
     </div>
     <div class="modal-body">
       <div id="mem-block" class="gated-group">
+		<p><a href="/semantic-memory" target="_blank" rel="noopener">Mémoire sémantique · EmbeddingGemma 2</a></p>
         <div class="mm-sub"><span data-i18n="memory.mode_heading">Mode</span><span class="mm-sub-note" data-i18n="memory.mode_perproject">Réglage propre à ce projet.</span></div>
         <div class="mem-seg" role="radiogroup">
           <label class="mem-opt">
@@ -1041,6 +1063,7 @@
             <span class="pe-row-l"><span data-i18n="preset.vision_label">Vision</span><span class="pe-sub" data-i18n="external.vision_label">le modèle accepte les images</span></span>
             <span class="pe-row-c"><label class="pe-switch"><input type="checkbox" id="s-ext-vision" onchange="cfgWriteKey('EXTERNAL_VISION', this.checked ? '1' : '')"><span class="pe-sl"></span></label></span>
           </div>
+          <span id="m-memory-remote-anchor" hidden></span>
           <div class="pe-row" style="cursor:pointer" onclick="testExternalPreset()">
             <span class="pe-row-l"><span data-i18n="external.test">tester la connexion</span><span class="pe-sub" id="s-ext-status"></span></span>
             <span class="pe-row-c"><span class="pe-unit">→</span></span>
@@ -1171,6 +1194,22 @@
             <div class="pe-row" id="s-mmproj-cpu-row">
               <span class="pe-row-l"><span data-i18n="preset.mmproj_cpu_label">Projecteur vision sur le CPU</span><span class="pe-sub" data-i18n="preset.mmproj_cpu_sub">libère de la VRAM</span></span>
               <span class="pe-row-c"><label class="pe-switch"><input type="checkbox" id="s-mmproj-cpu" onchange="eaToggleFlag('--no-mmproj-offload', this.checked)"><span class="pe-sl"></span></label></span>
+            </div>
+            <span id="m-memory-local-anchor" hidden></span>
+            <div class="pe-row stack" id="m-memory-block">
+              <span class="pe-row-l">Mémoire <span class="help" tabindex="0" onclick="event.stopPropagation();this.classList.toggle('open')">?<span class="tip">L’encodeur mémoire est indépendant du modèle de conversation et de sa vision. Les réglages ci-dessous remplacent les valeurs générales pour ce preset. CPU préserve la VRAM ; GPU demande un moteur compatible et de la VRAM disponible. GGUF sert le texte. Le moteur complet charge seulement les encodeurs requis : Texte 270M, +vision 440M, +audio 570M, tous 740M paramètres. Vidéo utilise la vision. Les médias locaux référencés par les notes sont indexés ; les résultats renvoient toujours aux notes. Les vecteurs restent en RAM.</span></span></span>
+              <div class="pe-list" style="width:100%">
+                <div class="pe-row"><span class="pe-row-l">Système mémoire</span><span class="pe-selc"><select id="m-memory-mode" onchange="cfgWriteKey('MEMORY_SYSTEM',this.value)"><option value="">Suivre Général</option><option value="classic">Classique</option><option value="hybrid">Hybride</option></select></span></div>
+                <div class="pe-row"><span class="pe-row-l">Moteur mémoire</span><span class="pe-selc"><select id="m-memory-provider" onchange="changeMemoryProvider()"><option value="llama_cpp">GGUF · texte compact</option><option value="transformers">Complet · multimodal</option></select></span></div>
+                <div class="pe-row stack"><span class="pe-row-l">Backend mémoire <span class="pe-sub">llama-server ou Python portable</span></span><input id="m-memory-bin" list="memory-backends" class="pe-inp" style="width:100%" onchange="cfgWriteKey('MEMORY_EMBED_BIN',this.value)"><datalist id="memory-backends"></datalist></div>
+                <div class="pe-row stack"><span class="pe-row-l">Modèle mémoire <span class="pe-sub">fichier GGUF ou dossier du modèle complet</span></span><input id="m-memory-model" list="memory-models" class="pe-inp" style="width:100%" onchange="cfgWriteKey('MEMORY_EMBED_MODEL',this.value)"><datalist id="memory-models"></datalist></div>
+                <div class="pe-row"><span class="pe-row-l">Exécution mémoire</span><span class="pe-selc"><select id="m-memory-device" onchange="changeMemoryDevice()"><option value="cpu">CPU · préserver la VRAM</option><option value="gpu">GPU · accélération</option></select></span></div>
+                <div class="pe-row" id="m-memory-gpu-row"><span class="pe-row-l">Périphérique GPU<span class="pe-sub">GGUF : ROCm0 / Vulkan0 ; complet : cuda:0 (aussi AMD)</span></span><input id="m-memory-gpu" class="pe-val" onchange="cfgWriteKey('MEMORY_EMBED_GPU_DEVICE',this.value)"></div>
+                <div class="pe-row stack"><span class="pe-row-l">Modalités actives<span class="pe-sub">Texte requis pour les recherches ; charger seulement les encodeurs utiles</span></span><div style="display:flex;gap:12px;flex-wrap:wrap"><label><input type="checkbox" checked disabled>Texte / code</label><label><input id="m-memory-image" type="checkbox" onchange="changeMemoryModalities()">Images</label><label><input id="m-memory-audio" type="checkbox" onchange="changeMemoryModalities()">Audio</label><label><input id="m-memory-video" type="checkbox" onchange="changeMemoryModalities()">Vidéo</label></div></div>
+                <div class="pe-row"><span class="pe-row-l">Dimensions<span class="pe-sub">768 : qualité maximale ; 256 : index réduit ; 128 : surtout texte</span></span><span class="pe-selc"><select id="m-memory-dimensions" onchange="cfgWriteKey('MEMORY_EMBED_DIMENSIONS',this.value)"><option value="">Suivre Général</option><option value="768">768</option><option value="512">512</option><option value="256">256</option><option value="128">128</option></select></span></div>
+                <div class="pe-row"><span class="pe-row-l">Threads mémoire</span><input id="m-memory-threads" class="pe-val" type="number" min="1" max="64" placeholder="Général" onchange="cfgWriteKey('MEMORY_EMBED_THREADS',this.value)"></div>
+              </div>
+              <span id="m-memory-note" class="pe-note"></span><button type="button" class="pe-link" onclick="resetMemoryPreset()">Reprendre tous les réglages généraux</button>
             </div>
             <div class="pe-row stack">
               <span class="pe-row-l"><span data-i18n="preset.download_model_label">Télécharger un modèle</span> <span class="pe-sub" data-i18n="preset.download_model_sub">lien direct vers un .gguf</span></span>

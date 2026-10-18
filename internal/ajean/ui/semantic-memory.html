@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AJEAN · Mémoire sémantique TEST</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#101621;color:#e5edf8}*{box-sizing:border-box}body{margin:0}main{max-width:1080px;margin:auto;padding:32px 22px 60px}h1{font-size:32px;letter-spacing:-.8px;margin:10px 0}h2{font-size:19px;margin:0 0 14px}p{color:#b4c3d8;margin:9px 0 18px}a{color:#93c5fd}header{margin-bottom:25px}.tag{display:inline-block;border:1px solid #385273;border-radius:30px;padding:4px 12px;color:#9dc9ff;font-size:12px;letter-spacing:1px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.panel{padding:22px;border:1px solid #2c3a50;border-radius:14px;background:#172131;margin-bottom:18px}.wide{grid-column:1/-1}label{display:block;font-size:14px;color:#bccce1;margin-top:12px}input,select,button,textarea{font:inherit;border-radius:7px}input:not([type=checkbox]),textarea,select{display:block;width:100%;padding:10px;background:#101927;border:1px solid #3a4a62;color:#edf5ff;margin-top:5px}input[type=checkbox]{accent-color:#64b5ff;width:17px;height:17px;vertical-align:middle;margin-right:8px}button{padding:9px 15px;border:1px solid #41638b;background:#254c7c;color:#fff;cursor:pointer;margin:12px 6px 0 0}button.secondary{background:transparent;color:#c5dcf7}button:disabled{opacity:.5;cursor:wait}.row{display:flex;gap:12px}.row>*{flex:1;min-width:0}.small{font-size:13px;color:#a3b6d0}.mono{font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere;white-space:pre-wrap}#status{border-left:3px solid #64b5ff;padding-left:14px}#message{position:sticky;bottom:10px;background:#20344d;border-radius:8px;padding:12px 16px;display:none;white-space:pre-wrap}.hit{border-top:1px solid #33445e;padding:12px 0}.hit strong{color:#a2ccff;font-size:14px}.hit p{font-size:14px;margin:5px 0;white-space:pre-wrap}.empty{color:#a3b6d0;font-size:14px}details{margin-top:12px}summary{cursor:pointer;color:#b7cce6}progress{width:100%;accent-color:#64b5ff}nav{display:flex;justify-content:space-between;gap:15px}#mode{color:#9fe1c1}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #a6d4ff;outline-offset:3px}@media(max-width:760px){.grid{grid-template-columns:1fr}.row{flex-direction:column}main{padding:20px 14px}h1{font-size:27px}}
+</style>
+<main>
+<header><nav><span class="tag">AJEAN · ESSAI PARALLÈLE</span><a href="/" target="_blank" rel="noopener">Ouvrir le chat ↗</a></nav>
+<h1>Une mémoire qui cherche aussi par le sens.</h1>
+<p>EmbeddingGemma 2 sur CPU + recherche par mots. Les notes Markdown restent la source de vérité.</p></header>
+<section class="panel"><h2>État de l’essai</h2><div id="status" role="status">Chargement…</div><progress id="progress" hidden></progress>
+<p class="small">Les vecteurs restent en RAM. Ils sont recalculés après fermeture et purgés au verrouillage de la mémoire. Les notes d’archive et MEMORY.md sont exclus de l’index sémantique.</p>
+<details><summary>Clé d’accès à cette interface, si tu en as défini une</summary><label>Clé Ajean TEST<input id="webkey" type="password" autocomplete="off"></label><button onclick="saveWebKey()">Utiliser cette clé</button></details></section>
+<div class="grid">
+<section class="panel"><h2>1. Réglages mémoire généraux</h2>
+<p class="small">Au premier usage, lance <strong>Installer-Modele.cmd</strong> dans le dossier extrait (310 Mo). Le moteur CPU compatible est fourni dans le paquet.</p>
+<label><input id="enabled" type="checkbox">Activer la recherche hybride</label>
+<label>Moteur mémoire<select id="provider" onchange="selectProvider()"><option value="llama_cpp">GGUF · texte compact</option><option value="transformers">Complet · multimodal</option></select></label>
+<label>Placement<select id="device" onchange="selectMemoryDevice()"><option value="cpu">CPU</option><option value="gpu">GPU</option></select></label><label>Périphérique GPU<input id="gpu_device" placeholder="ROCm0 / Vulkan0 ou cuda:0 pour le moteur complet"></label>
+<label>Modalités actives<select id="modalities" onchange="if(this.value!=='text'&&$('provider').value!=='transformers'){$('provider').value='transformers';selectProvider()}"><option value="text">Texte / code</option><option value="text,image">Texte + images</option><option value="text,audio">Texte + audio</option><option value="text,video">Texte + vidéo</option><option value="text,image,video">Texte + images + vidéo</option><option value="text,image,audio">Texte + images + audio</option><option value="text,audio,video">Texte + audio + vidéo</option><option value="text,image,audio,video">Toutes</option></select></label>
+<label>Dimensions<select id="dimensions"><option>768</option><option>512</option><option>256</option><option>128</option></select></label>
+<p class="small">Le GGUF traite le texte. Les autres modalités nécessitent Installer-Multimodal.cmd puis le moteur complet. Un preset peut remplacer ces valeurs générales.</p>
+<label>Backend mémoire<input id="bin" list="bins" autocomplete="off" placeholder="Chemin absolu vers llama-server.exe"></label><datalist id="bins"></datalist>
+<label>Modèle GGUF<input id="model" list="models" autocomplete="off" placeholder="Chemin absolu vers embeddinggemma-2-Q8_0.gguf"></label><datalist id="models"></datalist>
+<div class="row"><label>Threads CPU<input id="threads" type="number" min="1" max="64" value="8"></label><label>Port local dédié<input id="port" type="number" min="1024" max="65535" value="18081"></label></div>
+<p class="small">Vecteurs en RAM · dimensions réduites = index plus léger, sans réduire les poids du modèle. Le placement concerne l’encodeur mémoire, indépendamment du moteur de conversation.</p>
+<button onclick="saveConfig()">Enregistrer et indexer</button><button class="secondary" id="indexBtn" onclick="action('index')">Actualiser l’index</button><button class="secondary" onclick="action('stop')">Arrêter l’encodeur</button>
+</section>
+<section class="panel"><h2>2. Notes du projet d’essai</h2>
+<p>Place des <strong>copies</strong> de tes notes <code>.md</code> dans le dossier affiché ci-dessous. Tu peux aussi lancer <strong>Copier-Memoire.cmd</strong>, qui lit ta mémoire actuelle et copie les fichiers manquants dans ce dossier d’essai.</p>
+<div id="memoryPath" class="mono"></div>
+<p class="small">Le projet actif dans le chat détermine le dossier interrogé. Un changement externe est détecté à la recherche suivante ; l’index est actualisé en arrière-plan et cette première recherche utilise les mots.</p>
+<button class="secondary" onclick="demo()">Créer trois notes de démonstration</button>
+<hr style="border:0;border-top:1px solid #33445e;margin:24px 0">
+<h2>3. Réutiliser Swift pour le chat</h2><p class="small">Démarre ton Ajean habituel, puis vérifie la connexion. Cette copie appelle son API et ne pilote pas son service.</p>
+<label>URL locale Swift<input id="chatURL" value="http://127.0.0.1:8080/v1"></label>
+<label>Clé API Swift, seulement si nécessaire<input id="chatKey" type="password" autocomplete="off"></label>
+<button class="secondary" onclick="connectChat()">Détecter et connecter le modèle</button>
+</section>
+<section class="panel wide"><h2>Comparer les recherches</h2>
+<p class="small">Essaie une reformulation qui ne reprend pas les mots de la note, puis un nom d’asset exact. Les résultats indiquent le fichier et les lignes à lire avec mem_read.</p>
+<label>Question ou mots-clés<input id="query" value="Comment empêcher une construction de s’effondrer quand elle reçoit un choc ?" onkeydown="if(event.key==='Enter')search()"></label>
+<button id="searchBtn" onclick="search()">Rechercher</button><span id="mode" role="status"></span>
+<div class="grid" style="margin-top:20px"><div><h2>Mots-clés actuels</h2><div id="lexical" class="empty">Lance une recherche pour comparer.</div></div><div><h2>Recherche hybride</h2><div id="hybrid" class="empty">Lance une recherche pour comparer.</div></div></div>
+</section></div><div id="message" role="status"></div>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let first=true,loading=false,toastTimer,defaultPaths={};
+function selectMemoryDevice(){if($('device').value==='gpu'&&!$('gpu_device').value)$('gpu_device').value=$('provider').value==='transformers'?'cuda:0':'ROCm0'}
+function selectProvider(){const p=defaultPaths[$('provider').value];if(p){$('bin').value=p.bin;$('model').value=p.model}if($('provider').value==='llama_cpp')$('modalities').value='text';if($('device').value==='gpu'){$('gpu_device').value='';selectMemoryDevice()}}
+function message(s){$('message').textContent=s;$('message').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('message').style.display='none',10000)}
+async function api(path,body){const headers={};const token=localStorage.getItem('ajean.key')||'';if(token)headers.Authorization='Bearer '+token;const opt={headers};if(body!==undefined){opt.method='POST';headers['Content-Type']='application/json';opt.body=JSON.stringify(body)}const r=await fetch(path,opt);let j;try{j=await r.json()}catch(e){throw Error('Réponse serveur illisible')}if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j}
+function saveWebKey(){localStorage.setItem('ajean.key',$('webkey').value.trim());$('webkey').value='';load()}
+async function load(){if(loading)return;loading=true;try{const s=await api('/api/embeddings');defaultPaths=s.default_paths||{};if(first){s.config=s.defaults;for(const id of ['provider','device','gpu_device','modalities','dimensions'])$(id).value=s.config[id];$('bin').value=s.config.bin;$('model').value=s.config.model;$('enabled').checked=s.config.enabled;$('port').value=s.config.port;$('threads').value=s.config.threads;$('chatURL').value=s.chat_url||$('chatURL').value;first=false}
+const j=s.job;const state=s.locked?'Mémoire verrouillée':j.running?'Indexation en cours':s.ready?'Encodeur prêt':s.running?'Chargement du modèle':'Encodeur arrêté';
+$('status').textContent=state+' · '+s.pages+' pages · '+s.chunks+' blocs\nProjet : '+s.project+' · '+s.version+'\n'+(j.error||s.note||'');$('status').style.whiteSpace='pre-wrap';$('memoryPath').textContent=s.memory_path;$('progress').hidden=!j.running;if(j.Total){$('progress').max=j.Total;$('progress').value=j.Done}else $('progress').removeAttribute('value');$('indexBtn').disabled=j.running;
+}catch(e){message(e.message)}finally{loading=false}}
+async function saveConfig(){try{await api('/api/embeddings',{enabled:$('enabled').checked,bin:$('bin').value.trim(),model:$('model').value.trim(),port:Number($('port').value),threads:Number($('threads').value),provider:$('provider').value,device:$('device').value,gpu_device:$('gpu_device').value,modalities:$('modalities').value,dimensions:Number($('dimensions').value)});message('Réglages enregistrés. Indexation lancée si activée.');await load()}catch(e){message(e.message)}}
+async function action(action){try{await api('/api/embeddings/action',{action});await load()}catch(e){message(e.message)}}
+async function demo(){try{await api('/api/embeddings/demo',{});message('Trois notes fictives ajoutées dans le projet d’essai. Actualise l’index.');await load()}catch(e){message(e.message)}}
+async function connectChat(){try{const r=await api('/api/embeddings/connect',{url:$('chatURL').value,key:$('chatKey').value});$('chatKey').value='';message('Connecté à '+r.model+'. Le chat est disponible dans le lien en haut.')}catch(e){message(e.message)}}
+function render(id,hits){const el=$(id);el.replaceChildren();if(!hits||!hits.length){el.textContent='Aucun résultat.';return}for(const h of hits){const box=document.createElement('article');box.className='hit';const title=document.createElement('strong');title.textContent=h.File+(h.StartLine?' · lignes '+h.StartLine+'–'+h.EndLine:'');const sub=document.createElement('div');sub.className='small';sub.textContent=h.Title;const p=document.createElement('p');p.textContent=h.Snippet;box.append(title,sub,p);el.append(box)}}
+async function search(){$('searchBtn').disabled=true;try{const r=await api('/api/embeddings/search',{query:$('query').value,limit:5});render('lexical',r.lexical);render('hybrid',r.result.hits);$('mode').textContent=(r.result.mode==='hybrid'?'Hybride':'Mots-clés (repli)')+' · '+r.elapsed_ms+' ms';if(r.result.note)message(r.result.note);await load()}catch(e){message(e.message)}finally{$('searchBtn').disabled=false}}
+async function pickers(){try{const [bins,models]=await Promise.all([api('/api/backends'),api('/api/models')]);for(const [id,items]of [['bins',bins],['models',models.filter(m=>/embeddinggemma/i.test(m.name))]])for(const x of items){const o=document.createElement('option');o.value=x.path;o.label=x.name;$(id).append(o)}}catch(e){}}
+load();pickers();setInterval(load,2000);
+</script>
+</html>

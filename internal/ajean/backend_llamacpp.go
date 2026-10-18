@@ -80,6 +80,9 @@ func cmdLlamacpp(args []string) error {
 // possible (so `update` targets whatever build the service actually runs),
 // otherwise the default under $AJEAN_HOME/backends/llama.cpp.
 func llamacppRepoDir() string {
+	if parallelBuild() {
+		return defaultRepoDir()
+	} // shared BIN is execution-only
 	if bin := ReadConfig()["BIN"]; bin != "" {
 		if real, err := filepath.EvalSymlinks(bin); err == nil {
 			bin = real
@@ -702,6 +705,11 @@ func backendDir(name string) (string, error) {
 	p := filepath.Join(root, name)
 	if !strings.HasPrefix(p, root+string(filepath.Separator)) {
 		return "", fmt.Errorf("nom de backend invalide")
+	}
+	if parallelBuild() {
+		if err := parallelWritablePath(p); err != nil {
+			return "", err
+		}
 	}
 	return p, nil
 }

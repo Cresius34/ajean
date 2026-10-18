@@ -21,12 +21,22 @@ import (
 // notification. Bloque jusqu'à ce que l'utilisateur choisisse « Quitter ».
 func runTray(url string) {
 	systray.Run(func() {
+		title, tip := "AJEAN", "AJEAN — votre IA locale"
+		if parallelBuild() {
+			title = "AJEAN Mémoire TEST"
+			tip = "AJEAN Mémoire TEST — port 18090"
+		}
 		systray.SetIcon(trayIcon())
-		systray.SetTitle("AJEAN")
-		systray.SetTooltip("AJEAN — votre IA locale")
-		mOpen := systray.AddMenuItem("Ouvrir AJEAN", "Ouvrir l'interface")
+		systray.SetTitle(title)
+		systray.SetTooltip(tip)
+		mOpen := systray.AddMenuItem("Ouvrir "+title, "Ouvrir l'interface")
 		systray.AddSeparator()
-		mQuit := systray.AddMenuItem("Quitter", "Arrêter AJEAN et décharger le modèle")
+		quitLabel, quitTip := "Quitter", "Arrêter AJEAN et décharger le modèle"
+		if parallelBuild() {
+			quitLabel = "Quitter le TEST"
+			quitTip = "Arrêter uniquement l’encodeur CPU de cette copie"
+		}
+		mQuit := systray.AddMenuItem(quitLabel, quitTip)
 
 		go func() {
 			for {
@@ -52,7 +62,12 @@ func runTray(url string) {
 		// Windows seulement : ici l'app EST le propriétaire du moteur. Sous
 		// Linux et macOS c'est systemd ou launchd, et fermer une interface n'a
 		// pas à arrêter un service système.
-		_ = svcStop(false)
+		if parallelBuild() {
+			stopEmbeddingServer()
+			_ = parallelServiceAction("stop")
+		} else {
+			_ = svcStop(false)
+		}
 		os.Exit(0)
 	})
 }

@@ -19,7 +19,7 @@ import (
 )
 
 //go:generate go run ../../tools/assemble-ui ui
-//go:embed ui/index.html ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/katex
+//go:embed ui/index.html ui/semantic-memory.html ui/marked.min.js ui/sw.js ui/manifest.webmanifest ui/katex
 var uiFS embed.FS
 
 // cmdWeb starts the HTTP server on the given port (default 8090).
@@ -149,6 +149,8 @@ func newWebMux() *http.ServeMux {
 	// exigée, traduction vers le preset actif (anthropic_api.go).
 	mux.Handle("/v1/messages", anthropicHandler())
 	mux.Handle("/v1/messages/count_tokens", anthropicHandler())
+
+	mux.HandleFunc("/semantic-memory", handleEmbeddingPage)
 	mux.HandleFunc("/marked.min.js", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := uiFS.ReadFile("ui/marked.min.js")
 		w.Header().Set("Content-Type", "application/javascript")
@@ -224,6 +226,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/moe", handleMoe)                                           // moteur MoE : machine, catalogue figé, recommandation, modèles installés
 	api("/api/moe/install", handleMoeInstall)                            // job : paquet figé + installeur du moteur + preset (suivi par /api/llamacpp/job)
 	api("/api/moe/settings", handleMoeSettings)                          // réglages d'un modèle MoE installé (relance s'il est actif)
+	api("/api/moe/verify", handleMoeProbe)                                // test explicite réponse + appel d’outil du prototype
 	api("/api/presets", handlePresets)
 	api("/api/presets/order", handlePresetsOrder)
 	api("/api/preset", handlePreset)
@@ -257,6 +260,12 @@ func newWebMux() *http.ServeMux {
 	api("/api/mcp/timeouts", handleMCPTimeouts)
 	api("/api/mcp/timeouts/save", handleMCPTimeoutsSave)
 	api("/api/memory", handleMemoryMode)
+	api("/api/embeddings", handleEmbeddingSettings)
+	api("/api/embeddings/mode", handleEmbeddingMode)
+	api("/api/embeddings/action", handleEmbeddingAction)
+	api("/api/embeddings/search", handleEmbeddingSearch)
+	api("/api/embeddings/connect", handleEmbeddingConnect)
+	api("/api/embeddings/demo", handleEmbeddingDemo)
 	api("/api/network", handleNetwork) // écoute LAN du moteur + pare-feu (Windows)
 	api("/api/open", handleOpenURL)    // ouvre un lien externe dans le navigateur choisi (la fenêtre AJEAN ne bouge pas)
 	api("/api/prefs", handleWebPrefs)
@@ -506,6 +515,11 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
+	}
+	if parallelBuild() {
+		html := strings.Replace(string(b), "<title>AJEAN</title>", fmt.Sprintf("<title>AJEAN Mémoire TEST R%d · 18090</title>", parallelMemoryRevision), 1)
+		badge := fmt.Sprintf(`<div id="memory-test-build" style="font-size:11px;line-height:1.4;padding:4px 0"><strong>TEST mémoire · R%d</strong><br><span>%s</span></div>`, parallelMemoryRevision, displayVersion())
+		b = []byte(strings.Replace(html, `<div id="memory-test-build" hidden></div>`, badge, 1))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store, max-age=0")

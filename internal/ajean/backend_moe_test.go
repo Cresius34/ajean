@@ -3,6 +3,7 @@ package ajean
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -117,8 +118,8 @@ func TestMoeBuildConfigDrop(t *testing.T) {
 		t.Fatalf("repli mmap attendu : %v", out["env"])
 	}
 	_ = os.WriteFile(filepath.Join(pack, "experts.bin"), []byte("x"), 0o644)
-	_ = os.MkdirAll(filepath.Join(moeSrcDir(), "engine-cuda12"), 0o755)
-	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAsset+"\n"), 0o644)
+	_ = os.MkdirAll(moeEngineDir(), 0o755)
+	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAssetName()+"\n"), 0o644)
 	out, _ = moeBuildConfig(base, cfg, "")
 	e := out["env"].(map[string]any)
 	if e["STRATA_REMOTE_DROP"] != "1" || e["STRATA_ARENA_MMAP"] != nil {
@@ -366,8 +367,8 @@ func TestMoeBuildConfigDropReserveAndCtx(t *testing.T) {
 	pack := filepath.Join(home, "pack")
 	_ = os.MkdirAll(pack, 0o755)
 	_ = os.WriteFile(filepath.Join(pack, "experts.bin"), []byte("x"), 0o644)
-	_ = os.MkdirAll(filepath.Join(moeSrcDir(), "engine-cuda12"), 0o755)
-	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAsset+"\n"), 0o644)
+	_ = os.MkdirAll(moeEngineDir(), 0o755)
+	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAssetName()+"\n"), 0o644)
 	base := map[string]any{"args": []any{"--pack", pack}, "env": map[string]any{}}
 	cfg := map[string]string{"MOE_HELPER_GPU": "0", "MOE_DROP": "1", "CTX": "167936"}
 	out, _ := moeBuildConfig(base, cfg, "")
@@ -385,12 +386,24 @@ func TestMoeBuildConfigDropReserveAndCtx(t *testing.T) {
 	}
 }
 
+// canSymlink : la reprise de migration passe par un lien vers l'ancien
+// environnement Python. Sous Windows un lien symbolique exige un droit
+// particulier (SeCreateSymbolicLink, ou le mode developpeur) : sans lui ce
+// n'est pas le code qu'on peut juger, mais le poste. On le verifie ici.
+func canSymlink(t *testing.T) bool {
+	target := t.TempDir()
+	return os.Symlink(target, filepath.Join(t.TempDir(), "lnk")) == nil
+}
+
 func TestMoeMigrate(t *testing.T) {
+	if runtime.GOOS == "windows" && !canSymlink(t) {
+		t.Skip("liens symboliques interdits sur ce poste : reprise de migration non testable ici")
+	}
 	home := t.TempDir()
 	t.Setenv("AJEAN_HOME", home)
 	oldDir := filepath.Join(moeHome(), "ajean-moe-1.0")
 	newDir := moeSrcDir()
-	for _, d := range []string{filepath.Join(oldDir, ".venv", "bin"), filepath.Join(newDir, "engine-cuda12"), presetsDir()} {
+	for _, d := range []string{filepath.Dir(moeVenvPython(oldDir)), moeEngineDir(), presetsDir()} {
 		_ = os.MkdirAll(d, 0o755)
 	}
 	_ = os.WriteFile(moeVenvPython(oldDir), []byte("#!/bin/sh\n"), 0o755)
@@ -398,7 +411,7 @@ func TestMoeMigrate(t *testing.T) {
 		_ = os.WriteFile(filepath.Join(d, "requirements.txt"), []byte("numpy\n"), 0o644)
 	}
 	_ = os.WriteFile(filepath.Join(newDir, "setup.py"), []byte(""), 0o644)
-	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAsset+"\n"), 0o644)
+	_ = os.WriteFile(moeEngineMarker(), []byte(moeEngineAssetName()+"\n"), 0o644)
 	old := filepath.Join(oldDir, "eng-swift-iq3_xxs.json")
 	_ = os.WriteFile(old, []byte(`{"exe": "`+filepath.Join(oldDir, "engine-cuda12", "e")+`", "args": []}`), 0o644)
 	preset := filepath.Join(presetsDir(), "P.env")

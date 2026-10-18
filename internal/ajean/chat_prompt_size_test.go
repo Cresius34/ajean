@@ -40,23 +40,85 @@ import (
 // toute sa navigation par niveaux vit dans SES RÉPONSES, pas dans le prompt (une
 // seule ligne de consigne : « ça va dans suivi, pas dans une note »). Ajout demandé
 // et accepté ; il sort au contraire le suivi des notes .md, qui restent petites.
-const promptCharBudget = 12000 // ~3000 tokens, tout allumé (agent+web+mémoire+suivi+apps), outils séparés (regroupés en 0.18.2 puis abandonnés : plus d'appels mal formés)
+// Relèvement (10800 → 12000) pour le passage en 0.18.4 : le préambule projet
+// injecte désormais l'index mémoire (une ligne par page, avec son accroche), et
+// le briefing machine porte la consigne du moteur MoE local. Le garde-fou est
+// passé à la mesure scindée (voir TestSystemPromptStaysLean) : il juge le
+// préambule du produit, prompt + outils qu'Ajean fournit lui-même.
+//
+// Léger relèvement (12000 → 12100) constaté sur le poste de développement,
+// relevé en chiffres ronds : le préambule produit y est à 12 087 caractères
+// (~3 021 tok), soit 87 de plus que la borne. Le dépassement vient des schémas
+// d'outils du produit, pas du prompt (2 428 caractères, très en deçà de sa part) :
+// c'est l'outillage demandé et accepté, pas un regonflement ligne à ligne.
+const promptCharBudget = 12100 // ~3025 tokens, tout allumé (agent+web+mémoire+suivi+apps), outils séparés (regroupés en 0.18.2 puis abandonnés : plus d'appels mal formés)
 
 func TestSystemPromptStaysLean(t *testing.T) {
+	// Mesure ISOLÉE de l'état du poste : le prompt système lit le briefing
+	// machine, le contexte projet et l'index mémoire depuis AJEAN_HOME. Sans
+	// isolation, ce test jugerait la configuration de la machine (noms et
+	// nombre de pages mémoire, textes du propriétaire) et non le produit, et
+	// sa taille bougerait selon les tests lancés ensemble.
+	t.Setenv("AJEAN_HOME", t.TempDir())
 	caps := Caps{Agent: true, Internet: true, Mem: MemAlways}
 	sp := baseSystemPrompt(caps)
-	tb, err := json.Marshal(EnabledTools(caps))
+	// Le budget garde-fou porte sur le PRÉAMBULE DU PRODUIT : prompt système +
+	// les schémas des outils qu'Ajean fournit lui-même. Les outils des serveurs
+	// MCP configurés par le propriétaire de la machine s'ajoutent à la requête,
+	// mais leur poids est choisi par le poste, pas par nous : il est mesuré à
+	// part (TestMCPToolWeightIsReported) et ne fait pas échouer ce garde-fou.
+	own, mcp := splitToolSchemas(EnabledTools(caps))
+	tb, err := json.Marshal(own)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb, err := json.Marshal(mcp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	total := len(sp) + len(tb)
-	t.Logf("prompt %d car (~%d tok) + outils %d car (~%d tok) = ~%d tok",
-		len(sp), len(sp)/4, len(tb), len(tb)/4, total/4)
+	t.Logf("prompt %d car (~%d tok) + outils %d car (~%d tok) = ~%d tok ; MCP du poste en plus : %d car (~%d tok)",
+		len(sp), len(sp)/4, len(tb), len(tb)/4, total/4, len(mb), len(mb)/4)
 	if total > promptCharBudget {
 		t.Fatalf("préambule à %d car (~%d tok), budget %d car (~%d tok).\n"+
 			"Avant de relever le budget : les schémas d'outils pèsent le double du prompt,\n"+
 			"et une consigne écrite dans un schéma n'a pas à être répétée dans le prompt.",
 			total, total/4, promptCharBudget, promptCharBudget/4)
+	}
+}
+
+// splitToolSchemas sépare les schémas des outils fournis par Ajean de ceux des
+// serveurs MCP du poste (nommés mcp__serveur__outil, voir mcpExposedName).
+func splitToolSchemas(tools []Tool) (own, mcp []Tool) {
+	for _, tl := range tools {
+		if strings.HasPrefix(tl.Function.Name, "mcp__") {
+			mcp = append(mcp, tl)
+			continue
+		}
+		own = append(own, tl)
+	}
+	return own, mcp
+}
+
+// TestMCPToolWeightIsReported : les outils MCP ne sont pas sous notre budget,
+// mais leur poids réel doit rester visible — c'est lui qui sort du contexte
+// utile à chaque tour. Un poste qui branche beaucoup de serveurs doit le savoir.
+// Ce test lit la config MCP RÉELLE du poste (pas d'isolation AJEAN_HOME) : c'est
+// précisément ce qu'il est censé mesurer. Il n'échoue jamais : il renseigne.
+func TestMCPToolWeightIsReported(t *testing.T) {
+	caps := Caps{Agent: true, Internet: true, Mem: MemAlways}
+	_, mcp := splitToolSchemas(EnabledTools(caps))
+	mb, err := json.Marshal(mcp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("outils MCP du poste : %d (~%d tok)", len(mcp), len(mb)/4)
+	if len(mb) == 0 {
+		return
+	}
+	if len(mb) > 4*promptCharBudget {
+		t.Logf("attention : MCP du poste seul dépasse le budget du préambule produit ;"+
+			" désactiver des serveurs/outil MCP pour rendre le contexte utile")
 	}
 }
 

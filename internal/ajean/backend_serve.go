@@ -219,6 +219,13 @@ func containsAny(args []string, needles ...string) bool {
 // supervises llama-server directly).
 func cmdServe(args []string) error {
 	cfg := ReadConfig()
+	if parallelBuild() {
+		var err error
+		cfg, err = normalizeParallelConfig(cfg)
+		if err != nil {
+			return err
+		}
+	}
 	// GPU Cloud : même port, même API, mais le modèle tourne chez Modal.
 	if isCloudConfig(cfg) {
 		return serveCloudProxy(cfg)
@@ -252,6 +259,11 @@ func cmdServe(args []string) error {
 		return err
 	}
 	model = resolved
+	if parallelBuild() {
+		if err := parallelWritablePath(model); err != nil {
+			return err
+		}
+	}
 	if _, err := os.Stat(model); err != nil {
 		return fmt.Errorf("modèle introuvable : %s", model)
 	}
@@ -331,6 +343,11 @@ func cmdServe(args []string) error {
 		if _, err := os.Stat(mmPath); err != nil {
 			return fmt.Errorf("projecteur vision introuvable : %s", mmPath)
 		}
+		if parallelBuild() {
+			if err := parallelWritablePath(mmPath); err != nil {
+				return err
+			}
+		}
 		llmArgs = append(llmArgs, "--mmproj", mmPath)
 	}
 	// Décodage spéculatif à modèle de draft (EAGLE-3, dFlash, dSpark, modèle
@@ -346,6 +363,11 @@ func cmdServe(args []string) error {
 		}
 		if _, err := os.Stat(mdPath); err != nil {
 			return fmt.Errorf("modèle de draft introuvable : %s", mdPath)
+		}
+		if parallelBuild() {
+			if err := parallelWritablePath(mdPath); err != nil {
+				return err
+			}
 		}
 		llmArgs = append(llmArgs, "--model-draft", mdPath)
 	}
@@ -391,6 +413,9 @@ func cmdServe(args []string) error {
 	// EXTRA_ARGS is appended verbatim, split like the shell would — quotes kept
 	// together so a path with spaces stays one argument.
 	llmArgs = append(llmArgs, splitArgs(cfg["EXTRA_ARGS"])...)
+	if parallelBuild() {
+		llmArgs = append(parallelNetworkArgs(llmArgs), "--host", "127.0.0.1", "--port", parallelChatPort)
+	}
 
 	// Compat llama.cpp récent : --mlock / --no-mmap ont été REMPLACÉS par
 	// --load-mode. Sur un tel moteur, les anciens drapeaux le font mourir au

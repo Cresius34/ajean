@@ -27,6 +27,117 @@ import (
 	"time"
 )
 
+// strataDeviceTool : le moteur MoE (Strata) ne connaît PAS --list-devices (son
+// llama.cpp recompiled a une CLI propre : « unknown argument »). Il fournit à la
+// place son propre énumérateur, strata-device(.exe), posÉ À CÔTÉ du moteur par
+// l'installeur, et dont la sortie est lisible sans outillage externe :
+//
+//	device 0: AMD Radeon AI PRO R9700
+//	  arch gfx1201, 31.9 GiB, wave32
+//
+// C'est la seule voie d'énumération sur une machine AMD sous Windows, où ni
+// nvidia-smi ni amd-smi/rocm-smi ne sont installés. Renvoie nil quand l'outil
+// n'est pas là (moteur llama.cpp standard, installation partielle).
+func strataDeviceTool(bin string) string {
+	base := strings.ToLower(filepath.Base(bin))
+	if base != "strata" && base != "strata.exe" {
+		return ""
+	}
+	for _, name := range []string{"strata-device.exe", "strata-device"} {
+		p := filepath.Join(filepath.Dir(bin), name)
+		if isFile(p) {
+			return p
+		}
+	}
+	return ""
+}
+
+// strataArchNames : le nom de la puce à partir de l'architecture gfx, quand
+// strata-device n'annonce pas de nom commercial (puces non AMD, outillage
+// partiel). Le nom reste plus parlant qu'un « gfx1201 » nu dans l'UI.
+var strataArchNames = map[string]string{
+	"gfx900": "Radeon Instinct MI25", "gfx906": "Radeon Instinct MI50", "gfx908": "Radeon Instinct MI60",
+	"gfx90a": "Radeon Instinct MI100", "gfx940": "Instinct MI300", "gfx941": "Instinct MI300",
+	"gfx942": "Instinct MI300", "gfx1030": "Radeon RX 7000", "gfx1031": "Radeon RX 7000",
+	"gfx1032": "Radeon RX 7000", "gfx1034": "Radeon RX 7000", "gfx1035": "Radeon RX 7000",
+	"gfx1100": "Radeon RX 7900", "gfx1101": "Radeon RX 7800", "gfx1102": "Radeon RX 7600",
+	"gfx1103": "Radeon RX 7000", "gfx1150": "Radeon RX 9000", "gfx1151": "Radeon RX 9000",
+	"gfx1152": "Radeon RX 9000", "gfx1200": "Radeon RX 9000", "gfx1201": "Radeon RX 9000",
+}
+
+var (
+	strataDeviceLine = regexp.MustCompile(`^\s*device\s+(\d+):\s*(.+?)\s*$`)
+	strataDeviceMeta = regexp.MustCompile(`(?i)arch\s+([a-z0-9_]+),\s*([0-9.]+)\s*GiB`)
+	// strataArchOnly : le nom que strata-device donne quand il ne connaît pas la
+	// puce (« gfx1100 » nu). Un nom d'arch tout seul est moins parlant qu'une
+	// famille de carte, on le remplace par le nom commercial connu.
+	strataArchOnly = regexp.MustCompile(`(?i)^gfx[0-9]+$`)
+)
+
+// parseStrataDevices extrait les devices de la sortie de `strata-device
+// --list-devices` (voir strataDeviceTool pour la forme). « free » n'est PAS
+// connu par cette voie : strata-device annonce la mémoire matérielle de la
+// carte, pas ce qu'il reste libre. On rend donc free = total, comme
+// fillMissingMemory le fait pour les moteurs qui ne donnent que le total :
+// sous Windows, « used » est de toute façon remplacé par les compteurs
+// système (applyWindowsDedicatedUsage).
+func parseStrataDevices(out string) []map[string]any {
+	devs := []map[string]any{}
+	fallback := []bool{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if m := strataDeviceLine.FindStringSubmatch(line); m != nil {
+			id := "GPU" + m[1]
+			name := strings.TrimSpace(m[2])
+			if name == "" {
+				name = id
+			}
+			fallback = fallback[:len(devs)]
+			fallback = append(fallback, strataArchOnly.MatchString(name))
+			devs = append(devs, map[string]any{
+				"id": id, "name": name, "total_mib": 0, "free_mib": 0,
+			})
+			continue
+		}
+		if len(devs) == 0 {
+			continue
+		}
+		m := strataDeviceMeta.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		last := &devs[len(devs)-1]
+		gib, err := strconv.ParseFloat(m[2], 64)
+		if err == nil && gib > 0 {
+			total := int(gib * 1024)
+			(*last)["total_mib"] = total
+			(*last)["free_mib"] = total
+		}
+		if fallback[len(devs)-1] {
+			if label, ok := strataArchNames[strings.ToLower(m[1])]; ok {
+				(*last)["name"] = label
+			}
+		}
+	}
+	return devs
+}
+
+// strataDevices : la liste des GPU du moteur MoE, au même format que
+// parseListDevices ({id, name, total_mib, free_mib}).
+func strataDevices(tool string) []map[string]any {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := hideCmd(exec.CommandContext(ctx, tool, "--list-devices"))
+	// strata.exe charge ses DLL ROCm depuis le dossier du moteur : l'y mettre
+	// au PATH est ce que fait l'installeur du moteur (BUILD.json « lib_dirs »).
+	cmd.Env = append(os.Environ(), libraryPathEnv(filepath.Dir(tool))...)
+	out, err := cmd.CombinedOutput()
+	if err != nil && len(out) == 0 {
+		return nil
+	}
+	return parseStrataDevices(string(out))
+}
+
 // deviceLine matche « CUDA0: NVIDIA GeForce RTX 5060 Ti (15849 MiB, 15579 MiB free) ».
 var deviceLine = regexp.MustCompile(`^\s*([A-Za-z]+\d+):\s*(.+?)\s*\((\d+)\s*MiB,\s*(\d+)\s*MiB free\)\s*$`)
 
@@ -192,6 +303,31 @@ func handleBackendDevices(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, map[string]any{"ok": false, "error": "moteur introuvable — choisissez d'abord un moteur"})
 		return
 	}
+	// Le moteur MoE (Strata) est un llama.cpp recompilé par son propre installeur :
+	// il ne connaît PAS --list-devices (« unknown argument », sa CLI est dédiée) et
+	// livre à la place son énumérateur strata-device. On le branche ici, AVANT le
+	// garde-fou sur le nom du binaire, pour que l'encart « appareils » de l'UI
+	// fonctionne avec le MoE — c'est la seule voie d'énumération sur une machine
+	// AMD sous Windows, où nvidia-smi et amd-smi/rocm-smi sont absents.
+	if tool := strataDeviceTool(bin); tool != "" {
+		cacheKey := tool
+		if devs, ok := devCacheGet(cacheKey); ok {
+			sendJSON(w, 200, map[string]any{"ok": true, "devices": devs})
+			return
+		}
+		devs := strataDevices(tool)
+		if len(devs) == 0 {
+			sendJSON(w, 200, map[string]any{"ok": false, "error": "strata-device n'a rien renvoyé"})
+			return
+		}
+		fillMissingMemory(devs)
+		if !hasZeroMemory(devs) {
+			devCachePut(cacheKey, devs)
+			devPersistPut(cacheKey, devs)
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "devices": devs})
+		return
+	}
 	// Garde-fou : on n'exécute que le serveur llama.cpp, pas n'importe quel
 	// chemin qui passerait par cette requête.
 	if base := strings.ToLower(filepath.Base(bin)); base != "llama-server" && base != "llama-server.exe" {
@@ -282,6 +418,10 @@ var (
 )
 
 func listDevicesCached(bin string) []map[string]any {
+	// Moteur MoE : --list-devices n'existe pas, on passe par strata-device.
+	if tool := strataDeviceTool(bin); tool != "" {
+		return strataDevices(tool)
+	}
 	win := runtime.GOOS == "windows"
 	if win {
 		listDevMu.Lock()

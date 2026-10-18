@@ -40,6 +40,37 @@ Les réglages mémoire dans Général et les presets restent disponibles. Le bou
 MoE, en conservant ses clés de moteur. Les encodeurs mémoire et la vision du
 modèle de conversation ont des paramètres indépendants.
 
+## Ce qui fait apparaître le moteur dans la liste
+
+La liste des moteurs MoE proposés vient des presets, pas de la carte graphique :
+`ListPresets()` lit `<AJEAN_HOME>/presets/*.env`, et un moteur n'est annoncé
+« installé » que si l'un de ces fichiers porte `ENGINE=moe` avec
+`MOE_RUNTIME=strata-windows` ; une famille n'affiche son modèle que si le nom
+du preset correspond. Retirer le seul `FLASH NEXT SWIFT 1.5 IQ3_XXS · HIP.env`
+fait disparaître l'entrée du modèle. Le portique matériel reste visible sans
+preset : `supported` / `visible` ne dépendent pas des `.env`.
+
+Un preset de moteur llama.cpp classique (clé `BIN`, pas de clé `ENGINE`) n'est
+pas un preset MoE et ne compte pas dans cette liste.
+
+## Piège du build parallèle : `AJEAN_HOME` et port 18090
+
+`cmd/ajean-memory-test` (build de test, `BuildFlavor = "embedding-test"`)
+**ignore un `AJEAN_HOME` hérité** : `initParallelProfile()` réécrit
+`AJEAN_HOME = <dossier de l'exe>\data` (`internal/ajean/parallel_profile.go:45`).
+Son dossier de presets est imposé par l'endroit où vit l'exe — déplacer l'exe
+change la liste des moteurs, et un exe posé dans un dossier sans
+`data\presets\*.env` n'affiche aucun moteur MoE, quel que soit le matériel.
+
+Il écoute de plus **18090 en dur** (`parallel_profile.go:127`) et refuse de
+démarrer si ce port est pris :
+
+    port d'essai 18090 occupé ; aucun processus arrêté : listen tcp 127.0.0.1:18090
+
+`app`, `web` et le double-clic sont détournés vers `cmdParallelApp()`. Pour
+servir sur un port libre ou mesurer une configuration isolée, utiliser le
+binaire officiel `cmd/ajean` : il respecte `AJEAN_HOME` et accepte un port.
+
 ## Intégration retenue
 
 [Strata 0.1.44.1](https://github.com/Niko1221/Strata/releases/tag/v0.1.44.1),

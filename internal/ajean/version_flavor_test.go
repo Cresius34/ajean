@@ -37,9 +37,11 @@ func TestVersionFlavorWindowsSuit(t *testing.T) {
 	if want != Version+buildFlavorSuffix {
 		t.Errorf("displayVersion() = %q, attendu %q", want, Version+buildFlavorSuffix)
 	}
-	// Le suffixe doit rester un identifiant de version semver exploitable.
-	if len(buildFlavorSuffix) < 2 || buildFlavorSuffix[0] != '+' {
-		t.Errorf("buildFlavorSuffix = %q, doit commencer par '+' (portable, sans '+')", buildFlavorSuffix)
+	// Le suffixe doit rester un identifiant de version exploitable : depuis la
+	// v0.18.4.1 Cresius, c'est un incrément de correctif ('.') suivi du nom du
+	// patch, plus une chaîne de construction semver ('+').
+	if len(buildFlavorSuffix) < 2 || (buildFlavorSuffix[0] != '+' && buildFlavorSuffix[0] != '.') {
+		t.Errorf("buildFlavorSuffix = %q, doit commencer par '+' ou '.' (portable, sans '+')", buildFlavorSuffix)
 	}
 }
 

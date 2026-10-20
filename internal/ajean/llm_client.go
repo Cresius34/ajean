@@ -647,6 +647,32 @@ func dedupableTool(name string) bool {
 	return !strings.HasPrefix(name, "browser_")
 }
 
+// callMemo : résultat déjà rendu pour une clé d'appel, avec l'ère du contexte au
+// moment où il a été obtenu (cf. dedupStillHolds).
+type callMemo struct {
+	result string
+	epoch  int
+}
+
+// maxRevives : nombre de fois où un même appel, tombé dans une ère révolue, est
+// rejoué pour rendre son contenu. Une seule suffit : si le modèle redemande
+// après le rappel, l'escalade de repeatedCallResult (palier 1) lui rend encore
+// une fois le résultat avant de refuser.
+const maxRevives = 1
+
+// dedupStillHolds dit si le résultat mémorisé pour un appel peut encore être
+// resservi à la place de l'exécution. Ça ne tient que si le contexte n'a pas été
+// RÉÉCRIT depuis (même ère). Une compaction résume le torse et remplace les
+// vieux résultats d'outils par un marqueur : le contenu que la dédup resservait
+// n'est plus nulle part dans ce que voit le modèle. Le resservir ne lui rend
+// donc rien — il lit un « déjà fait » sans la marchandise, conclut à une panne,
+// et insiste (mesuré : trois relances de suite, dont une au 3ᵉ appel). Quand
+// l'ère a changé, on laisse passer l'exécution : le contenu revient, et le memo
+// recalé à l'exécution (même ère, palier 2 de repeatedCallResult) interdit la
+// boucle. Le compteur d'escalade, lui, continue sans reset : redemander la même
+// chose après le rappel se fait refuser.
+func dedupStillHolds(memo callMemo, epoch int) bool { return memo.epoch == epoch }
+
 // repeatedCallResult construit ce qu'on renvoie quand le modèle redemande un
 // appel RIGOUREUSEMENT identique (même outil, mêmes arguments) dans le même tour.
 // L'appel n'est jamais rejoué — on répond depuis le résultat mémorisé.
@@ -995,12 +1021,25 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// à vide, une par étape, sur une longue tâche de Jean).
 	compactRetryAt := 0
 	// Appels d'outil déjà exécutés (clé = nom + arguments bruts) : sert à ne pas
-	// rejouer deux fois exactement la même écriture dans un même échange.
-	doneCalls := map[string]string{}
+	// rejouer deux fois exactement la même écriture dans un même échange. Le
+	// résultat est gardé avec l'« ère » du contexte au moment de l'exécution
+	// (cf. ctxEpoch).
+	doneCalls := map[string]callMemo{}
+	// Ère du contexte : incrémentée chaque fois que l'historique est RÉÉCRIT en
+	// vol (compaction réactive, réduction d'urgence, compaction d'en-tour). Une
+	// telle réécriture efface ou résume des blocs déjà lus : le résultat rappelé
+	// depuis la mémoire de session peut alors ne plus rien contenir pour le
+	// modèle. La dédup n'est donc opposée que si l'appel remonte à la même ère
+	// (cf. dedupStillHolds) ; sinon on ré-exécute, et le contenu revient.
+	ctxEpoch := 0
 	// Nombre de fois où le modèle a REDEMANDÉ un appel déjà exécuté. Sert à durcir
 	// la réponse progressivement (voir repeatedCallResult) : rendre le contenu une
 	// fois, puis refuser en le renvoyant vers ce qu'il a déjà.
 	repeatCount := map[string]int{}
+	// Nombre de fois où un appel d'une ère révolue a été REJOUÉ pour rendre le
+	// contenu que la compaction avait effacé. Plafonné : rejouer en boucle
+	// re-ferait déborder le contexte qu'on vient justement de libérer.
+	reviveCount := map[string]int{}
 	// Garde-fou « pensé sans agir » : certains modèles à reasoning planifient un
 	// appel d'outil dans leur <think> puis émettent le token de fin SANS l'émettre
 	// (ni réponse, ni tool_call). On relance alors le tour avec un nudge explicite
@@ -1121,6 +1160,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					// ligne comparait le résultat à lui-même et n'apprenait rien.
 					logCompact("réactif", 0, messages, c, changed)
 					messages = c
+					ctxEpoch++
 					// Même publication qu'en cours de tour : sans elle, la compaction de
 					// secours ne survit pas à la fin du tour et le prompt re-déborde au
 					// message suivant.
@@ -1136,6 +1176,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					shrinkRetries++
 					logCompact("réduction", overflowTokens(msg), messages, c, changed)
 					messages = c
+					ctxEpoch++
 					extra = nil
 					cb(StreamEvent{NewHistory: append([]Message(nil), messages...)})
 					continue
@@ -1678,14 +1719,27 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					continue
 				}
 				callKey := tc.Function.Name + "\x00" + tc.Function.Arguments
-				if prev, seen := doneCalls[callKey]; seen && dedupableTool(tc.Function.Name) {
-					repeatCount[callKey]++
-					result = repeatedCallResult(prev, repeatCount[callKey])
-					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
-					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
-					messages = append(messages, toolMsg)
-					extra = append(extra, toolMsg)
-					continue
+				// revived : l'appel avait déjà été fait, mais AVANT une réécriture du
+				// contexte (compaction). On le rejoue et on le signale, pour que le
+				// modèle ne lise pas le contenu frais comme un bug et ne relance pas.
+				revived := false
+				if memo, seen := doneCalls[callKey]; seen && dedupableTool(tc.Function.Name) {
+					if !dedupStillHolds(memo, ctxEpoch) && reviveCount[callKey] < maxRevives {
+						// L'appel remonte à une ère révolue : son résultat a été
+						// résumé ou effacé du contexte. On le rejoue UNE fois pour
+						// rendre le contenu (au-delà, on retombe sur l'escalade :
+						// rejouer en boucle re-ferait déborder le contexte).
+						reviveCount[callKey]++
+						revived = true
+					} else {
+						repeatCount[callKey]++
+						result = repeatedCallResult(memo.result, repeatCount[callKey])
+						cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
+						toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
+						messages = append(messages, toolMsg)
+						extra = append(extra, toolMsg)
+						continue
+					}
 				}
 				// Mode Jean : les outils task_* travaillent sur les tâches de Jean (pas
 				// celles du projet actif), et une tâche créée parlera dans son fil.
@@ -1877,12 +1931,20 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					}
 				}
 				result = capToolResult(result)
+				failed := strings.HasPrefix(result, "[erreur]")
 				shot := ""
-				if !strings.HasPrefix(result, "[erreur]") {
-					doneCalls[callKey] = result
+				if !failed {
+					doneCalls[callKey] = callMemo{result: result, epoch: ctxEpoch}
 					if cuAutoShotTool(tc.Function.Name) {
 						shot = cuAutoShot()
 					}
+				}
+				// Le memo garde le résultat NU (sinon le préfixe se rejouerait à chaque
+				// redemande dédupliquée de la même ère) ; seul le message rendu au
+				// modèle est annoncé, pour qu'il ne lise pas ce contenu frais comme un
+				// doublon et ne relance pas.
+				if revived && !failed {
+					result = "[rappel] Cet appel exact avait déjà été exécuté plus tôt, mais le contexte a été compacté depuis : il a été rejoué pour te rendre le contenu. Ne le redemande pas.\n\n" + result
 				}
 				cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, Diff: diff, Added: diffAdd, Removed: diffDel, ArgToks: flushArgToks(), Shot: shot}, result)})
 				toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
@@ -1941,6 +2003,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				}
 				if changed {
 					messages = c
+					ctxEpoch++
 					tools = withRecallTools(EnabledTools(caps), messages)
 					// La nouvelle base contient déjà tout ce tour : on la publie et on
 					// repart d'un `extra` vide, sinon l'appelant la ré-empilerait avec

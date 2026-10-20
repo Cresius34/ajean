@@ -18,13 +18,20 @@ import (
 
 var BuildFlavor string
 
-const parallelMemoryRevision = 6
+// parallelMemoryRevision identifie la génération d'interface servie (champ API
+// memory_ui_revision). Il n'apparaît plus comme repère visuel depuis la
+// v0.18.4.1 Cresius : le bandeau affiche un intitulé, plus un numéro de revue.
+const parallelMemoryRevision = 7
 
-// buildFlavorSuffix is the public identity of this build: base v0.18.4 plus the
-// three tracks it carries (internet/crawl4ai repair, EmbeddingGemma 2 engine,
-// AMD MoE Strata backend). Must stay identical to cmd/ajean-memory-test
-// versioninfo.json StringFileInfo.ProductVersion, checked by TestVersionFlavor.
-const buildFlavorSuffix = "+crawl4ai-repair+embeddingv2+AMDmoe"
+// buildFlavorSuffix est l'identité publique de ce build : la base v0.18.4
+// suivie du millésime Cresius. Doit rester identique à
+// cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
+// FileVersion), vérifié par TestVersionFlavorWindowsSuit.
+const buildFlavorSuffix = ".1 Cresius"
+
+// uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
+// place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.
+const uiBadgeLabel = "Patch correctif de Cresius"
 
 func displayVersion() string {
 	if parallelBuild() {

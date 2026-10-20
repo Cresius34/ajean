@@ -17,7 +17,7 @@ func TestParallelDeliveryServesMemoryControlsAndRevision(t *testing.T) {
 		t.Fatalf("page non servie sans cache : %d %v", w.Code, w.Header())
 	}
 	body := w.Body.String()
-	for _, marker := range []string{displayVersion(), "TEST mémoire · R6", `id="memory-system"`, `id="m-memory-block"`, `id="m-memory-device"`, `id="m-memory-image"`, `id="m-memory-audio"`, `id="m-memory-video"`, "function setMemorySystem", "function populateMemoryPreset", `id="moe-windows-options"`, `id="moe-backend"`, `id="moe-memory-edit"`, `id="moe-verify"`, "function moeVerify"} {
+	for _, marker := range []string{displayVersion(), uiBadgeLabel, `id="memory-system"`, `id="m-memory-block"`, `id="m-memory-device"`, `id="m-memory-image"`, `id="m-memory-audio"`, `id="m-memory-video"`, "function setMemorySystem", "function populateMemoryPreset", `id="moe-windows-options"`, `id="moe-backend"`, `id="moe-memory-edit"`, `id="moe-verify"`, "function moeVerify"} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("interface embarquée incomplète : %s absent", marker)
 		}
@@ -30,8 +30,8 @@ func TestParallelDeliveryServesMemoryControlsAndRevision(t *testing.T) {
 	BuildFlavor = ""
 	w = httptest.NewRecorder()
 	handleIndex(w, httptest.NewRequest("GET", "http://127.0.0.1/", nil))
-	if strings.Contains(w.Body.String(), "TEST mémoire · R6") {
-		t.Error("badge TEST affiché dans le point d'entrée normal")
+	if strings.Contains(w.Body.String(), uiBadgeLabel) {
+		t.Error("badge du patch affiché dans le point d'entrée normal")
 	}
 }
 

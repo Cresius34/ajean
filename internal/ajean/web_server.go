@@ -517,8 +517,8 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if parallelBuild() {
-		html := strings.Replace(string(b), "<title>AJEAN</title>", fmt.Sprintf("<title>AJEAN Mémoire TEST R%d · 18090</title>", parallelMemoryRevision), 1)
-		badge := fmt.Sprintf(`<div id="memory-test-build" style="font-size:11px;line-height:1.4;padding:4px 0"><strong>TEST mémoire · R%d</strong><br><span>%s</span></div>`, parallelMemoryRevision, displayVersion())
+		html := strings.Replace(string(b), "<title>AJEAN</title>", fmt.Sprintf("<title>AJEAN %s · 18090</title>", displayVersion()), 1)
+		badge := fmt.Sprintf(`<div id="memory-test-build" style="font-size:11px;line-height:1.4;padding:4px 0"><strong>%s</strong><br><span>%s</span></div>`, uiBadgeLabel, displayVersion())
 		b = []byte(strings.Replace(html, `<div id="memory-test-build" hidden></div>`, badge, 1))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

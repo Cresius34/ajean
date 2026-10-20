@@ -1,10 +1,10 @@
-# Notes de version — AJEAN 0.18.4+rev8
+# Notes de version — AJEAN 0.18.4.1+rev9
 
 **Français** · [English](#english)
 
-Révision locale **rev8** appliquée sur la base officielle **v0.18.4**
+Révision locale **rev9** appliquée sur la base officielle **v0.18.4**
 (`76f60c0`). Elle n'est pas publiée sur `nathaninline/ajean` : elle vit sur
-le dépôt `Cresius34/ajean`, étiquetée **`v0.18.4+rev8`**.
+le dépôt `Cresius34/ajean`, étiquetée **`v0.18.4.1+rev9`**.
 
 Cinq chantiers :
 
@@ -164,10 +164,23 @@ Les presets MoE portent un nom de la forme
 | Élément | Valeur |
 | --- | --- |
 | Version de base (`internal/ajean/run.go`) | `const Version = "0.18.4"` |
-| Suffixe public (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = "+crawl4ai-repair+embeddingv2+AMDmoe"` |
-| Version affichée | `0.18.4+crawl4ai-repair+embeddingv2+AMDmoe` |
-| Étiquette Git | `v0.18.4+rev8` |
+| Suffixe public (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".1 Cresius"` |
+| Version affichée | `0.18.4.1 Cresius` |
+| Étiquette Git | `v0.18.4.1+rev9` |
 | Base officielle | `v0.18.4` — `76f60c0` |
+| Moteur MoE embarqué | Strata **`0.1.44.1`** — `296b59d2…`, **inchangé** depuis `v0.18.4+rev8` |
+
+### Le moteur MoE n'a pas changé de version
+
+`moe_windows_manifest.json` est **identique** (même SHA, `05cc37b6…`) entre
+`8300729` — l'état de la livraison `v0.18.4+rev8` — et la tête de `main`.
+Le pack Windows HIP embarqué reste donc **Strata 0.1.44.1** : les fichiers du
+dépôt [Niko1221/Strata](https://github.com/Niko1221/Strata) ont bougé depuis
+(0.1.45, 0.2.0 et 0.2.1 sont sortis entre-temps), **mais aucune de ces versions
+n'est embarquée ici**. Passer à 0.1.45+ est une décision à part : le pack HIP
+pèse 643 Mo, il faut le retélécharger et re-vérifier la répartition
+VRAM/RAM sur la machine.
+
 
 ## Installation
 
@@ -343,10 +356,22 @@ never a file name.
 | Item | Value |
 | --- | --- |
 | Base version (`internal/ajean/run.go`) | `const Version = "0.18.4"` |
-| Public suffix (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = "+crawl4ai-repair+embeddingv2+AMDmoe"` |
-| Version displayed | `0.18.4+crawl4ai-repair+embeddingv2+AMDmoe` |
-| Git tag | `v0.18.4+rev8` |
+| Public suffix (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".1 Cresius"` |
+| Version displayed | `0.18.4.1 Cresius` |
+| Git tag | `v0.18.4.1+rev9` |
 | Official base | `v0.18.4` — `76f60c0` |
+| Bundled MoE engine | Strata **`0.1.44.1`** — `296b59d2…`, **unchanged** since `v0.18.4+rev8` |
+
+### The MoE engine did not change version
+
+`moe_windows_manifest.json` is **identical** (same SHA, `05cc37b6…`) between
+`8300729` — the state shipped as `v0.18.4+rev8` — and the tip of `main`.
+The bundled Windows HIP pack is still **Strata 0.1.44.1**: files in
+[Niko1221/Strata](https://github.com/Niko1221/Strata) did move since
+(0.1.45, 0.2.0 and 0.2.1 were released meanwhile), **but none of those
+versions is bundled here**. Moving to 0.1.45+ is a decision of its own: the
+HIP pack weighs 643 MB, it has to be re-downloaded and the VRAM/RAM split
+re-verified on the machine.
 
 ## Installation
 

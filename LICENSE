@@ -2,6 +2,10 @@ MIT License
 
 Copyright (c) 2026 Jean contributors
 
+Upstream project: AJEAN by nathaninline (https://github.com/nathaninline/ajean).
+This repository is a private fork kept for personal use on one specific machine.
+The fork's patch line (0.18.4.1 Cresius) does not change the MIT terms above.
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights

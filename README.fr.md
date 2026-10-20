@@ -4,6 +4,18 @@
 
 ![Interface web d'AJEAN](docs/ui.png)
 
+> **Projet dérivé, usage personnel.** Ce dépôt est le **fork** de
+> [**nathaninline/ajean**](https://github.com/nathaninline/ajean), créé et maintenu par
+> **nathaninline** — le projet principal, et la seule source des versions publiées d'AJEAN.
+> Ce qui suit décrit AJEAN **en général**. Ce fork-ci porte une branche de correctifs
+> privée (**0.18.4.1 Cresius**) répondant aux besoins d'une machine précise : moteur MoE
+> **Strata** sur AMD, recherche par embeddings, correctifs Crawl4AI. Ces ajouts ne sont
+> **pas** des versions de l'amont et ne sont **pas** garantis transposables ailleurs.
+> Pour installer AJEAN, prenez les versions publiées sur
+> [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
+> Le moteur MoE utilisé ici provient de [Niko1221/Strata](https://github.com/Niko1221/Strata).
+> Détail de ce que cette branche modifie : [NOTICE.md](NOTICE.md).
+
 **Votre propre IA, chez vous.** AJEAN est un programme unique qui transforme un ordinateur équipé d'une carte graphique (ou d'un simple processeur) en assistant IA complet : une interface de discussion, une mémoire, des outils, l'accès au web, des tâches planifiées et l'accès depuis votre téléphone, sans que rien ne quitte votre machine.
 
 AJEAN s'occupe de tout ce qui entoure le modèle. Le modèle lui-même tourne sur [llama.cpp](https://github.com/ggml-org/llama.cpp), qu'AJEAN installe et tient à jour pour vous.
@@ -347,7 +359,8 @@ La clé circule en clair en HTTP : pour une exposition publique, placez un HTTPS
 Go 1.25 ou plus. AJEAN est écrit entièrement en Go ; l'interface est intégrée au binaire.
 
 ```bash
-git clone https://github.com/nathaninline/ajean.git
+git clone https://github.com/Cresius34/ajean.git
+# Fork personnel (correctifs Cresius). Projet principal : https://github.com/nathaninline/ajean
 cd ajean
 CGO_ENABLED=0 go build -o ajean ./cmd/ajean   # Linux, Windows
 go build -o ajean ./cmd/ajean                 # macOS (l'icône de la barre de menus exige CGO)
@@ -364,4 +377,4 @@ L'interface existe en anglais et en français ; voir [docs/TRANSLATING.md](docs/
 
 ## Licence
 
-[MIT](LICENSE). Le fichier intégré `marked.min.js` est [Marked](https://github.com/markedjs/marked), lui aussi sous licence MIT.
+[MIT](LICENSE), identique à celle du projet amont. Le fichier intégré `marked.min.js` est [Marked](https://github.com/markedjs/marked), lui aussi sous licence MIT. Le moteur MoE utilisé ici vient de [Strata](https://github.com/Niko1221/Strata), qui garde ses propres termes. Voir [NOTICE.md](NOTICE.md) pour l'ascendance complète de ce dépôt.

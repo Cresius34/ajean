@@ -4,6 +4,17 @@
 
 ![AJEAN web interface](docs/ui.png)
 
+> **Derived project, personal use.** This repository is a **fork** of
+> [**nathaninline/ajean**](https://github.com/nathaninline/ajean), created and maintained by
+> **nathaninline** — the upstream project, and the only source of published AJEAN releases.
+> Everything below describes AJEAN **in general**. This fork carries a private patch line
+> (**0.18.4.1 Cresius**) for one specific machine: the **Strata** MoE engine on AMD,
+> embedding search, Crawl4AI fixes. Those additions are **not** upstream releases, and are
+> **not** guaranteed to work elsewhere. To install AJEAN, use the releases published on
+> [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
+> The MoE engine used here comes from [Niko1221/Strata](https://github.com/Niko1221/Strata).
+> What exactly this branch changes: [NOTICE.md](NOTICE.md).
+
 **Run your own AI at home.** AJEAN is a single program that turns a computer with a graphics card (or a plain CPU) into a complete AI assistant: a chat interface, memory, tools, web access, scheduled tasks, and access from your phone, with nothing leaving your machine.
 
 AJEAN handles everything around the model. The model itself runs on [llama.cpp](https://github.com/ggml-org/llama.cpp), which AJEAN installs and keeps up to date for you.
@@ -366,7 +377,8 @@ The key travels in the clear over HTTP: for public exposure, put HTTPS in front 
 Go 1.25 or later. AJEAN is pure Go; the interface is embedded in the binary.
 
 ```bash
-git clone https://github.com/nathaninline/ajean.git
+git clone https://github.com/Cresius34/ajean.git
+# Personal fork (Cresius patch line). Upstream project: https://github.com/nathaninline/ajean
 cd ajean
 CGO_ENABLED=0 go build -o ajean ./cmd/ajean   # Linux, Windows
 go build -o ajean ./cmd/ajean                 # macOS (the menu bar icon needs CGO)
@@ -383,4 +395,4 @@ The interface is available in English and French; see [docs/TRANSLATING.md](docs
 
 ## License
 
-[MIT](LICENSE). The embedded `marked.min.js` is [Marked](https://github.com/markedjs/marked), also MIT.
+[MIT](LICENSE), the same license as the upstream project. The embedded `marked.min.js` is [Marked](https://github.com/markedjs/marked), also MIT. The MoE engine used here comes from [Strata](https://github.com/Niko1221/Strata), which keeps its own terms. See [NOTICE.md](NOTICE.md) for this repository's full lineage.

@@ -172,22 +172,30 @@ Les presets MoE portent un nom de la forme
 
 ### Le moteur MoE n'a pas changé de version
 
-`moe_windows_manifest.json` est **identique** (même SHA, `05cc37b6…`) entre
-`8300729` — l'état de la livraison `v0.18.4+rev8` — et la tête de `main`.
-Le pack Windows HIP embarqué reste donc **Strata 0.1.44.1** : les fichiers du
-dépôt [Niko1221/Strata](https://github.com/Niko1221/Strata) ont bougé depuis
-(0.1.45, 0.2.0 et 0.2.1 sont sortis entre-temps), **mais aucune de ces versions
-n'est embarquée ici**. Passer à 0.1.45+ est une décision à part : le pack HIP
-pèse 643 Mo, il faut le retélécharger et re-vérifier la répartition
-VRAM/RAM sur la machine.
+`moe_windows_manifest.json` est **octet pour octet le
+même** blob Git (`3b606203…`, SHA-256 du fichier
+`00237b50…`) à `8300729` — l'état embarqué dans la livraison `v0.18.4+rev8` —,
+à `c0e4cb9` (l'étiquette `v0.18.4+rev8`) et à la tête de `main`. Son champ
+`version` porte toujours **`0.1.44.1`**, commit Strata `296b59d2…`, et ses trois
+URL de paquets pointent encore vers `releases/download/v0.1.44.1/`.
 
+Le pack Windows HIP embarqué reste donc **Strata 0.1.44.1**. Les fichiers du
+dépôt [Niko1221/Strata](https://github.com/Niko1221/Strata) ont bougé depuis
+(0.1.45, 0.2.0, puis 0.2.1 et ses correctifs 0.2.1.1 à 0.2.1.3 sont sortis
+entre-temps), **mais aucune de ces versions n'est embarquée ici** : ni le
+paquet, ni le manifeste, ni le code d'intégration n'ont été touchés pour elles.
+Passer à 0.1.45+ est une décision à part : le pack HIP pèse **633 588 636 o**
+(taille vérifiée sur le fichier téléchargé
+`data\moe\dl\strata-0.1.44.1\strata-windows-x64-hip.zip`, conforme au
+manifeste), il faut le retélécharger et re-vérifier la répartition VRAM/RAM sur
+la machine.
 
 ## Installation
 
 `setup.exe` n'existe pas à ce stade. Installation :
 
 1. `git clone https://github.com/Cresius34/ajean.git && cd ajean`
-2. `git checkout v0.18.4+rev8`
+2. `git checkout v0.18.4.1+rev9`
 3. `go build ./cmd/ajean`
 
 Le paquet de test complet et ses contrôles de contrôle final sont décrits
@@ -199,9 +207,9 @@ dans [docs/moe-windows-prototype.md](docs/moe-windows-prototype.md).
 
 **Français** · English
 
-Local revision **rev8** applied on top of the official base **v0.18.4**
+Local revision **rev9** applied on top of the official base **v0.18.4**
 (`76f60c0`). It is not published on `nathaninline/ajean`: it lives in the
-`Cresius34/ajean` repository, tagged **`v0.18.4+rev8`**.
+`Cresius34/ajean` repository, tagged **`v0.18.4.1+rev9`**.
 
 Five pieces of work:
 
@@ -364,21 +372,29 @@ never a file name.
 
 ### The MoE engine did not change version
 
-`moe_windows_manifest.json` is **identical** (same SHA, `05cc37b6…`) between
-`8300729` — the state shipped as `v0.18.4+rev8` — and the tip of `main`.
+`moe_windows_manifest.json` is **byte-for-byte the same** Git blob
+(`3b606203…`, file SHA-256 `00237b50…`) at `8300729` — the state shipped in
+`v0.18.4+rev8` — at `c0e4cb9` (the `v0.18.4+rev8` tag) and at the tip of
+`main`. Its `version` field still reads **`0.1.44.1`**, Strata commit
+`296b59d2…`, and its three package URLs still point at
+`releases/download/v0.1.44.1/`.
+
 The bundled Windows HIP pack is still **Strata 0.1.44.1**: files in
 [Niko1221/Strata](https://github.com/Niko1221/Strata) did move since
-(0.1.45, 0.2.0 and 0.2.1 were released meanwhile), **but none of those
-versions is bundled here**. Moving to 0.1.45+ is a decision of its own: the
-HIP pack weighs 643 MB, it has to be re-downloaded and the VRAM/RAM split
-re-verified on the machine.
+(0.1.45, 0.2.0, then 0.2.1 with fixes 0.2.1.1 to 0.2.1.3 were released
+meanwhile), **but none of those versions is bundled here** — not the package,
+not the manifest, not the integration code. Moving to 0.1.45+ is a decision of
+its own: the HIP pack weighs **633,588,636 bytes** (measured on the downloaded
+file `data\moe\dl\strata-0.1.44.1\strata-windows-x64-hip.zip`, matching the
+manifest), it has to be re-downloaded and the VRAM/RAM split re-verified on
+the machine.
 
 ## Installation
 
 `setup.exe` does not exist at this stage. Install:
 
 1. `git clone https://github.com/Cresius34/ajean.git && cd ajean`
-2. `git checkout v0.18.4+rev8`
+2. `git checkout v0.18.4.1+rev9`
 3. `go build ./cmd/ajean`
 
 The full test package and its final controls are described in

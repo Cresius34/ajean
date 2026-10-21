@@ -1,15 +1,17 @@
-Outils plus robustes avec les modèles locaux : appels réparés, recherche web qui ne s'arrête plus à un moteur, lecture ciblée des longues pages.
+Mode Jean : une mémoire qui revient d'elle-même, qui retient les correctifs, et un contexte gardé propre.
 
 ## Nouveautés
 
-- **Recherche web avec moteurs de secours** : quand DuckDuckGo bloque (il le fait après quelques requêtes rapprochées) ou répond trop peu, la recherche continue sur Brave, Yahoo et Wikipédia, puis Bing, sans clé ni service à installer. Chaque moteur garde son propre rythme et reste mis de côté un moment après un refus. Bing est écarté quand ses résultats ignorent la requête, ce qu'il fait après trop de requêtes. Le résultat indique quels moteurs ont répondu.
-- **Lecture ciblée d'une longue page** : `web_open` accepte un paramètre `focus` (par exemple « horaires d'ouverture ») et renvoie seulement les passages de la page qui y répondent, avec leurs numéros de ligne pour lire autour. Un petit modèle n'a plus à feuilleter menus et actualités pour trouver l'information en bas de page.
+- **Rappel automatique de la mémoire** : à chaque message, Jean retrouve la fiche et les souvenirs du journal qui correspondent nettement à la demande et les joint au message. Les seuils sont stricts : rien n'est ajouté pour un message court ou sans lien (un remerciement, un poème), et une fiche n'est donnée en entier que lorsqu'elle correspond clairement. Une fiche coupée le signale, avec le moyen de lire la suite.
+- **Mémoire des correctifs** : quand une commande échoue puis qu'une variante proche réussit, le correctif est noté dans le journal. Si la même erreur revient plus tard, le résultat de la commande rappelle en une ligne ce qui avait marché.
+- **Recherche par codes exacts** : la recherche dans la mémoire tient compte des codes d'erreur, noms de fichiers, adresses IP et identifiants écrits à l'identique, en plus de la recherche par le sens.
+- **Recherche par le sens active par défaut** : la recherche par le sens dans le journal de Jean est désormais activée, et son modèle se télécharge automatiquement lorsqu'un journal existe. Elle peut être coupée dans les réglages.
+- **Reprise après une pause** : après une longue inactivité, le nouveau contexte commence par un court rappel du dernier échange.
+- **Consolidation au fait des erreurs récurrentes** : la consolidation nocturne reçoit les erreurs rencontrées plusieurs fois, pour en tirer une fiche ou une leçon.
 
-## Corrections
+## Améliorations
 
-- **Appels d'outils presque valides refusés** : un argument JSON avec une virgule en trop, des guillemets simples, un bloc Markdown autour ou une accolade manquante faisait refuser l'appel, et le modèle réécrivait souvent la même erreur. Ces erreurs sont maintenant réparées et l'appel s'exécute. Un appel coupé à la limite de longueur reste refusé, pour ne jamais écrire un fichier à moitié.
-- **Édition de fichier qui échouait sur des espaces** : un passage recopié avec une autre indentation (espaces au lieu de tabulations, espace final perdu) n'était pas trouvé. Il est maintenant retrouvé quand il est unique, et le nouveau texte prend l'indentation du fichier. Quand rien ne correspond, l'erreur montre le passage le plus proche à recopier.
-- **Sortie des commandes illisible ou incomplète** : les codes couleur et les barres de progression (npm, pip) remplissaient le résultat, et seule la fin d'une longue sortie était gardée. La sortie est maintenant nettoyée, garde son début et sa fin, et la sortie complète est enregistrée dans un fichier temporaire que l'IA peut consulter au lieu de relancer la commande.
+- **Contexte allégé avant tout résumé** : quand la conversation approche de la limite, les anciens rappels de mémoire et les longs résultats d'outils des anciens échanges sont d'abord raccourcis (début et fin conservés, texte entier archivé et relisible). Le résumé, plus coûteux et moins précis, n'a lieu que si cela ne suffit pas.
 
 ## Mise à jour
 

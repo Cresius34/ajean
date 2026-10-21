@@ -466,39 +466,13 @@ async function setMemMode(mode){
   const r=await jpost('/api/memory',{mode, project: MEM_VIEW_PROJECT||''});
   setMemModeUI(r.mode||mode);
 }
-// Accès internet : serveur Crawl4AI + drapeau. Actif ET fonctionnel = pastille verte.
-let internetOn=false, webEngine='go';
+// Accès internet : le moteur web intégré, rien à configurer, juste l'interrupteur.
+let internetOn=false;
 function renderInternet(s){
   internetOn = !!s.enabled;
-  webEngine = s.engine || 'go';
   document.getElementById('internet-toggle').checked = internetOn;
-  const sel=document.getElementById('web-engine');
-  if(sel && document.activeElement!==sel) sel.value = webEngine;
-  // Les réglages Crawl4AI n'ont aucun sens avec le moteur intégré.
-  const cf=document.getElementById('crawl-fields');
-  if(cf) cf.style.display = (webEngine==='crawl4ai') ? '' : 'none';
-  if(document.activeElement !== document.getElementById('crawl-url'))
-    document.getElementById('crawl-url').value = s.url || '';
-  // La pastille ne redit PAS ce que l'interrupteur montre déjà (actif/inactif) :
-  // elle ne sert qu'à signaler l'anomalie — actif mais serveur injoignable, cas
-  // où les outils web ne sont pas proposés au modèle.
-  if(internetOn && !s.reachable) setBadge('internet-badge','warn',t('settings.internet.unreachable_badge'));
-  else setBadge('internet-badge', null);
-  // Clé du serveur Crawl4AI : le champ reste vide (la clé n'est jamais renvoyée),
-  // on indique seulement si une clé est enregistrée.
-  const ks=document.getElementById('crawl-key-state'), kc=document.getElementById('crawl-key-clear');
-  if(ks){
-    ks.textContent = s.key_set ? (t('settings.internet.key_registered_prefix')+(s.key_hint||'')) : t('settings.internet.no_key_open_server');
-    if(kc) kc.style.display = s.key_set ? '' : 'none';
-    const ki=document.getElementById('crawl-key');
-    if(ki && document.activeElement!==ki) ki.value='';
-    if(ki) ki.placeholder = s.key_set ? t('settings.internet.key_placeholder_replace') : t('settings.internet.key_placeholder_new');
-  }
   const st=document.getElementById('internet-status');
-  if(webEngine!=='crawl4ai'){ st.innerHTML='<span style="color:var(--accent)">✓</span> '+t('settings.internet.builtin_engine_status'); }
-  else if(!s.url){ st.textContent=t('settings.internet.server_not_configured'); st.style.color=''; }
-  else if(s.reachable){ st.innerHTML='<span style="color:var(--accent)">✓</span> '+t('settings.internet.server_reachable'); }
-  else { st.innerHTML='⚠ '+t('settings.internet.server_unreachable'); }
+  st.innerHTML='<span style="color:var(--accent)">✓</span> '+t('settings.internet.builtin_engine_status');
 }
 async function loadInternet(){ renderInternet(await jget('/api/internet')); }
 // Computer use : pilotage d'un navigateur de l'hôte (outils cu_*). La pastille ne
@@ -670,33 +644,7 @@ async function apiKeySet(){
 }
 async function toggleInternet(){
   const on=document.getElementById('internet-toggle').checked;
-  const url=document.getElementById('crawl-url').value.trim();
-  // Crawl4AI sans URL de serveur = rien à joindre. Le moteur intégré, lui, n'a
-  // besoin d'aucun réglage : on active directement.
-  if(on && webEngine==='crawl4ai' && !url){ toast(t('settings.internet.need_url')); document.getElementById('internet-toggle').checked=false; return; }
-  renderInternet(await jpost('/api/internet',{enabled:on, url}));
-}
-async function saveWebEngine(){
-  const engine=document.getElementById('web-engine').value;
-  renderInternet(await jpost('/api/internet',{engine}));
-  toast(engine==='crawl4ai' ? t('settings.internet.engine_crawl4ai_selected') : t('settings.internet.engine_builtin_selected'));
-}
-async function saveCrawlUrl(){
-  const url=document.getElementById('crawl-url').value.trim();
-  renderInternet(await jpost('/api/internet',{url}));
-  toast(url ? t('settings.internet.server_saved') : t('settings.internet.server_removed'));
-}
-async function saveCrawlKey(){
-  const el=document.getElementById('crawl-key'), key=el.value.trim();
-  if(!key){ toast(t('settings.internet.key_missing')); return; }
-  renderInternet(await jpost('/api/internet',{key}));
-  toast(t('settings.internet.key_saved'));
-}
-async function clearCrawlKey(){
-  if(!await askConfirm(t('settings.internet.remove_key_confirm'))) return;
-  document.getElementById('crawl-key').value='';
-  renderInternet(await jpost('/api/internet',{key:''}));
-  toast(t('settings.internet.key_removed'));
+  renderInternet(await jpost('/api/internet',{enabled:on}));
 }
 // Navigateur des liens externes cliqués dans l'interface. Réglage partagé entre
 // appareils (/api/prefs) mais écrit à part de savePrefs() : celui-ci poste tout le

@@ -212,8 +212,8 @@ func runTask(t Task) {
 
 // taskCaps dérive les capacités d'une tâche : on part du mode agent de la machine
 // (qui débloque les outils), puis on applique les réglages propres à la tâche pour
-// la mémoire et le web. Le web reste borné à ce que la machine offre réellement
-// (serveur Crawl4AI configuré et joignable) : une tâche ne peut pas l'inventer.
+// la mémoire et le web. Le web reste borné à l'interrupteur de la machine : une
+// tâche ne peut pas l'inventer.
 func taskCaps(t Task) Caps {
 	c := Caps{Agent: agentEnabled()}
 	if !c.Agent {
@@ -222,7 +222,7 @@ func taskCaps(t Task) Caps {
 	if t.NoWeb {
 		c.Internet = false
 	} else {
-		c.Internet = internetEnabled() && crawlReachable()
+		c.Internet = internetEnabled()
 	}
 	if t.Jean {
 		// Mémoire de Jean, pas celle d'un projet.

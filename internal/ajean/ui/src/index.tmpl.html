@@ -310,37 +310,10 @@
          étiquette de groupe nue, puis UNE carte de lignes (.slist). Le groupe
          entier est grisé/inerte quand l'agent est off (voir setAgentGate). -->
     <div id="net-block" class="gated-group">
-      <div class="subhead"><span data-i18n="internet.title">Accès internet</span><span id="internet-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="internet.help" data-i18n-html>Ajoute les outils <b>web_search / web_open / web_read / web_grep</b>. Le moteur <b>intégré</b> ne demande aucune installation. Le moteur <b>Crawl4AI</b> exige un serveur que tu héberges toi-même (ex. <code>docker run -d -p 11235:11235 --shm-size=1g unclecode/crawl4ai:latest</code>) mais exécute le JavaScript des pages. Actifs seulement si le <b>mode agent</b> est actif.</span></span></div>
+      <div class="subhead"><span data-i18n="internet.title">Accès internet</span><span id="internet-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="internet.help" data-i18n-html>Ajoute les outils <b>web_search / web_open / web_read / web_grep</b>, avec le moteur web intégré : aucune installation. Il lit les pages servies en HTML, sans exécuter leur JavaScript. Actifs seulement si le <b>mode agent</b> est actif.</span></span></div>
       <div class="slist">
         <label class="switchrow"><span class="switch"><input type="checkbox" id="internet-toggle" onchange="toggleInternet()"><span class="slider"></span></span> <span data-i18n="internet.toggle_label">donner internet à l'IA</span></label>
-        <!-- Moteur web : « go » = intégré au binaire (rien à installer, pas de rendu
-             JavaScript) · « crawl4ai » = serveur externe avec Chromium headless.
-             Réglages propres à Crawl4AI masqués avec le moteur intégré ; l'URL et
-             la clé s'enregistrent en quittant le champ (onchange). -->
         <div class="rowbody">
-          <div class="row" style="margin:0">
-            <select id="web-engine" class="sctl" onchange="saveWebEngine()">
-              <option value="go" data-i18n="internet.engine_builtin">Moteur Intégré</option>
-              <option value="crawl4ai" data-i18n="internet.engine_crawl4ai">Crawl4AI</option>
-            </select>
-          </div>
-          <!-- Masqués AU DÉPART : le moteur par défaut est l'intégré, et ces champs
-               ne concernent que Crawl4AI. Affichés d'emblée puis repliés par le
-               chargement de l'état, ils faisaient sauter la section sous les yeux. -->
-          <div id="crawl-fields" style="display:none">
-            <div class="row">
-              <input id="crawl-url" type="text" placeholder="http://localhost:11235" class="sctl" onchange="saveCrawlUrl()">
-            </div>
-            <!-- Clé d'accès du serveur Crawl4AI (facultative) : envoyée en
-                 « Authorization: Bearer … ». Jamais relue par l'API, on n'affiche
-                 qu'un indice sur les 4 derniers caractères. -->
-            <div class="row">
-              <input id="crawl-key" type="password" autocomplete="off" placeholder="clé API (si le serveur en exige une)" class="sctl" onchange="saveCrawlKey()" data-i18n="internet.crawl_key_placeholder" data-i18n-attr="placeholder">
-              <button id="crawl-key-clear" onclick="clearCrawlKey()" style="display:none" data-i18n="internet.crawl_key_clear">retirer</button>
-            </div>
-            <div class="muted" style="font-size:11px;margin-top:4px" data-i18n="internet.autosave_hint">enregistré automatiquement en quittant le champ</div>
-            <div id="crawl-key-state" class="muted" style="font-size:11px;margin-top:3px"></div>
-          </div>
           <div id="internet-status" class="muted" style="font-size:11px;margin-top:4px"></div>
         </div>
       </div>

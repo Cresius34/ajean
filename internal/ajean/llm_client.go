@@ -267,7 +267,7 @@ type Caps struct {
 	// Agent = mode agent actif : un seul interrupteur qui débloque TOUS les
 	// outils de l'IA (shell + skills). Un skill est un outil comme un autre.
 	Agent bool
-	// Internet = accès web actif (serveur Crawl4AI configuré + joignable) : ajoute
+	// Internet = accès web actif (moteur intégré) : ajoute
 	// les outils web_search/web_open/web_read/web_grep. Requiert aussi Agent.
 	Internet bool
 	// Mem = mode d'accès à la mémoire persistante (off / ondemand / always),
@@ -292,8 +292,7 @@ type Caps struct {
 // globalCaps reads the machine-wide config — the default when a request doesn't
 // specify its own capabilities.
 func globalCaps() Caps {
-	// Internet inclut la joignabilité du serveur Crawl4AI : « actif ET fonctionnel ».
-	// Ainsi le prompt système (chat_tools.go) et les outils fournis (EnabledTools) sont
+	// Le prompt système (chat_tools.go) et les outils fournis (EnabledTools) sont
 	// gouvernés par la MÊME condition — sinon le prompt promet web_search alors que
 	// l'outil n'existe pas, et le modèle le tape en bash (command not found).
 	// Mémoire et accès internet sont des sous-réglages du mode agent (cf. UI web) :
@@ -304,7 +303,7 @@ func globalCaps() Caps {
 	if !agent {
 		return Caps{Agent: false, Internet: false, Mem: MemOff}
 	}
-	return Caps{Agent: true, Internet: internetEnabled() && crawlReachable(), Mem: memMode(), ComputerUse: computerUseEnabled()}
+	return Caps{Agent: true, Internet: internetEnabled(), Mem: memMode(), ComputerUse: computerUseEnabled()}
 }
 
 // InjectSkills prepends context system messages to msgs: the decisive-agent

@@ -674,7 +674,7 @@ details>summary+.subhead{margin-top:4px}
 .slist.pad{padding:8px 10px}
 .slist.pad>:first-child{margin-top:0}
 .slist.pad>:last-child{margin-bottom:0}
-/* Contenu libre posé DANS une carte de lignes (champs Crawl4AI, liste MCP,
+/* Contenu libre posé DANS une carte de lignes (liste MCP,
    pages mémoire) : même rembourrage et même filet de séparation qu'une ligne,
    pour qu'il ne flotte pas au milieu de la carte. */
 .slist>.rowbody{padding:9px 10px}

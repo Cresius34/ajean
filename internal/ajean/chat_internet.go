@@ -212,8 +212,4 @@ func decodeUddg(raw string) string {
 	return s
 }
 
-func duckduckgoSearch(query string, limit int) ([]searchResult, error) {
-	return goSearch(query, limit)
-}
-
 // ─── définitions d'outils (schémas OpenAI, comme llm_client.go) ────────────────────

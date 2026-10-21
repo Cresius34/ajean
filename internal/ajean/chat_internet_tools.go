@@ -41,6 +41,7 @@ func webOpenTool() Tool {
 	props := map[string]any{
 		"url":     map[string]any{"type": "string", "description": urlDesc},
 		"refresh": map[string]any{"type": "boolean", "description": "Bypass the 10-minute cache (default false)"},
+		"focus":   map[string]any{"type": "string", "description": "What you look for: returns the matching passages instead of the outline"},
 	}
 	return Tool{Type: "function", Function: ToolFunction{
 		Name:        "web_open",
@@ -118,15 +119,17 @@ func toolWebSearch(args map[string]any) string {
 	if limit > 20 {
 		limit = 20
 	}
-	results, err := duckduckgoSearch(query, limit)
+	// DuckDuckGo d'abord, puis d'autres moteurs sans clé s'il bloque ou répond
+	// trop peu (web_search_engines.go).
+	results, from, err := multiSearch(query, limit)
 	if err != nil {
 		return "❌ Recherche échouée : " + err.Error()
 	}
 	if len(results) == 0 {
-		return fmt.Sprintf("Aucun résultat pour « %s »", query)
+		return fmt.Sprintf("Aucun résultat pour « %s » : cherche avec d'autres mots, ou moins de mots, ou réponds avec ce que tu sais", query)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Recherche : %s\n%d résultat(s) DuckDuckGo\n\n", query, len(results))
+	fmt.Fprintf(&b, "# Recherche : %s\n%d résultat(s) (%s)\n\n", query, len(results), strings.Join(from, ", "))
 	for i, r := range results {
 		fmt.Fprintf(&b, "%d. %s\n   %s\n   %s\n\n", i+1, r.Title, r.URL, r.Snippet)
 	}
@@ -143,13 +146,22 @@ func toolWebOpen(args map[string]any) string {
 	if err != nil {
 		return "❌ " + err.Error()
 	}
+	// Avec un focus : les passages qui répondent, au lieu du plan (web_focus.go).
+	focus, _ := args["focus"].(string)
+	nothing := ""
+	if focus = strings.TrimSpace(focus); focus != "" {
+		if out := focusedPage(entry, focus); out != "" {
+			return capWebOutput(out)
+		}
+		nothing = fmt.Sprintf("Aucun passage ne contient les mots de « %s » : voici le plan.\n", focus)
+	}
 	total := len(entry.lines)
 	chars := total
 	for _, l := range entry.lines {
 		chars += len(l)
 	}
-	return fmt.Sprintf("# Ouvert : %s\nTotal : %d lignes, %s (%d caractères)\nEn cache 10 min. Utilise web_read ou web_grep pour lire.\n\n## Plan (n° de ligne des titres)\n```\n%s\n```",
-		entry.url, total, formatBytes(chars), chars, extractOutline(entry.lines))
+	return fmt.Sprintf("# Ouvert : %s\n%sTotal : %d lignes, %s (%d caractères)\nEn cache 10 min. Utilise web_read ou web_grep pour lire.\n\n## Plan (n° de ligne des titres)\n```\n%s\n```",
+		entry.url, nothing, total, formatBytes(chars), chars, extractOutline(entry.lines))
 }
 
 func toolWebRead(args map[string]any) string {

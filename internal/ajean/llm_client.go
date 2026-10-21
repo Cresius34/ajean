@@ -1566,6 +1566,14 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// boucle jusqu'au reset. On neutralise tout ce qui n'est pas du JSON valide
 				// en objet vide (l'appel a de toute façon déjà été exécuté). json.Valid("")
 				// étant faux, ça couvre aussi le cas vide d'origine.
+				// Avant de refuser : les erreurs habituelles d'un petit modèle (virgule
+				// finale, guillemets simples, bloc Markdown…) sont réparées, et c'est
+				// le JSON réparé qui part dans l'historique (tool_args_repair.go).
+				if !json.Valid([]byte(tc.Function.Arguments)) {
+					if fixed, ok := repairToolArgs(tc.Function.Arguments); ok {
+						tc.Function.Arguments = fixed
+					}
+				}
 				if !json.Valid([]byte(tc.Function.Arguments)) {
 					if strings.TrimSpace(tc.Function.Arguments) != "" {
 						badArgs[tc.ID] = true

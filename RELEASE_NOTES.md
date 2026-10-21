@@ -1,17 +1,13 @@
-Mode Jean : une mémoire qui revient d'elle-même, qui retient les correctifs, et un contexte gardé propre.
+Applications mieux intégrées à l'interface, et choix de vue retenu en mode Jean.
 
 ## Nouveautés
 
-- **Rappel automatique de la mémoire** : à chaque message, Jean retrouve la fiche et les souvenirs du journal qui correspondent nettement à la demande et les joint au message. Les seuils sont stricts : rien n'est ajouté pour un message court ou sans lien (un remerciement, un poème), et une fiche n'est donnée en entier que lorsqu'elle correspond clairement. Une fiche coupée le signale, avec le moyen de lire la suite.
-- **Mémoire des correctifs** : quand une commande échoue puis qu'une variante proche réussit, le correctif est noté dans le journal. Si la même erreur revient plus tard, le résultat de la commande rappelle en une ligne ce qui avait marché.
-- **Recherche par codes exacts** : la recherche dans la mémoire tient compte des codes d'erreur, noms de fichiers, adresses IP et identifiants écrits à l'identique, en plus de la recherche par le sens.
-- **Recherche par le sens active par défaut** : la recherche par le sens dans le journal de Jean est désormais activée, et son modèle se télécharge automatiquement lorsqu'un journal existe. Elle peut être coupée dans les réglages.
-- **Reprise après une pause** : après une longue inactivité, le nouveau contexte commence par un court rappel du dernier échange.
-- **Consolidation au fait des erreurs récurrentes** : la consolidation nocturne reçoit les erreurs rencontrées plusieurs fois, pour en tirer une fiche ou une leçon.
+- **Applications dans le menu latéral** : le bouton Applications affiche la liste des apps dans le menu de gauche, comme l'historique, avec recherche, création et menu de chaque app. Une app s'ouvre dans la zone de conversation et le menu reste en place. Ouvrir une conversation ou en commencer une nouvelle referme l'app.
+- **Vue du mode Jean retenue** : le choix entre le personnage en plein écran et le fil de discussion classique est conservé sur chaque appareil. Le mode Jean se rouvre dans la vue choisie, y compris après un rechargement.
 
 ## Améliorations
 
-- **Contexte allégé avant tout résumé** : quand la conversation approche de la limite, les anciens rappels de mémoire et les longs résultats d'outils des anciens échanges sont d'abord raccourcis (début et fin conservés, texte entier archivé et relisible). Le résumé, plus coûteux et moins précis, n'a lieu que si cela ne suffit pas.
+- **Apparence des applications** : liste et barre de titre plus légères, dans le style du reste de l'interface, sans animation à l'ouverture.
 
 ## Mise à jour
 

@@ -111,15 +111,12 @@
          conversation — elle livre son résultat via les outils de l'IA (mail via
          MCP, shell…). D'où l'avertissement quand le mode agent est off : sans
          lui, aucune tâche ne peut agir. -->
+    <div id="tasks-agent-warn" class="muted" style="display:none;font-size:12px;line-height:1.5;margin:8px 2px" data-i18n="tasks.agent_warn" data-i18n-html>Le <b>mode agent</b> est désactivé : les tâches s'exécuteront mais l'IA n'aura <b>aucun outil</b> pour agir (envoyer un mail, lire des fichiers…). Active le mode agent ci-dessus.</div>
+    <!-- UNE carte : l'interrupteur maître, la liste des tâches, puis l'ajout. -->
     <div class="slist">
       <label class="switchrow"><span class="switch"><input type="checkbox" id="tasks-pause-toggle" onchange="toggleTasksPause()"><span class="slider"></span></span> <span data-i18n="tasks.pause_toggle">suspendre toutes les tâches</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="tasks.pause_help" data-i18n-html>Interrupteur maître : coche pour que plus aucune tâche ne se déclenche. Les tâches gardent leur réglage et repartent quand tu décoches.</span></span></label>
-    </div>
-    <div id="tasks-agent-warn" class="muted" style="display:none;font-size:12px;line-height:1.5;margin:8px 2px" data-i18n="tasks.agent_warn" data-i18n-html>Le <b>mode agent</b> est désactivé : les tâches s'exécuteront mais l'IA n'aura <b>aucun outil</b> pour agir (envoyer un mail, lire des fichiers…). Active le mode agent ci-dessus.</div>
-    <div class="slist">
-      <div class="rowbody">
-        <div id="tasks-list" class="mcp-list"></div>
-        <button class="addbtn" style="margin-top:6px" onclick="openTask('')" data-i18n="tasks.add_button">+ ajouter une tâche</button>
-      </div>
+      <div class="rowbody list-body"><div id="tasks-list" class="mcp-list"></div></div>
+      <button type="button" class="switchrow sw-action" onclick="openTask('')"><span data-i18n="tasks.add_button">Ajouter une tâche</span></button>
     </div>
   </details>
   <details><summary><span class="stitle" data-i18n="appearance.title">Appearance</span></summary>
@@ -142,46 +139,40 @@
     </div>
   </details>
   <details><summary><span class="stitle" data-i18n="api.title">API</span></summary>
-    <div class="subhead"><span data-i18n="api.endpoint_subhead">Endpoint compatible OpenAI</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.endpoint_help" data-i18n-html>Branchez n'importe quel client compatible OpenAI (OpenCode, Continue, Cursor…) sur ces adresses. Si une clé est définie, le client doit envoyer <code>Authorization: Bearer &lt;clé&gt;</code>.</span></span></div>
-    <!-- UNE carte pour tout l'endpoint : adresse locale, bascule « public » et
-         adresse publique sont un seul sujet — trois cartes accolées donnaient
-         trois îlots pour un même réglage. -->
-    <div class="slist">
-      <div class="rowbody">
-        <div class="muted" style="margin:0 0 6px" data-i18n="api.local_address_label" data-i18n-html>Adresse locale (réseau) — modèle <code>ajean</code></div>
-        <div class="row" style="margin:0">
-          <input id="oai-url" readonly class="io-input">
-          <button class="iconbtn" onclick="copyText(document.getElementById('oai-url').value,'adresse copiée')" title="copier" data-i18n="api.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
-        </div>
+    <!-- Refait de zéro. Deux cartes :
+         1. Connexion : ce qu'on colle dans un client (adresse, modèle, clé), une
+            entrée par bloc, libellé au-dessus de la valeur : en largeur de menu,
+            une adresse ne tient pas à droite d'un libellé.
+         2. Accès : qui peut joindre l'adresse (réseau local, public).
+         Les actions sur la clé (générer, définir, retirer) sont dans un menu ⋮. -->
+    <div class="subhead"><span data-i18n="api.endpoint_subhead">Connexion</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.endpoint_help" data-i18n-html>Branchez n'importe quel client compatible OpenAI (OpenCode, Continue, Cursor…) sur ces adresses. Si une clé est définie, le client doit envoyer <code>Authorization: Bearer &lt;clé&gt;</code>.</span></span></div>
+    <div class="slist api-conn">
+      <div class="api-ent">
+        <div class="api-lbl" data-i18n="api.local_address_label">Adresse</div>
+        <div class="api-line"><input id="oai-url" readonly class="api-val"><button class="sw-ic" onclick="copyText(document.getElementById('oai-url').value,'adresse copiée');flashCopied(this)" title="copier" data-i18n="api.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
       </div>
-      <!-- L'adresse ci-dessus ne sert à RIEN si le moteur n'écoute que sur la
-           boucle locale (le défaut sous Windows) : le chat du navigateur marche,
-           mais aucun logiciel du réseau ne peut s'y brancher. Cet interrupteur
-           règle HOST et pose la règle de pare-feu, voir sys_network.go. -->
-      <label class="switchrow septop"><span class="switch"><input type="checkbox" id="lan-toggle" onchange="toggleLAN()"><span class="slider"></span></span> <span data-i18n="api.lan_toggle">joignable depuis le réseau local</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.lan_help" data-i18n-html>Éteint, le moteur n'écoute que sur <b>cette machine</b> : l'adresse ci-dessus ne répond qu'ici. Allumez-le pour brancher un logiciel depuis un autre ordinateur du réseau (sous Windows, la règle de pare-feu est posée en même temps). <b>Redémarre le moteur.</b></span></span></label>
-      <div id="lan-warn" class="rowbody" style="display:none"></div>
-      <label class="switchrow"><span class="switch"><input type="checkbox" id="oai-public-toggle" onchange="toggleOAIPublic()"><span class="slider"></span></span> <span data-i18n="api.public_toggle">exposer en public (ajean.link)</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.public_help" data-i18n-html>Rend votre IA joignable depuis <b>n'importe où</b> via <code>https://&lt;machine&gt;.oai.ajean.link/v1</code> (pour brancher un SaaS). Le trafic est chiffré <b>de bout en bout</b> jusqu'à ce serveur — le relais ajean.link ne voit rien. Nécessite l'accès distant actif.</span></span></label>
-      <div id="oai-public-wrap" class="rowbody" style="display:none">
-        <div class="muted" style="margin:0 0 6px" data-i18n="api.public_address_label">Adresse publique — chiffrée de bout en bout, accessible partout</div>
-        <div class="row" style="margin:0">
-          <input id="oai-public-url" readonly class="io-input">
-          <button class="iconbtn" onclick="copyText(document.getElementById('oai-public-url').value,'adresse publique copiée')" title="copier" data-i18n="api.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
-        </div>
+      <div id="oai-public-wrap" class="api-ent" style="display:none">
+        <div class="api-lbl" data-i18n="api.public_address_label">Adresse publique</div>
+        <div class="api-line"><input id="oai-public-url" readonly class="api-val"><button class="sw-ic" onclick="copyText(document.getElementById('oai-public-url').value,'adresse publique copiée');flashCopied(this)" title="copier" data-i18n="api.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+      </div>
+      <div class="api-ent">
+        <div class="api-lbl" data-i18n="api.model_label">Modèle</div>
+        <div class="api-line"><input readonly class="api-val" value="ajean"><button class="sw-ic" onclick="copyText('ajean');flashCopied(this)" title="copier" data-i18n="api.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+      </div>
+      <div class="api-ent">
+        <div class="api-lbl"><span data-i18n="api.key_subhead">Clé API</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.key_help" data-i18n-html>Protège l'endpoint des complétions (llama-server). Indispensable avant d'exposer le serveur sur internet. Modifier la clé <b>redémarre</b> le service.</span></span></div>
+        <div class="api-line"><input id="oai-key" readonly class="api-val">
+          <button id="oai-key-eye" class="sw-ic" onclick="toggleKeyReveal()" title="afficher / masquer" data-i18n="api.key_eye_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button id="oai-key-copy" class="sw-ic" onclick="copyApiKey();flashCopied(this)" title="copier la clé" data-i18n="api.key_copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+          <button class="sw-ic" onclick="apiKeyMenu(this)" title="gérer la clé" data-i18n="api.key_menu_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></svg></button></div>
       </div>
     </div>
-    <div class="subhead"><span data-i18n="api.key_subhead">Clé API</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.key_help" data-i18n-html>Protège l'endpoint des complétions (llama-server). Indispensable avant d'exposer le serveur sur internet. Modifier la clé <b>redémarre</b> le service.</span></span></div>
-    <div class="slist"><div class="rowbody">
-      <div class="row" style="margin:0">
-        <input id="oai-key" readonly class="io-input">
-        <button id="oai-key-eye" onclick="toggleKeyReveal()" title="afficher / masquer" data-i18n="api.key_eye_title" data-i18n-attr="title"><span data-i18n="api.key_eye_text">afficher</span></button>
-        <button class="iconbtn" onclick="copyApiKey()" title="copier la clé" data-i18n="api.key_copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
-      </div>
-      <div class="row" style="margin-bottom:0">
-        <button onclick="apiKeyAction('generate')" data-i18n="api.key_generate">générer</button>
-        <button onclick="apiKeySet()" data-i18n="api.key_set">définir…</button>
-        <button onclick="apiKeyAction('clear')" data-i18n="api.key_clear">retirer</button>
-      </div>
-    </div></div>
+    <div class="subhead" data-i18n="api.access_subhead">Accès</div>
+    <div class="slist">
+      <label class="switchrow"><span class="switch"><input type="checkbox" id="lan-toggle" onchange="toggleLAN()"><span class="slider"></span></span> <span data-i18n="api.lan_toggle">joignable depuis le réseau local</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.lan_help" data-i18n-html>Éteint, le moteur n'écoute que sur <b>cette machine</b> : l'adresse ci-dessus ne répond qu'ici. Allumez-le pour brancher un logiciel depuis un autre ordinateur du réseau (sous Windows, la règle de pare-feu est posée en même temps). <b>Redémarre le moteur.</b></span></span></label>
+      <div id="lan-warn" class="rowbody" style="display:none"></div>
+      <label class="switchrow"><span class="switch"><input type="checkbox" id="oai-public-toggle" onchange="toggleOAIPublic()"><span class="slider"></span></span> <span data-i18n="api.public_toggle">exposer en public (ajean.link)</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="api.public_help" data-i18n-html>Rend votre IA joignable depuis <b>n'importe où</b> via <code>https://&lt;machine&gt;.oai.ajean.link/v1</code> (pour brancher un SaaS). Le trafic est chiffré <b>de bout en bout</b> jusqu'à ce serveur — le relais ajean.link ne voit rien. Nécessite l'accès distant actif.</span></span></label>
+    </div>
   </details>
   <details id="remote-details"><summary><span class="stitle" data-i18n="link.title">AJEAN LINK</span><span id="remote-badge" class="sbadge"></span></summary>
     <div class="subhead"><span data-i18n="link.remote_subhead">Accès distant</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="link.remote_help" data-i18n-html>Accédez à ce serveur AJEAN depuis <b>n'importe où</b>, sans ouvrir de port, à travers le relais <b>ajean.link</b>. Le trafic est chiffré de <b>bout en bout</b> : le relais ne voit rien. Abonnement 4,80 €/mois.</span></span></div>
@@ -312,39 +303,30 @@
     <div id="net-block" class="gated-group">
       <div class="subhead"><span data-i18n="internet.title">Accès internet</span><span id="internet-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="internet.help" data-i18n-html>Ajoute les outils <b>web_search / web_open / web_read / web_grep</b>, avec le moteur web intégré : aucune installation. Il lit les pages servies en HTML, sans exécuter leur JavaScript. Actifs seulement si le <b>mode agent</b> est actif.</span></span></div>
       <div class="slist">
-        <label class="switchrow"><span class="switch"><input type="checkbox" id="internet-toggle" onchange="toggleInternet()"><span class="slider"></span></span> <span data-i18n="internet.toggle_label">donner internet à l'IA</span></label>
-        <div class="rowbody">
-          <div id="internet-status" class="muted" style="font-size:11px;margin-top:4px"></div>
-        </div>
+        <label class="switchrow"><span class="switch"><input type="checkbox" id="internet-toggle" onchange="toggleInternet()"><span class="slider"></span></span> <span class="sw-txt"><span data-i18n="internet.toggle_label">donner internet à l'IA</span><span id="internet-status" class="sw-sub"></span></span></label>
       </div>
     </div>
     <div id="cu-block" class="gated-group">
       <div class="subhead"><span data-i18n="computer.title">Contrôle du navigateur</span><span id="cu-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="computer.help" data-i18n-html>Donne à l'IA le contrôle d'un <b>navigateur</b> sur cette machine (outils <b>browser_open / browser_click / browser_type / browser_key / browser_scroll</b>). L'IA lit les éléments <b>numérotés</b> de la page et agit par numéro — aucune vision requise, ça marche avec de petits modèles. <code>browser_screenshot</code> s'ajoute si la vision est active. Nécessite Chrome/Chromium/Edge installé. Actif seulement si le <b>mode agent</b> est actif.</span></span></div>
       <div class="slist">
-        <label class="switchrow"><span class="switch"><input type="checkbox" id="cu-toggle" onchange="toggleComputer()"><span class="slider"></span></span> <span data-i18n="computer.toggle_label">laisser l'IA piloter un navigateur</span></label>
-        <div class="rowbody">
-          <div id="cu-status" class="muted" style="font-size:11px"></div>
-        </div>
+        <label class="switchrow"><span class="switch"><input type="checkbox" id="cu-toggle" onchange="toggleComputer()"><span class="slider"></span></span> <span class="sw-txt"><span data-i18n="computer.toggle_label">laisser l'IA piloter un navigateur</span><span id="cu-status" class="sw-sub"></span></span></label>
       </div>
     </div>
     <div id="mcp-block" class="gated-group">
       <div class="subhead"><span data-i18n="mcp.title">MCP servers</span><span id="mcp-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="mcp.help" data-i18n-html>Connecte des <b>serveurs MCP</b> (Model Context Protocol) pour donner de nouveaux outils à l'IA : accès fichiers, bases de données, APIs métier… <b>stdio</b> = programme lancé localement (npx/uvx/binaire) · <b>http</b> = serveur distant. ⚠ un serveur stdio exécute du code sur cette machine, au même titre que le shell.</span></span></div>
       <div class="slist">
-        <div class="rowbody">
-          <!-- Même texte que celui rendu après chargement quand il n'y a aucun
-               serveur : sinon la carte partait vide puis grandissait d'une ligne. -->
-          <!-- Délais MCP (connexion + appel d'outil) : entre le titre et la liste. -->
-          <div class="pe-row">
-            <span class="pe-row-l" data-i18n="mcp.connect_label">Délai de connexion</span>
-            <span class="pe-row-c"><input id="mcp-timeout-connect" class="pe-val" type="number" min="1" max="3600" value="20" style="width:54px" data-i18n="mcp.connect_hint" data-i18n-attr="title"><span class="pe-unit">s</span></span>
-          </div>
-          <div class="pe-row">
-            <span class="pe-row-l" data-i18n="mcp.call_label">Délai d'appel d'outil</span>
-            <span class="pe-row-c"><input id="mcp-timeout-call" class="pe-val" type="number" min="1" max="3600" value="120" style="width:54px" data-i18n="mcp.call_hint" data-i18n-attr="title"><span class="pe-unit">s</span></span>
-          </div>
-          <div id="mcp-list" class="mcp-list"><div class="muted" style="font-size:12px" data-i18n="mcp.empty_list">(aucun serveur — ajoute un serveur fichiers, une base de données, une API…)</div></div>
-          <button class="addbtn" style="margin-top:6px" onclick="openMcp('')" data-i18n="mcp.add_button">+ ajouter un serveur</button>
+        <!-- Délais MCP (connexion + appel d'outil) : lignes de réglage comme les
+             autres, valeur à droite. -->
+        <label class="switchrow"><span data-i18n="mcp.connect_label">Délai de connexion</span>
+          <span class="sw-num"><input id="mcp-timeout-connect" type="number" min="1" max="3600" value="20" data-i18n="mcp.connect_hint" data-i18n-attr="title"><span>s</span></span></label>
+        <label class="switchrow"><span data-i18n="mcp.call_label">Délai d'appel d'outil</span>
+          <span class="sw-num"><input id="mcp-timeout-call" type="number" min="1" max="3600" value="120" data-i18n="mcp.call_hint" data-i18n-attr="title"><span>s</span></span></label>
+        <!-- Même texte que celui rendu après chargement quand il n'y a aucun
+             serveur : sinon la carte partait vide puis grandissait d'une ligne. -->
+        <div class="rowbody mcp-body">
+          <div id="mcp-list" class="mcp-list"><div class="muted" style="font-size:12px" data-i18n="mcp.empty_list">Aucun serveur. Un serveur MCP ajoute des outils : fichiers, base de données, API…</div></div>
         </div>
+        <button type="button" class="switchrow sw-action" onclick="openMcp('')"><span data-i18n="mcp.add_button">Ajouter un serveur</span></button>
       </div>
     </div>
     <!-- Paramètres : compactage + machines sont gatés PAR LIGNE (classe agent-gated,
@@ -355,7 +337,7 @@
     <div class="subhead" data-i18n="settings.general_subhead">Général</div>
     <div class="slist">
         <label class="switchrow agent-gated"><span class="switch"><input type="checkbox" id="compact-toggle" onchange="toggleCompact()"><span class="slider"></span></span> <span data-i18n="agent.compact_toggle">compactage automatique du contexte</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_help" data-i18n-html>activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.</span></span></label>
-        <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="ctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
+        <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="sctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
         <!-- Chiffrement (off par défaut) : UN seul interrupteur. Chiffre la mémoire
              ET les conversations. Ton mot de passe ouvre le coffre, ton navigateur

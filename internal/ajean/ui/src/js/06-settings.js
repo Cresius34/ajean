@@ -472,7 +472,7 @@ function renderInternet(s){
   internetOn = !!s.enabled;
   document.getElementById('internet-toggle').checked = internetOn;
   const st=document.getElementById('internet-status');
-  st.innerHTML='<span style="color:var(--accent)">✓</span> '+t('settings.internet.builtin_engine_status');
+  st.textContent=t('settings.internet.builtin_engine_status');
 }
 async function loadInternet(){ renderInternet(await jget('/api/internet')); }
 // Computer use : pilotage d'un navigateur de l'hôte (outils cu_*). La pastille ne
@@ -484,9 +484,9 @@ function renderComputer(s){
   const st=document.getElementById('cu-status'); if(!st) return;
   // Le statut DÉPEND de l'interrupteur : décoché, on ne prétend surtout pas que
   // c'est actif (sinon confusion). On indique juste si un navigateur est présent.
-  if(!s.enabled){ st.textContent=t('settings.computer.disabled')+(s.browser_ok?'':(' '+t('settings.computer.no_browser_hint'))); return; }
-  if(!s.browser_ok){ st.innerHTML='⚠ '+t('settings.computer.no_browser'); return; }
-  st.innerHTML='<span style="color:var(--accent)">✓</span> '+t('settings.computer.browser_ready')+(s.vision?'':(' · '+t('settings.computer.no_vision')));
+  if(!s.enabled){ st.textContent=s.browser_ok?'':t('settings.computer.no_browser_hint'); return; }
+  if(!s.browser_ok){ st.textContent=t('settings.computer.no_browser'); return; }
+  st.textContent=t('settings.computer.browser_ready')+(s.vision?'':(' · '+t('settings.computer.no_vision')));
 }
 async function loadComputer(){ renderComputer(await jget('/api/computer')); }
 async function toggleComputer(){
@@ -500,6 +500,13 @@ async function copyText(txt, msg){
   try{ await navigator.clipboard.writeText(txt); }
   catch(_){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
   toast(msg||t('settings.copy.copied'));
+}
+// Retour visuel d'un bouton copier : l'icône devient une coche un instant.
+const COPIED_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function flashCopied(btn){
+  if(!btn || btn._copied) return;
+  btn._copied = btn.innerHTML; btn.innerHTML = COPIED_SVG; btn.classList.add('copied');
+  setTimeout(()=>{ btn.innerHTML = btn._copied; btn._copied = null; btn.classList.remove('copied'); }, 1200);
 }
 function copyApiKey(){ copyText(OAI_KEY, OAI_KEY?t('settings.apikey.copied'):t('settings.apikey.none')); }
 function renderApiKey(d){
@@ -524,6 +531,18 @@ function renderApiKey(d){
   if(!d.set){ inp.value=t('settings.apikey.none_open_server'); inp.style.opacity=.6; }
   else { inp.style.opacity=1; inp.value = OAI_REVEAL ? OAI_KEY : d.masked; }
   document.getElementById('oai-key-eye').style.display = d.set ? '' : 'none';
+  document.getElementById('oai-key-copy').style.display = d.set ? '' : 'none';
+  OAI_SET = !!d.set;
+}
+// Menu ⋮ de la clé : générer, définir, et retirer quand une clé existe.
+let OAI_SET = false;
+function apiKeyMenu(anchor){
+  popMenu(anchor, [
+    {label: t('api.key_generate'), run: ()=>apiKeyAction('generate')},
+    {label: t('api.key_set'), run: ()=>apiKeySet()},
+    OAI_SET && '-',
+    OAI_SET && {label: t('api.key_clear'), danger: true, run: ()=>apiKeyAction('clear')},
+  ].filter(Boolean), {side:'below'});
 }
 async function loadApiKey(){ renderApiKey(await jget('/api/apikey')); }
 // --- Export de la conversation ---------------------------------------------
@@ -610,7 +629,7 @@ async function toggleLAN(){
   }
   loadApiKey();
 }
-function toggleKeyReveal(){ OAI_REVEAL=!OAI_REVEAL; const inp=document.getElementById('oai-key'); if(OAI_KEY) inp.value = OAI_REVEAL ? OAI_KEY : (OAI_KEY.slice(0,8)+'…'+OAI_KEY.slice(-4)); const eye=document.getElementById('oai-key-eye'); if(eye) eye.textContent = OAI_REVEAL ? t('settings.apikey.hide') : t('settings.apikey.show'); }
+function toggleKeyReveal(){ OAI_REVEAL=!OAI_REVEAL; const inp=document.getElementById('oai-key'); if(OAI_KEY) inp.value = OAI_REVEAL ? OAI_KEY : (OAI_KEY.slice(0,8)+'…'+OAI_KEY.slice(-4)); const eye=document.getElementById('oai-key-eye'); if(eye){ eye.title = OAI_REVEAL ? t('settings.apikey.hide') : t('settings.apikey.show'); eye.classList.toggle('on', OAI_REVEAL); } }
 async function apiKeyAction(action){
   if(action==='clear' && !await askConfirm(t('settings.apikey.remove_confirm_msg'), {title:t('settings.apikey.remove_confirm_title'), okText:t('settings.apikey.remove_ok')})) return;
   if(action==='generate' && OAI_KEY && !await askConfirm(t('settings.apikey.regenerate_confirm_msg'), {title:t('settings.apikey.regenerate_confirm_title'), okText:t('settings.apikey.regenerate_ok')})) return;

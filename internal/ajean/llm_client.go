@@ -996,6 +996,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// Appels d'outil déjà exécutés (clé = nom + arguments bruts) : sert à ne pas
 	// rejouer deux fois exactement la même écriture dans un même échange.
 	doneCalls := map[string]string{}
+	jeanFailed := map[string]jeanFailure{} // mode Jean : dernière commande ratée, pour ses correctifs (jean_fixes.go)
 	// Nombre de fois où le modèle a REDEMANDÉ un appel déjà exécuté. Sert à durcir
 	// la réponse progressivement (voir repeatedCallResult) : rendre le contenu une
 	// fois, puis refuser en le renvoyant vers ce qu'il a déjà.
@@ -1876,6 +1877,10 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					}
 				}
 				result = capToolResult(result)
+				if caps.Jean && tc.Function.Name == "bash" && !isJeanReflecting(ctx) {
+					cmd, _ := args["command"].(string)
+					result = jeanNoteBashResult(jeanFailed, cmd, result)
+				}
 				shot := ""
 				if !strings.HasPrefix(result, "[erreur]") {
 					doneCalls[callKey] = result

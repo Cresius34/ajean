@@ -556,6 +556,21 @@ func jeanEmbedLoop() {
 
 // ---- la recherche ---------------------------------------------------------------
 
+// jeanJournalVecs : les vecteurs de toutes les entrées indexées du journal, par id.
+func jeanJournalVecs() map[string][]float32 {
+	vecs := map[string][]float32{}
+	for _, m := range jeanJournalMonths() {
+		if idx := jeanEmbedLoad(jeanEmbedFile(m)); idx != nil {
+			jeanEmbedCache.Lock()
+			for id, v := range idx {
+				vecs[id] = v
+			}
+			jeanEmbedCache.Unlock()
+		}
+	}
+	return vecs
+}
+
 // jeanSemanticRank classe tout le journal par proximité de sens avec la requête.
 // nil si la recherche par le sens est coupée, indisponible ou l'index vide : le
 // classement par mots prend alors seul le relais.
@@ -570,16 +585,7 @@ func jeanSemanticRank(query string, all []jeanEntry) ([]int, map[int]float32) {
 		return nil, nil
 	}
 	q := vs[0]
-	vecs := map[string][]float32{}
-	for _, m := range jeanJournalMonths() {
-		if idx := jeanEmbedLoad(jeanEmbedFile(m)); idx != nil {
-			jeanEmbedCache.Lock()
-			for id, v := range idx {
-				vecs[id] = v
-			}
-			jeanEmbedCache.Unlock()
-		}
-	}
+	vecs := jeanJournalVecs()
 	if len(vecs) == 0 {
 		return nil, nil
 	}

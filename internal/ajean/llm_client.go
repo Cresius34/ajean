@@ -638,10 +638,24 @@ func fillToolResult(ev *ToolUsedEvent, result string) *ToolUsedEvent {
 //     (visionImg), que le chemin de dédup ne rejoue PAS : l'IA recevait « [déjà fait] »
 //     SANS l'image et tournait en boucle (vécu sur le test de navigation). Ces outils ont des
 //     effets de bord (naviguer, cliquer, taper) : on les exécute toujours.
+//
+// FAUX également pour la lecture d'un état VIVANT (mem_read, mem_search, recall,
+// task_list, tracker, inspect — voir repeat_exempt.go) : la source change sous
+// les pieds de l'appel (mem_edit puis mem_read, task_create puis task_list). Le
+// rappel mémorisé y devient faux, et l'escalade de repeatedCallResult finit par
+// ne plus rien rendre du tout alors que le stockage sur disque est intact (mesuré
+// le 2026-10-20 : « rappel trop demandé » au 3ᵉ appel identique sur mem_read).
+// Ces outils n'écrivent rien : les rejouer ne produit ni doublon ni fausse erreur.
+//
+// Les ÉCRITURES (write, edit, mem_add, mem_edit, mem_delete, task_*) restent
+// dédupliquées : elles seules ont besoin du court-circuit.
 func dedupableTool(name string) bool {
 	// app : l'état change entre deux appels identiques (read après update,
 	// script_test après script_write) ; un vieux résultat trompait l'IA.
 	if name == "bash" || name == "app" || name == "see_image" || name == "see_video" {
+		return false
+	}
+	if isLiveStateRead(name) {
 		return false
 	}
 	return !strings.HasPrefix(name, "browser_")

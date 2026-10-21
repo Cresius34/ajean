@@ -6,12 +6,31 @@ import (
 )
 
 // bash ne doit JAMAIS être dédupliqué (relancer la même commande après avoir
-// modifié un fichier est légitime) ; les outils d'écriture/lecture, si.
+// modifié un fichier est légitime) ; les outils d'écriture, si.
 func TestDedupableToolExemptsBash(t *testing.T) {
 	if dedupableTool("bash") {
 		t.Error("bash ne doit pas être déduplicable : relancer la même commande est légitime")
 	}
-	for _, name := range []string{"edit", "write", "mem_edit", "mem_read", "web_read"} {
+	for _, name := range []string{"edit", "write", "mem_edit", "web_read"} {
+		if !dedupableTool(name) {
+			t.Errorf("%s devrait rester déduplicable", name)
+		}
+	}
+}
+
+// Piste A (arbitrée le 2026-10-20) : la lecture d'un état VIVANT n'est jamais
+// dédupliquée. Sans cette exemption, le blocage mesuré ce jour : au 3ᵉ mem_read
+// identique dans le même tour, repeatedCallResult ne rend plus le contenu alors
+// que la page mémoire est intacte sur disque (« rappel trop demandé »).
+func TestDedupableToolExemptsLiveStateReads(t *testing.T) {
+	for _, name := range []string{"mem_read", "mem_search", "recall", "recall_search", "task_list", "tracker", "inspect", "jean_read", "jean_search"} {
+		if dedupableTool(name) {
+			t.Errorf("%s ne doit PAS être déduplicable : sa source change entre deux appels identiques", name)
+		}
+	}
+	// Les écritures mémoire/tâches gardent le court-circuit (les rejouer produit
+	// une fausse erreur « old introuvable »).
+	for _, name := range []string{"mem_add", "mem_edit", "mem_delete", "task_create", "task_update", "task_delete"} {
 		if !dedupableTool(name) {
 			t.Errorf("%s devrait rester déduplicable", name)
 		}

@@ -116,7 +116,7 @@
     <div class="slist">
       <label class="switchrow"><span class="switch"><input type="checkbox" id="tasks-pause-toggle" onchange="toggleTasksPause()"><span class="slider"></span></span> <span data-i18n="tasks.pause_toggle">suspendre toutes les tâches</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="tasks.pause_help" data-i18n-html>Interrupteur maître : coche pour que plus aucune tâche ne se déclenche. Les tâches gardent leur réglage et repartent quand tu décoches.</span></span></label>
       <div class="rowbody list-body"><div id="tasks-list" class="mcp-list"></div></div>
-      <button type="button" class="switchrow sw-action" onclick="openTask('')"><span data-i18n="tasks.add_button">Ajouter une tâche</span></button>
+      <button type="button" class="switchrow sw-action" onclick="openTask('')"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="tasks.add_button">Ajouter une tâche</span></button>
     </div>
   </details>
   <details><summary><span class="stitle" data-i18n="appearance.title">Appearance</span></summary>
@@ -183,7 +183,7 @@
       <div class="link-perks">
         <div class="link-perk">
           <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <div><div class="link-perk-t" data-i18n="link.perk_remote_t">Accès distant sécurisé</div><div class="link-perk-d" data-i18n="link.perk_remote_d">Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout — le relais ne voit rien.</div></div>
+          <div><div class="link-perk-t" data-i18n="link.perk_remote_t">Accès distant sécurisé</div><div class="link-perk-d" data-i18n="link.perk_remote_d">Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout : le relais ne voit rien.</div></div>
         </div>
         <div class="link-perk">
           <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
@@ -194,44 +194,35 @@
       <button class="btn-primary" onclick="remoteConnect()"  data-i18n="link.connect_button">Connecter à ajean.link</button>
       <div class="link-price" data-i18n="link.price_note">4,80 €/mois · sans engagement, résiliable à tout moment</div>
     </div></div>
-    <!-- Connecté : URL publique + appairage + déconnexion. Le bouton « démarrer
-         le tunnel » vit DANS la carte de l'adresse : c'est l'action de cette
-         ligne, il flottait auparavant entre deux cartes. -->
+    <!-- Connecté : même gabarit que la carte Connexion de l'API (libellé au-dessus,
+         valeur, icônes à droite), état en ligne / arrêté à droite du libellé.
+         Les actions sont des lignes simples, comme « Ajouter un serveur ». -->
     <div id="remote-on" style="display:none">
-      <div class="slist"><div class="rowbody">
-        <div class="muted" style="margin:0 0 6px" data-i18n="link.remote_address_label">Votre adresse d'accès distant</div>
-        <div class="row" style="margin:0">
-          <input id="remote-url" readonly class="io-input">
-          <button class="iconbtn" onclick="copyText(document.getElementById('remote-url').value,'adresse copiée')" title="copier" data-i18n="link.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
-          <button class="iconbtn" onclick="window.open(document.getElementById('remote-url').value,'_blank')" title="ouvrir" data-i18n="link.open_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></button>
+      <div class="slist api-conn">
+        <div class="api-ent">
+          <div class="api-lbl"><span data-i18n="link.remote_address_label">Adresse d'accès distant</span><span id="remote-status" class="api-state"></span></div>
+          <div class="api-line"><input id="remote-url" readonly class="api-val">
+            <button class="sw-ic" onclick="copyText(document.getElementById('remote-url').value,'adresse copiée');flashCopied(this)" title="copier" data-i18n="link.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+            <button class="sw-ic" onclick="window.open(document.getElementById('remote-url').value,'_blank')" title="ouvrir" data-i18n="link.open_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></button></div>
         </div>
-        <div id="remote-status" class="muted" style="margin-top:6px"></div>
-        <div class="row" style="margin-bottom:0"><button class="btn-primary" id="remote-start" onclick="remoteStart()" style="display:none" data-i18n="link.start_tunnel">démarrer le tunnel</button></div>
-      </div></div>
+        <button type="button" id="remote-start" class="switchrow sw-action" onclick="remoteStart()" style="display:none"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span data-i18n="link.start_tunnel">Démarrer le tunnel</span></button>
+      </div>
       <div id="remote-firstconn">
-      <div class="subhead"><span data-i18n="link.first_connection_subhead">Première connexion</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="link.first_connection_help" data-i18n-html>À votre première ouverture du portail distant, confirmez l'<b>empreinte</b> et saisissez le <b>code d'appairage</b> : cela verrouille la boîte noire sur CE serveur (anti-interception). Une seule fois par appareil.</span></span></div>
-      <div class="slist"><div class="rowbody">
-        <div class="row" style="margin:0"><button onclick="remotePairCode()" data-i18n="link.show_pairing">Afficher l'empreinte et le code d'appairage</button></div>
-        <div id="remote-pair" class="muted" style="display:none;margin-top:6px"></div>
-        <div class="row" style="margin-bottom:0"><button onclick="remoteDisconnect()" class="btn-danger-o" data-i18n="link.disconnect">déconnecter l'accès distant</button></div>
-      </div></div>
+        <div class="slist">
+          <button type="button" class="switchrow sw-action" onclick="openPairModal()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/></svg><span class="sw-txt"><span data-i18n="link.pair_row">Connecter un nouvel appareil</span><span class="sw-sub" data-i18n="link.pair_row_sub">Une fois par appareil, à sa première ouverture</span></span></button>
+          <button type="button" class="switchrow sw-action danger" onclick="remoteDisconnect()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7H7a5 5 0 0 0 0 10h2"/><path d="M15 7h2a5 5 0 0 1 4 8"/><path d="M3 3l18 18"/></svg><span data-i18n="link.disconnect">Déconnecter l'accès distant</span></button>
+        </div>
       </div>
     </div>
     <!-- Sauvegarde ajean.link (abonnés) : mémoire + presets + réglages, chiffrés
          côté serveur avant l'envoi, relais aveugle. Bloc entier masqué si le
-         serveur n'est pas lié à un compte ajean.link. Rangé ici, dans la section
-         ajean link, car c'est une fonctionnalité du relais. -->
+         serveur n'est pas lié à un compte ajean.link. -->
     <div id="backup-block" style="display:none">
       <div class="subhead"><span data-i18n="link.backup_subhead">Sauvegarde</span><span id="backup-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="link.backup_help" data-i18n-html>Sauvegarde ta mémoire, tes presets et tes réglages sur ajean.link. Tout est <b>chiffré sur ton serveur avant l'envoi</b> : le relais ne voit qu'un blob opaque, illisible même s'il était piraté. Restaurable sur un serveur vierge avec ton mot de passe de sauvegarde.</span></span></div>
       <div class="slist">
-        <label class="switchrow"><span class="switch"><input type="checkbox" id="backup-auto-toggle" onchange="toggleBackupAuto()"><span class="slider"></span></span> <span data-i18n="link.backup_auto_toggle">sauvegarde automatique quotidienne</span></label>
-        <div class="rowbody">
-          <div id="backup-status" class="muted" style="font-size:12px;line-height:1.5"></div>
-          <div class="row" style="margin-top:8px">
-            <button onclick="backupNow()" data-i18n="link.backup_now">Sauvegarder maintenant</button>
-            <button onclick="backupRestore()" data-i18n="link.backup_restore">Restaurer…</button>
-          </div>
-        </div>
+        <label class="switchrow"><span class="switch"><input type="checkbox" id="backup-auto-toggle" onchange="toggleBackupAuto()"><span class="slider"></span></span> <span class="sw-txt"><span data-i18n="link.backup_auto_toggle">sauvegarde automatique quotidienne</span><span id="backup-status" class="sw-sub"></span></span></label>
+        <button type="button" class="switchrow sw-action" onclick="backupNow()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span data-i18n="link.backup_now">Sauvegarder maintenant</span></button>
+        <button type="button" class="switchrow sw-action" onclick="backupRestore()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span data-i18n="link.backup_restore">Restaurer…</span></button>
       </div>
     </div>
     <!-- Rappel discret des avantages inclus (compte connecté). En footer de TOUTE la
@@ -326,7 +317,7 @@
         <div class="rowbody mcp-body">
           <div id="mcp-list" class="mcp-list"><div class="muted" style="font-size:12px" data-i18n="mcp.empty_list">Aucun serveur. Un serveur MCP ajoute des outils : fichiers, base de données, API…</div></div>
         </div>
-        <button type="button" class="switchrow sw-action" onclick="openMcp('')"><span data-i18n="mcp.add_button">Ajouter un serveur</span></button>
+        <button type="button" class="switchrow sw-action" onclick="openMcp('')"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="mcp.add_button">Ajouter un serveur</span></button>
       </div>
     </div>
     <!-- Paramètres : compactage + machines sont gatés PAR LIGNE (classe agent-gated,
@@ -539,6 +530,36 @@
 <!-- Modal de bench : structure standard (.modal-ov) pour l'animation d'ouverture/
      fermeture et la croix commune. z-index:55 en INLINE (au-dessus du modal preset
      d'où il est lancé, qui est en 30 comme les autres). -->
+<!-- Connecter un appareil au portail distant (13-remote.js) : trois étapes, dans
+     l'ordre où on les fait sur l'autre appareil. Code à usage unique, 10 min. -->
+<div id="pair-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)closePairModal()">
+  <div class="modal-card" style="max-width:440px">
+    <div class="modal-head">
+      <strong data-i18n="pair.title">Connecter un appareil</strong>
+      <button class="modal-x" onclick="closePairModal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="modal-body pair-body">
+      <div class="pair-step"><span class="pair-n">1</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_open">Sur l'appareil, ouvrez l'adresse d'accès distant</div>
+        <div class="pair-val"><span id="pair-url" class="pair-url"></span><button class="sw-ic" onclick="copyText(document.getElementById('pair-url').textContent);flashCopied(this)" title="copier"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+      </div></div>
+      <div class="pair-step"><span class="pair-n">2</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_check">Vérifiez que l'empreinte affichée est bien celle-ci</div>
+        <div id="pair-fp" class="pair-fp"></div>
+      </div></div>
+      <div class="pair-step"><span class="pair-n">3</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_code">Saisissez ce code</div>
+        <div class="pair-val"><span id="pair-code" class="pair-code"></span><button class="sw-ic" onclick="copyText(document.getElementById('pair-code').textContent);flashCopied(this)" title="copier"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+        <div class="pair-note" data-i18n="pair.code_note">Valable 10 minutes, une seule fois.</div>
+      </div></div>
+      <div id="pair-err" class="pair-err" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="pe-btn" onclick="openPairModal()" data-i18n="pair.new_code">Nouveau code</button>
+      <button class="pe-btn primary" onclick="closePairModal()" data-i18n="pair.done">Terminé</button>
+    </div>
+  </div>
+</div>
 <div id="bench-modal" class="modal-ov" style="display:none;z-index:55" onclick="if(event.target===this)closeBenchModal()">
   <div class="modal-card" style="max-width:480px">
     <div class="modal-head">

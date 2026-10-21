@@ -309,7 +309,7 @@ async function loadBackup(){
     msg += ' · '+mine+' '+t('settings.backup.versions_this_machine');
     if(s.versions.length > mine) msg += ' · '+s.versions.length+' '+t('settings.backup.versions_total');
   }
-  if(s.error) msg+='\n⚠️ '+s.error;
+  if(s.error) msg+='\n'+s.error;
   st.textContent=msg; st.style.whiteSpace='pre-line';
 }
 async function toggleBackupAuto(){

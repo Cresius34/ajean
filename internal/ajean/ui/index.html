@@ -392,7 +392,7 @@ details>summary+.subhead{margin-top:4px}
 .link-perk-t{font-size:12.5px;font-weight:600;color:var(--text)}
 .link-perk-d{font-size:11.5px;line-height:1.45;color:var(--dim);margin-top:1px}
 .link-price{font-size:11px;color:var(--dim);margin-top:8px}
-.link-perks-mini{font-size:11px;color:var(--dim);line-height:1.5;margin-top:10px;padding-top:9px;border-top:1px solid var(--border)}
+.link-perks-mini{font-size:11px;color:var(--dim);line-height:1.5;margin:10px 2px 0}
 .slist{background:var(--panel);border:1px solid var(--border);border-radius:9px;
   overflow:visible;margin:0 0 8px}
 .slist:last-child{margin-bottom:0}
@@ -1805,6 +1805,39 @@ button.th-head:hover{background:var(--t1)}
 .side .api-line button.sw-ic.copied{color:var(--text)}
 .side .api-line button.sw-ic.copied svg{animation:copied-pop .25s var(--ease)}
 @keyframes copied-pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.api-state{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding-right:8px;font-size:11.5px;color:var(--dim)}
+.api-state:empty{display:none}
+.api-state::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.api-state.on{color:var(--text)}
+.api-state.on::before{background:var(--accent)}
+.slist.api-conn>.sw-action{border-top:1px solid var(--border)}
+.slist>.rowbody.remote-pair{font-size:12.5px;line-height:1.6;color:var(--dim);border-top:1px solid var(--border)}
+.slist>.rowbody.remote-pair b{color:var(--text);font-weight:600;letter-spacing:.02em}
+.slist>.switchrow.sw-action{gap:10px;color:var(--text);font-weight:500;cursor:pointer;transition:background .15s ease,color .15s ease}
+.slist>.switchrow.sw-action:hover{background:var(--t2);color:var(--text)}
+.slist>.switchrow.sw-action:active{background:var(--t3)}
+.slist>.switchrow.sw-action:first-child{border-top-left-radius:inherit;border-top-right-radius:inherit}
+.slist>.switchrow.sw-action:last-child{border-bottom-left-radius:inherit;border-bottom-right-radius:inherit}
+.sw-ai{flex:none;color:var(--dim)}
+.slist>.switchrow.sw-action:hover .sw-ai{color:var(--text)}
+.slist>.switchrow.sw-action .sw-sub{font-weight:400}
+.slist>.switchrow.sw-action.danger,.slist>.switchrow.sw-action.danger .sw-ai{color:var(--err)}
+.slist>.switchrow.sw-action.danger:hover{background:color-mix(in srgb,var(--err) 9%,transparent);color:var(--err)}
+.pair-body{display:flex;flex-direction:column;gap:18px}
+.pair-step{display:flex;gap:12px;align-items:flex-start}
+.pair-n{flex:none;width:24px;height:24px;border-radius:50%;background:var(--t2);color:var(--text);font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.pair-c{flex:1;min-width:0;padding-top:2px}
+.pair-t{font-size:13px;color:var(--text);margin-bottom:6px}
+.pair-val{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:10px;background:var(--t1)}
+.pair-url{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pair-fp{padding:9px 12px;border-radius:10px;background:var(--t1);font-family:var(--mono);font-size:13.5px;letter-spacing:.06em;color:var(--text)}
+.pair-code{flex:1;font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:.12em;color:var(--text);padding:4px 0}
+.pair-note{font-size:11.5px;color:var(--dim);margin-top:6px}
+.pair-err{font-size:12.5px;color:var(--err)}
+.pair-val .sw-ic{flex:none;width:32px;height:32px;min-height:32px;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:none;
+  border-radius:8px;background:transparent;color:var(--dim);box-shadow:none;cursor:pointer;transition:background .15s ease,color .15s ease}
+.pair-val .sw-ic:hover{background:var(--t2);color:var(--text)}
 </style></head><body>
 <button id="menubtn" onclick="toggleSide()" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button id="lc-chip" onclick="lcChipOpen()" hidden></button>
@@ -1866,7 +1899,7 @@ button.th-head:hover{background:var(--t1)}
     <div class="slist">
       <label class="switchrow"><span class="switch"><input type="checkbox" id="tasks-pause-toggle" onchange="toggleTasksPause()"><span class="slider"></span></span> <span data-i18n="tasks.pause_toggle">suspendre toutes les tâches</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="tasks.pause_help" data-i18n-html>Interrupteur maître : coche pour que plus aucune tâche ne se déclenche. Les tâches gardent leur réglage et repartent quand tu décoches.</span></span></label>
       <div class="rowbody list-body"><div id="tasks-list" class="mcp-list"></div></div>
-      <button type="button" class="switchrow sw-action" onclick="openTask('')"><span data-i18n="tasks.add_button">Ajouter une tâche</span></button>
+      <button type="button" class="switchrow sw-action" onclick="openTask('')"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="tasks.add_button">Ajouter une tâche</span></button>
     </div>
   </details>
   <details><summary><span class="stitle" data-i18n="appearance.title">Appearance</span></summary>
@@ -1925,7 +1958,7 @@ button.th-head:hover{background:var(--t1)}
       <div class="link-perks">
         <div class="link-perk">
           <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <div><div class="link-perk-t" data-i18n="link.perk_remote_t">Accès distant sécurisé</div><div class="link-perk-d" data-i18n="link.perk_remote_d">Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout — le relais ne voit rien.</div></div>
+          <div><div class="link-perk-t" data-i18n="link.perk_remote_t">Accès distant sécurisé</div><div class="link-perk-d" data-i18n="link.perk_remote_d">Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout : le relais ne voit rien.</div></div>
         </div>
         <div class="link-perk">
           <span class="link-perk-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
@@ -1937,36 +1970,28 @@ button.th-head:hover{background:var(--t1)}
       <div class="link-price" data-i18n="link.price_note">4,80 €/mois · sans engagement, résiliable à tout moment</div>
     </div></div>
     <div id="remote-on" style="display:none">
-      <div class="slist"><div class="rowbody">
-        <div class="muted" style="margin:0 0 6px" data-i18n="link.remote_address_label">Votre adresse d'accès distant</div>
-        <div class="row" style="margin:0">
-          <input id="remote-url" readonly class="io-input">
-          <button class="iconbtn" onclick="copyText(document.getElementById('remote-url').value,'adresse copiée')" title="copier" data-i18n="link.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
-          <button class="iconbtn" onclick="window.open(document.getElementById('remote-url').value,'_blank')" title="ouvrir" data-i18n="link.open_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></button>
+      <div class="slist api-conn">
+        <div class="api-ent">
+          <div class="api-lbl"><span data-i18n="link.remote_address_label">Adresse d'accès distant</span><span id="remote-status" class="api-state"></span></div>
+          <div class="api-line"><input id="remote-url" readonly class="api-val">
+            <button class="sw-ic" onclick="copyText(document.getElementById('remote-url').value,'adresse copiée');flashCopied(this)" title="copier" data-i18n="link.copy_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+            <button class="sw-ic" onclick="window.open(document.getElementById('remote-url').value,'_blank')" title="ouvrir" data-i18n="link.open_title" data-i18n-attr="title"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></button></div>
         </div>
-        <div id="remote-status" class="muted" style="margin-top:6px"></div>
-        <div class="row" style="margin-bottom:0"><button class="btn-primary" id="remote-start" onclick="remoteStart()" style="display:none" data-i18n="link.start_tunnel">démarrer le tunnel</button></div>
-      </div></div>
+        <button type="button" id="remote-start" class="switchrow sw-action" onclick="remoteStart()" style="display:none"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span data-i18n="link.start_tunnel">Démarrer le tunnel</span></button>
+      </div>
       <div id="remote-firstconn">
-      <div class="subhead"><span data-i18n="link.first_connection_subhead">Première connexion</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="link.first_connection_help" data-i18n-html>À votre première ouverture du portail distant, confirmez l'<b>empreinte</b> et saisissez le <b>code d'appairage</b> : cela verrouille la boîte noire sur CE serveur (anti-interception). Une seule fois par appareil.</span></span></div>
-      <div class="slist"><div class="rowbody">
-        <div class="row" style="margin:0"><button onclick="remotePairCode()" data-i18n="link.show_pairing">Afficher l'empreinte et le code d'appairage</button></div>
-        <div id="remote-pair" class="muted" style="display:none;margin-top:6px"></div>
-        <div class="row" style="margin-bottom:0"><button onclick="remoteDisconnect()" class="btn-danger-o" data-i18n="link.disconnect">déconnecter l'accès distant</button></div>
-      </div></div>
+        <div class="slist">
+          <button type="button" class="switchrow sw-action" onclick="openPairModal()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/></svg><span class="sw-txt"><span data-i18n="link.pair_row">Connecter un nouvel appareil</span><span class="sw-sub" data-i18n="link.pair_row_sub">Une fois par appareil, à sa première ouverture</span></span></button>
+          <button type="button" class="switchrow sw-action danger" onclick="remoteDisconnect()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7H7a5 5 0 0 0 0 10h2"/><path d="M15 7h2a5 5 0 0 1 4 8"/><path d="M3 3l18 18"/></svg><span data-i18n="link.disconnect">Déconnecter l'accès distant</span></button>
+        </div>
       </div>
     </div>
     <div id="backup-block" style="display:none">
       <div class="subhead"><span data-i18n="link.backup_subhead">Sauvegarde</span><span id="backup-badge" class="sbadge"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="link.backup_help" data-i18n-html>Sauvegarde ta mémoire, tes presets et tes réglages sur ajean.link. Tout est <b>chiffré sur ton serveur avant l'envoi</b> : le relais ne voit qu'un blob opaque, illisible même s'il était piraté. Restaurable sur un serveur vierge avec ton mot de passe de sauvegarde.</span></span></div>
       <div class="slist">
-        <label class="switchrow"><span class="switch"><input type="checkbox" id="backup-auto-toggle" onchange="toggleBackupAuto()"><span class="slider"></span></span> <span data-i18n="link.backup_auto_toggle">sauvegarde automatique quotidienne</span></label>
-        <div class="rowbody">
-          <div id="backup-status" class="muted" style="font-size:12px;line-height:1.5"></div>
-          <div class="row" style="margin-top:8px">
-            <button onclick="backupNow()" data-i18n="link.backup_now">Sauvegarder maintenant</button>
-            <button onclick="backupRestore()" data-i18n="link.backup_restore">Restaurer…</button>
-          </div>
-        </div>
+        <label class="switchrow"><span class="switch"><input type="checkbox" id="backup-auto-toggle" onchange="toggleBackupAuto()"><span class="slider"></span></span> <span class="sw-txt"><span data-i18n="link.backup_auto_toggle">sauvegarde automatique quotidienne</span><span id="backup-status" class="sw-sub"></span></span></label>
+        <button type="button" class="switchrow sw-action" onclick="backupNow()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span data-i18n="link.backup_now">Sauvegarder maintenant</span></button>
+        <button type="button" class="switchrow sw-action" onclick="backupRestore()"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span data-i18n="link.backup_restore">Restaurer…</span></button>
       </div>
     </div>
     <div id="remote-perks-mini" class="link-perks-mini" style="display:none" data-i18n="link.perks_mini" data-i18n-html>Inclus dans <b>AJEAN LINK</b> : accès distant chiffré de bout en bout · sauvegarde de vos réglages, presets, historique et mémoire.</div>
@@ -2037,7 +2062,7 @@ button.th-head:hover{background:var(--t1)}
         <div class="rowbody mcp-body">
           <div id="mcp-list" class="mcp-list"><div class="muted" style="font-size:12px" data-i18n="mcp.empty_list">Aucun serveur. Un serveur MCP ajoute des outils : fichiers, base de données, API…</div></div>
         </div>
-        <button type="button" class="switchrow sw-action" onclick="openMcp('')"><span data-i18n="mcp.add_button">Ajouter un serveur</span></button>
+        <button type="button" class="switchrow sw-action" onclick="openMcp('')"><svg class="sw-ai" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="mcp.add_button">Ajouter un serveur</span></button>
       </div>
     </div>
     <div class="subhead" data-i18n="settings.general_subhead">Général</div>
@@ -2169,6 +2194,34 @@ button.th-head:hover{background:var(--t1)}
   <button data-eff="xhigh" onclick="pickReason('xhigh')">xhigh <span class="rm-h" data-i18n="reason.hint_max">max</span></button>
 </div>
 <div id="toast"></div>
+<div id="pair-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)closePairModal()">
+  <div class="modal-card" style="max-width:440px">
+    <div class="modal-head">
+      <strong data-i18n="pair.title">Connecter un appareil</strong>
+      <button class="modal-x" onclick="closePairModal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="modal-body pair-body">
+      <div class="pair-step"><span class="pair-n">1</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_open">Sur l'appareil, ouvrez l'adresse d'accès distant</div>
+        <div class="pair-val"><span id="pair-url" class="pair-url"></span><button class="sw-ic" onclick="copyText(document.getElementById('pair-url').textContent);flashCopied(this)" title="copier"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+      </div></div>
+      <div class="pair-step"><span class="pair-n">2</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_check">Vérifiez que l'empreinte affichée est bien celle-ci</div>
+        <div id="pair-fp" class="pair-fp"></div>
+      </div></div>
+      <div class="pair-step"><span class="pair-n">3</span><div class="pair-c">
+        <div class="pair-t" data-i18n="pair.step_code">Saisissez ce code</div>
+        <div class="pair-val"><span id="pair-code" class="pair-code"></span><button class="sw-ic" onclick="copyText(document.getElementById('pair-code').textContent);flashCopied(this)" title="copier"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+        <div class="pair-note" data-i18n="pair.code_note">Valable 10 minutes, une seule fois.</div>
+      </div></div>
+      <div id="pair-err" class="pair-err" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="pe-btn" onclick="openPairModal()" data-i18n="pair.new_code">Nouveau code</button>
+      <button class="pe-btn primary" onclick="closePairModal()" data-i18n="pair.done">Terminé</button>
+    </div>
+  </div>
+</div>
 <div id="bench-modal" class="modal-ov" style="display:none;z-index:55" onclick="if(event.target===this)closeBenchModal()">
   <div class="modal-card" style="max-width:480px">
     <div class="modal-head">
@@ -3266,7 +3319,7 @@ fr: {
   "link.connect_button": "Connecter à ajean.link",
   "link.perks_heading": "Passez à AJEAN LINK",
   "link.perk_remote_t": "Accès distant sécurisé",
-  "link.perk_remote_d": "Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout — le relais ne voit rien.",
+  "link.perk_remote_d": "Accédez à votre serveur AJEAN depuis n'importe où et depuis n'importe quelle application, chiffré de bout en bout : le relais ne voit rien.",
   "link.perk_backup_t": "Sauvegarde intégrée",
   "link.perk_backup_d": "Vos réglages, presets, historique et mémoire sauvegardés automatiquement, chiffrés avant l'envoi.",
   "link.price_note": "4,80 €/mois · sans engagement, résiliable à tout moment",
@@ -3274,11 +3327,20 @@ fr: {
   "link.remote_address_label": "Votre adresse d'accès distant",
   "link.copy_title": "copier",
   "link.open_title": "ouvrir",
-  "link.start_tunnel": "démarrer le tunnel",
+  "link.start_tunnel": "Démarrer le tunnel",
   "link.first_connection_subhead": "Première connexion",
   "link.first_connection_help": "À votre première ouverture du portail distant, confirmez l'<b>empreinte</b> et saisissez le <b>code d'appairage</b> : cela verrouille la boîte noire sur CE serveur (anti-interception). Une seule fois par appareil.",
   "link.show_pairing": "Afficher l'empreinte et le code d'appairage",
-  "link.disconnect": "déconnecter l'accès distant",
+  "link.pair_row": "Connecter un nouvel appareil",
+  "link.pair_row_sub": "Une fois par appareil, à sa première ouverture",
+  "pair.title": "Connecter un appareil",
+  "pair.step_open": "Sur l'appareil, ouvrez l'adresse d'accès distant",
+  "pair.step_check": "Vérifiez que l'empreinte affichée est bien celle-ci",
+  "pair.step_code": "Saisissez ce code",
+  "pair.code_note": "Valable 10 minutes, une seule fois.",
+  "pair.new_code": "Nouveau code",
+  "pair.done": "Terminé",
+  "link.disconnect": "Déconnecter l'accès distant",
   "link.backup_subhead": "Sauvegarde",
   "link.backup_help": "Sauvegarde ta mémoire, tes presets et tes réglages sur ajean.link. Tout est <b>chiffré sur ton serveur avant l'envoi</b> : le relais ne voit qu'un blob opaque, illisible même s'il était piraté. Restaurable sur un serveur vierge avec ton mot de passe de sauvegarde.",
   "link.backup_auto_toggle": "sauvegarde automatique quotidienne",
@@ -4036,8 +4098,8 @@ fr: {
   "mcp.delete_btn": "Supprimer",
   "mcp.server_deleted": "serveur supprimé",
   "remote.not_connected": "non connecté",
-  "remote.online_status": "en ligne — accessible à distance",
-  "remote.tunnel_stopped": "tunnel arrêté (l'accès distant ne répondra pas)",
+  "remote.online_status": "En ligne",
+  "remote.tunnel_stopped": "Arrêté",
   "remote.connected": "connecté",
   "remote.stopped": "arrêté",
   "remote.this_server": "ce serveur",
@@ -4607,7 +4669,7 @@ en: {
   "link.connect_button": "Connect to ajean.link",
   "link.perks_heading": "Upgrade to AJEAN LINK",
   "link.perk_remote_t": "Secure remote access",
-  "link.perk_remote_d": "Reach your AJEAN server from anywhere and from any app, end-to-end encrypted — the relay sees nothing.",
+  "link.perk_remote_d": "Reach your AJEAN server from anywhere and from any app, end-to-end encrypted: the relay sees nothing.",
   "link.perk_backup_t": "Built-in backup",
   "link.perk_backup_d": "Your settings, presets, history and memory backed up automatically, encrypted before upload.",
   "link.price_note": "€4.80/month · no commitment, cancel anytime",
@@ -4615,11 +4677,20 @@ en: {
   "link.remote_address_label": "Your remote access address",
   "link.copy_title": "copy",
   "link.open_title": "open",
-  "link.start_tunnel": "start the tunnel",
+  "link.start_tunnel": "Start the tunnel",
   "link.first_connection_subhead": "First connection",
   "link.first_connection_help": "The first time you open the remote portal, confirm the <b>fingerprint</b> and enter the <b>pairing code</b>: this locks the black box to THIS server (anti-interception). Only needed once per device.",
   "link.show_pairing": "Show fingerprint and pairing code",
-  "link.disconnect": "disconnect remote access",
+  "link.pair_row": "Connect a new device",
+  "link.pair_row_sub": "Once per device, the first time it opens",
+  "pair.title": "Connect a device",
+  "pair.step_open": "On the device, open the remote access address",
+  "pair.step_check": "Check that the fingerprint shown matches this one",
+  "pair.step_code": "Enter this code",
+  "pair.code_note": "Valid for 10 minutes, single use.",
+  "pair.new_code": "New code",
+  "pair.done": "Done",
+  "link.disconnect": "Disconnect remote access",
   "link.backup_subhead": "Backup",
   "link.backup_help": "Backs up your memory, presets, and settings to ajean.link. Everything is <b>encrypted on your server before being sent</b>: the relay only sees an opaque blob, unreadable even if it were hacked. Restorable to a fresh server with your backup password.",
   "link.backup_auto_toggle": "automatic daily backup",
@@ -5377,8 +5448,8 @@ en: {
   "mcp.delete_btn": "Delete",
   "mcp.server_deleted": "server deleted",
   "remote.not_connected": "not connected",
-  "remote.online_status": "online — accessible remotely",
-  "remote.tunnel_stopped": "tunnel stopped (remote access won't respond)",
+  "remote.online_status": "Online",
+  "remote.tunnel_stopped": "Stopped",
   "remote.connected": "connected",
   "remote.stopped": "stopped",
   "remote.this_server": "this server",
@@ -6913,7 +6984,7 @@ async function loadBackup(){
     msg += ' · '+mine+' '+t('settings.backup.versions_this_machine');
     if(s.versions.length > mine) msg += ' · '+s.versions.length+' '+t('settings.backup.versions_total');
   }
-  if(s.error) msg+='\n⚠️ '+s.error;
+  if(s.error) msg+='\n'+s.error;
   st.textContent=msg; st.style.whiteSpace='pre-line';
 }
 async function toggleBackupAuto(){
@@ -10475,8 +10546,7 @@ function renderRemote(d){
   if(perks) perks.style.display=''; 
   document.getElementById('remote-url').value = d.machineURL || '';
   const st = document.getElementById('remote-status');
-  if(d.active){ st.textContent='● '+t('remote.online_status'); st.style.color='var(--accent)'; }
-  else { st.textContent='○ '+t('remote.tunnel_stopped'); st.style.color='var(--warn)'; }
+  st.textContent = d.active ? t('remote.online_status') : t('remote.tunnel_stopped'); st.classList.toggle('on', !!d.active);
   const sb = document.getElementById('remote-start');
   if(sb){ sb.style.display = d.active ? 'none' : ''; }
   setBadge(badge, d.active ? true : 'warn', d.active ? t('remote.connected') : t('remote.stopped'));
@@ -10489,7 +10559,7 @@ async function loadRemote(){
     const on=document.getElementById('remote-on'); if(on) on.style.display='';
     const url=document.getElementById('remote-url'); if(url) url.value=location.origin;
     const st=document.getElementById('remote-status');
-    if(st){ st.textContent='● '+t('remote.online_status'); st.style.color='var(--accent)'; }
+    if(st){ st.textContent=t('remote.online_status'); st.classList.add('on'); }
     const sb=document.getElementById('remote-start'); if(sb) sb.style.display='none';
     const fc=document.getElementById('remote-firstconn'); if(fc) fc.style.display='none';
     const bk=document.getElementById('backup-block'); if(bk) bk.style.display='none';
@@ -10539,18 +10609,20 @@ async function remoteDisconnect(){
   try{ await jpost('/api/link/disconnect', {}); toast(t('remote.remote_access_cut')); loadRemote(); }
   catch(e){ toast(t('remote.error_prefix')+e); }
 }
-async function remotePairCode(){
-  const box = document.getElementById('remote-pair');
-  box.style.display=''; box.textContent=t('remote.generating_code');
+async function openPairModal(){
+  const err = document.getElementById('pair-err');
+  const code = document.getElementById('pair-code'), fp = document.getElementById('pair-fp');
+  document.getElementById('pair-url').textContent = document.getElementById('remote-url').value || '';
+  err.hidden = true; code.textContent = '…'; fp.textContent = '…';
+  showModal('pair-modal');
   try{
     const r = await jpost('/api/link/paircode', {});
-    if(r && r.code){
-      box.innerHTML = t('remote.fingerprint_label')+' <b>'+(r.fingerprint||'—')+'</b><br>'+t('remote.pairing_code_label')+' : <b>'+r.code+'</b>';
-    } else {
-      box.textContent = (r && r.error) || t('remote.code_unavailable');
-    }
-  }catch(e){ box.textContent=t('remote.error_prefix')+e; }
+    if(r && r.code){ code.textContent = r.code; fp.textContent = r.fingerprint || '-'; return; }
+    err.textContent = (r && r.error) || t('remote.code_unavailable');
+  }catch(e){ err.textContent = t('remote.error_prefix') + e; }
+  err.hidden = false; code.textContent = '-'; fp.textContent = '-';
 }
+function closePairModal(){ hideModal('pair-modal'); }
 const ATTACH_MAX = 1024*1024*1024;
 const ATTACH_CHUNK = 8*1024*1024;
 const UPLOAD_CHUNK_TIMEOUT_MS = 120000;

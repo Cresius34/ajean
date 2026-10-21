@@ -192,25 +192,7 @@ type searchResult struct {
 	Snippet string
 }
 
-var (
-	wsRe        = regexp.MustCompile(`\s+`)
-	numEntityRe = regexp.MustCompile(`&#(\d+);`)
-)
-
-func decodeHTMLEntities(s string) string {
-	s = strings.NewReplacer(
-		"&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`,
-		"&#39;", "'", "&#x2F;", "/", "&nbsp;", " ",
-	).Replace(s)
-	return numEntityRe.ReplaceAllStringFunc(s, func(m string) string {
-		var n int
-		fmt.Sscanf(m, "&#%d;", &n)
-		if n > 0 {
-			return string(rune(n))
-		}
-		return m
-	})
-}
+var wsRe = regexp.MustCompile(`\s+`)
 
 // decodeUddg : DDG enrobe les résultats en //duckduckgo.com/l/?uddg=URL_ENCODÉE
 func decodeUddg(raw string) string {

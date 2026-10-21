@@ -36,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -56,11 +57,18 @@ const (
 
 func jeanEmbedModelPath() string { return filepath.Join(modelsDir(), jeanEmbedModelFile) }
 
-// jeanEmbedEnabled : réglage de l'appareil (bucket état), coupé par défaut.
-func jeanEmbedEnabled() bool { return getBool(bkState, "jean_embed") }
+// jeanEmbedEnabled : réglage de l'appareil (bucket état), ACTIF par défaut : la
+// recherche par le sens retrouve deux fois plus de souvenirs que par mots, et
+// ses garde-fous (RAM, inactivité, jamais pendant une réponse) la rendent sans
+// risque. Seul un « 0 » enregistré (coupé dans le panneau) la désactive.
+func jeanEmbedEnabled() bool { return getStr(bkState, "jean_embed") != "0" }
 
 func setJeanEmbedEnabled(on bool) error {
-	if err := putBool(bkState, "jean_embed", on); err != nil {
+	v := "0"
+	if on {
+		v = "1"
+	}
+	if err := putStr(bkState, "jean_embed", v); err != nil {
 		return err
 	}
 	if on {
@@ -529,6 +537,18 @@ func jeanEmbedKick() {
 	if !jeanEmbedEnabled() {
 		return
 	}
+	// Actif par défaut : le modèle se télécharge tout seul, mais seulement quand
+	// Jean a déjà un journal (on ne prend pas 330 Mo à qui ne s'en sert pas), et
+	// pas plus d'une tentative par heure après un échec.
+	if !isFile(jeanEmbedModelPath()) {
+		jeanEmbedDL.Lock()
+		retry := jeanEmbedDL.err == "" || time.Since(jeanEmbedDL.tried) > time.Hour
+		jeanEmbedDL.Unlock()
+		if retry && len(jeanJournalMonths()) > 0 && !testing.Testing() { // jamais depuis les tests
+			jeanEmbedDownload()
+		}
+		return
+	}
 	jeanEmbedLoopOnce.Do(func() { go jeanEmbedLoop() })
 	select {
 	case jeanEmbedKickCh <- struct{}{}:
@@ -618,6 +638,7 @@ var jeanEmbedDL struct {
 	sync.Mutex
 	running bool
 	err     string
+	tried   time.Time // dernière tentative (une par heure au plus après un échec)
 }
 
 func jeanEmbedState() jeanEmbedStatus {
@@ -661,7 +682,7 @@ func jeanEmbedDownload() {
 		jeanEmbedDL.Unlock()
 		return
 	}
-	jeanEmbedDL.running, jeanEmbedDL.err = true, ""
+	jeanEmbedDL.running, jeanEmbedDL.err, jeanEmbedDL.tried = true, "", time.Now()
 	jeanEmbedDL.Unlock()
 	go func() {
 		defer func() {

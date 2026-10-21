@@ -401,6 +401,8 @@ func jeanMemoryDump() (string, error) {
 			fmt.Fprintf(&b, "- %s %s: %s%s\n", e.When.In(userLoc).Format("2006-01-02 15:04"), e.Kind, clipRunes(text, 300), mark)
 		}
 	}
+	// Les erreurs qui reviennent (jean_consolidate_brief.go).
+	b.WriteString(jeanBriefSections())
 	return b.String(), nil
 }
 
@@ -415,6 +417,7 @@ Below is your whole long-term memory. Tidy it so that future you finds the right
 6. Overlapping fiches (same task, or one tool/method replaced by a newer one): the newer fiche is the reference. Merge what is still true into it, then make the older one point to it (jean_patch) or jean_forget it if nothing is left. A fiche must never send you to an outdated method.
 7. A fiche section "## Restauré (à réintégrer)" holds lines a past tidy-up lost by mistake: put each back where it belongs in that fiche (jean_patch), then remove the section.
 8. Dead weight: a fiche not opened for 60+ days and not changed recently, about something that is over or replaced (an old one-off project, an abandoned method) → jean_forget it: it is archived, not lost (jean_search still finds it, reading it brings it back). Keep fiches for things that come back from time to time (yearly events, rare but real procedures). Profile lines about things that are over → jean_forget.
+9. ERRORS MET AGAIN AND AGAIN (if listed): make sure a lesson, or the fiche of that task, says what works, so the error is not met again.
 Rules: never invent anything; never delete something true and useful; prefer few precise edits. If everything is already clean, change nothing.
 When done, reply with one short line saying what you changed (or just OK).`
 }

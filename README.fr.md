@@ -8,7 +8,7 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), créé et maintenu par
 > **nathaninline** — le projet principal, et la seule source des versions publiées d'AJEAN.
 > Ce qui suit décrit AJEAN **en général**. Ce fork-ci porte une **ligne de correctifs
-> privée** (**0.18.4.1 Cresius**) répondant aux besoins d'une machine précise : moteur MoE
+> privée** (**0.18.4.2 Cresius**) répondant aux besoins d'une machine précise : moteur MoE
 > **Strata** sur AMD, recherche par embeddings, correctifs Crawl4AI. Ces ajouts ne sont
 > **pas** des versions de l'amont, ne sont **pas** testés ailleurs et ne sont **pas**
 > garantis transposables. Pour installer AJEAN, prenez les versions publiées sur

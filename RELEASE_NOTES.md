@@ -1,16 +1,19 @@
-# Notes de version — AJEAN 0.18.4.1+rev9
+# Notes de version — AJEAN 0.18.4.2+rev10
 
 **Français** · [English](#english)
 
-Révision locale **rev9** appliquée sur la base officielle **v0.18.4**
+Révision locale **rev10** appliquée sur la base officielle **v0.18.4**
 (`76f60c0`). Elle n'est pas publiée sur `nathaninline/ajean` : elle vit sur
-le dépôt `Cresius34/ajean`, étiquetée **`v0.18.4.1+rev9`**.
+le dépôt `Cresius34/ajean`, étiquetée **`v0.18.4.2+rev10`**. Elle succède à
+**`v0.18.4.1+rev9`**, dont elle reprend tout le contenu : la différence tient à
+un seul correctif, décrit sous « Mémoire ».
 
-Cinq chantiers :
+Six chantiers :
 
 | Chantier | Ce que ça change pour vous |
 | --- | --- |
 | Moteur **MoE** sur Windows | Installer un modèle MoE (AMD **HIP** ou NVIDIA **CUDA**) depuis l'onglet Moteur, sans script. |
+| **Mémoire : rappels** | Un rappel d'outil ne masque plus la lecture d'un état vivant : la mémoire ne peut plus sembler perdue. |
 | **Mémoire sémantique** | Recherche des notes en mode **Hybride** : les mots **et** le sens, avec un moteur d'embeddings local. |
 | **Lecture des pages JavaScript** | Les pages rendues par JavaScript se lisent via un serveur **Crawl4AI** que vous hébergez. |
 | **Base de données portable** | Une installation recopiée garde les chemins de l'installation d'origine ; un utilitaire les relocalise. |
@@ -74,6 +77,27 @@ dimensions et threads.
 
 Contrôles mesurés et conditions de bascule :
 [docs/embedding-memory-test.md](docs/embedding-memory-test.md).
+
+## Mémoire : les lectures d'état vivant ne sont plus jamais masquées
+
+Rappel de tool : quand le même appel revient trois fois dans une même
+conversation, le programme remplace le résultat par un court-circuit, pour
+économie de jetons. Mesuré le 2026-10-20 : au troisième `mem_read` identique,
+le contenu n'était plus rendu alors que la page mémoire était intacte sur
+disque. L'assistant en concluait que sa mémoire était perdue (« rappel trop
+demandé ») et tournait en rond.
+
+Correctif : la déduplication ne s'applique plus aux outils dont la source peut
+changer entre deux appels identiques.
+
+| Jamais dédupliqué | Toujours dédupliqué |
+| --- | --- |
+| `mem_read`, `mem_search`, `recall`, `recall_search`, `task_list`, `tracker`, `inspect`, `jean_read`, `jean_search` | `edit`, `write`, `web_read`, `mem_add`, `mem_edit`, `mem_delete`, `task_create`, `task_update`, `task_delete` |
+
+`bash` était déjà exclu. Les écritures mémoire et tâches gardent le
+court-circuit : les rejouer produit une fausse erreur « old introuvable ».
+Règle : `internal/ajean/repeat_exempt.go` ; contrôles :
+`internal/ajean/llm_repeat_test.go`.
 
 ## Lecture des pages JavaScript
 
@@ -164,9 +188,9 @@ Les presets MoE portent un nom de la forme
 | Élément | Valeur |
 | --- | --- |
 | Version de base (`internal/ajean/run.go`) | `const Version = "0.18.4"` |
-| Suffixe public (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".1 Cresius"` |
-| Version affichée | `0.18.4.1 Cresius` |
-| Étiquette Git | `v0.18.4.1+rev9` |
+| Suffixe public (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".2 Cresius"` |
+| Version affichée | `0.18.4.2 Cresius` |
+| Étiquette Git | `v0.18.4.2+rev10` |
 | Base officielle | `v0.18.4` — `76f60c0` |
 | Moteur MoE embarqué | Strata **`0.1.44.1`** — `296b59d2…`, **inchangé** depuis `v0.18.4+rev8` |
 
@@ -195,7 +219,7 @@ la machine.
 `setup.exe` n'existe pas à ce stade. Installation :
 
 1. `git clone https://github.com/Cresius34/ajean.git && cd ajean`
-2. `git checkout v0.18.4.1+rev9`
+2. `git checkout v0.18.4.2+rev10`
 3. `go build ./cmd/ajean`
 
 Le paquet de test complet et ses contrôles de contrôle final sont décrits
@@ -207,15 +231,18 @@ dans [docs/moe-windows-prototype.md](docs/moe-windows-prototype.md).
 
 **Français** · English
 
-Local revision **rev9** applied on top of the official base **v0.18.4**
+Local revision **rev10** applied on top of the official base **v0.18.4**
 (`76f60c0`). It is not published on `nathaninline/ajean`: it lives in the
-`Cresius34/ajean` repository, tagged **`v0.18.4.1+rev9`**.
+`Cresius34/ajean` repository, tagged **`v0.18.4.2+rev10`**. It follows
+**`v0.18.4.1+rev9`** and carries all of its content: the difference is a single
+fix, described under "Memory".
 
-Five pieces of work:
+Six pieces of work:
 
 | Area | What changes for you |
 | --- | --- |
 | **MoE engine** on Windows | Install a MoE model (AMD **HIP** or NVIDIA **CUDA**) from the Engine tab, no script. |
+| **Memory: recall guards** | A repeated-call guard no longer masks a live-state read, so memory cannot look lost. |
 | **Semantic memory** | Note access in **Hybrid** mode: words **and** meaning, driven by a local embedding engine. |
 | **JavaScript pages** | Pages rendered by JavaScript are read through a **Crawl4AI** server you host. |
 | **Portable database** | A copied installation keeps the original install's paths; a utility relocates them. |
@@ -276,6 +303,26 @@ threads.
 
 Measured controls and cutover conditions:
 [docs/embedding-memory-test.md](docs/embedding-memory-test.md).
+
+## Memory: live-state reads are never masked any more
+
+Repeated-call guard: when the same tool call comes back three times in one
+conversation, the program replaces the result with a short-circuit to save
+tokens. Measured on 2026-10-20: the third identical `mem_read` returned no
+content while the memory page was intact on disk. The assistant concluded its
+memory was lost ("too many recall requests") and went in circles.
+
+Fix: de-duplication no longer applies to tools whose source can change between
+two identical calls.
+
+| Never de-duplicated | Still de-duplicated |
+| --- | --- |
+| `mem_read`, `mem_search`, `recall`, `recall_search`, `task_list`, `tracker`, `inspect`, `jean_read`, `jean_search` | `edit`, `write`, `web_read`, `mem_add`, `mem_edit`, `mem_delete`, `task_create`, `task_update`, `task_delete` |
+
+`bash` was already exempt. Memory and task writes keep the short-circuit:
+replaying them yields a bogus "old not found" error. Rule:
+`internal/ajean/repeat_exempt.go`; controls:
+`internal/ajean/llm_repeat_test.go`.
 
 ## JavaScript pages
 
@@ -364,9 +411,9 @@ never a file name.
 | Item | Value |
 | --- | --- |
 | Base version (`internal/ajean/run.go`) | `const Version = "0.18.4"` |
-| Public suffix (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".1 Cresius"` |
-| Version displayed | `0.18.4.1 Cresius` |
-| Git tag | `v0.18.4.1+rev9` |
+| Public suffix (`internal/ajean/parallel_profile.go`) | `buildFlavorSuffix = ".2 Cresius"` |
+| Version displayed | `0.18.4.2 Cresius` |
+| Git tag | `v0.18.4.2+rev10` |
 | Official base | `v0.18.4` — `76f60c0` |
 | Bundled MoE engine | Strata **`0.1.44.1`** — `296b59d2…`, **unchanged** since `v0.18.4+rev8` |
 
@@ -394,7 +441,7 @@ the machine.
 `setup.exe` does not exist at this stage. Install:
 
 1. `git clone https://github.com/Cresius34/ajean.git && cd ajean`
-2. `git checkout v0.18.4.1+rev9`
+2. `git checkout v0.18.4.2+rev10`
 3. `go build ./cmd/ajean`
 
 The full test package and its final controls are described in

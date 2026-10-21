@@ -8,7 +8,7 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), created and maintained by
 > **nathaninline** — the upstream project, and the only source of published AJEAN releases.
 > Everything below describes AJEAN **in general**. This fork carries a **private patch line**
-> (**0.18.4.1 Cresius**) for one specific machine: the **Strata** MoE engine on AMD,
+> (**0.18.4.2 Cresius**) for one specific machine: the **Strata** MoE engine on AMD,
 > embedding search, Crawl4AI fixes. Those additions are **not** upstream releases, are
 > **not** tested elsewhere, and are **not** guaranteed to work anywhere else. To install
 > AJEAN, use the releases published on

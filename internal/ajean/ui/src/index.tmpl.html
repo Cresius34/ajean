@@ -413,12 +413,46 @@
     <div id="history-list" class="sess-list"></div>
     <button id="history-clear-all" class="hist-clear" onclick="clearAllHistory()" data-i18n="sessions.delete_all">tout supprimer (sauf favoris)</button>
   </div>
+  <!-- Applications (22-apps.js) : liste des apps créées par l'IA, dans le menu
+       comme l'historique. Une app s'ouvre dans la zone de conversation. -->
+  <div id="side-apps" class="side-view" hidden>
+    <div class="hist-head">
+      <span class="stitle" id="apps-title">Applications</span><span id="apps-foot" class="sess-count"></span>
+      <span class="hist-links">
+        <button id="apps-new" class="hist-link" type="button" onclick="newAppPrompt()">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span id="apps-new-txt"></span>
+        </button>
+      </span>
+    </div>
+    <div class="hist-search">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="apps-search" type="search" oninput="onAppsSearch(this.value)" autocomplete="off">
+    </div>
+    <div id="apps-list" class="sess-list"></div>
+    <div id="apps-empty" class="apps-empty muted" hidden><span id="apps-empty-txt"></span></div>
+  </div>
   </div>
   <div id="app-update" class="app-update" hidden onclick="onAppUpdateClick()"></div>
 </div>
 <div id="side-thumb" aria-hidden="true"></div>
 <div class="main" style="position:relative">
   <div id="chat"></div>
+  <!-- App ouverte (22-apps.js) : couvre la conversation et la zone de saisie,
+       le menu reste en place. -->
+  <div id="app-run" class="app-run" hidden>
+    <div class="app-run-head">
+      <span id="app-run-ico" class="app-emoji"></span>
+      <span class="app-run-titles"><span id="app-run-name"></span><span id="app-run-ver"></span></span>
+      <button id="app-run-close" class="app-run-x" onclick="closeAppRun()" aria-label="Fermer"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="app-err" class="app-err" hidden>
+      <b id="app-err-title"></b>
+      <pre id="app-err-list"></pre>
+      <span class="app-err-acts"><button id="app-err-fix" class="primary" onclick="appAskFix()"></button><button id="app-err-hide" onclick="document.getElementById('app-err').hidden=true"></button></span>
+    </div>
+    <div id="app-run-body" class="app-run-body"></div>
+  </div>
   <!-- Voile de chargement du fil : sans lui, une connexion lente donne un chat
        VIDE indiscernable d'une conversation vide. Masqué au signal {caught_up}. -->
   <!-- Loader du fil : la marque « J » d'ajean (même glyphe que le favicon et le logo
@@ -1403,42 +1437,4 @@
 <script src="marked.min.js"></script>
 <script>
 @@JS@@
-</script><!-- Applications (22-apps.js) : grille des apps créées par l'IA, puis l'app
-     ouverte en plein écran dans une iframe sandbox sans origine. -->
-<div id="apps-view" class="apps-view" hidden>
-  <div class="apps-wrap">
-    <div class="apps-head">
-      <div class="apps-titles"><h2 id="apps-title">Applications</h2><span id="apps-foot" class="apps-count"></span></div>
-      <button class="modal-x" onclick="closeAppsView()" aria-label="Fermer">×</button>
-    </div>
-    <div class="apps-bar">
-      <div class="hist-search apps-search">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        <input id="apps-search" type="search" oninput="onAppsSearch(this.value)" autocomplete="off">
-      </div>
-      <button id="apps-new" class="apps-new" type="button" onclick="newAppPrompt()">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        <span id="apps-new-txt"></span>
-      </button>
-    </div>
-    <div id="apps-grid" class="apps-grid"></div>
-    <div id="apps-empty" class="mm-empty apps-empty" hidden>
-      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
-      <span id="apps-empty-txt"></span>
-    </div>
-  </div>
-</div>
-<div id="app-run" class="app-run" hidden>
-  <div class="app-run-head">
-    <span id="app-run-ico" class="app-ico sm"></span>
-    <span class="app-run-titles"><span id="app-run-name"></span><span id="app-run-ver"></span></span>
-    <button id="app-run-close" class="modal-x" onclick="closeAppRun()" aria-label="Fermer">×</button>
-  </div>
-  <div id="app-err" class="app-err" hidden>
-    <b id="app-err-title"></b>
-    <pre id="app-err-list"></pre>
-    <span class="app-err-acts"><button id="app-err-fix" class="primary" onclick="appAskFix()"></button><button id="app-err-hide" onclick="document.getElementById('app-err').hidden=true"></button></span>
-  </div>
-  <div id="app-run-body" class="app-run-body"></div>
-</div>
-</body></html>
+</script></body></html>

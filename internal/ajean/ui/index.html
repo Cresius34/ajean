@@ -1838,6 +1838,13 @@ button.th-head:hover{background:var(--t1)}
 .pair-val .sw-ic{flex:none;width:32px;height:32px;min-height:32px;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:none;
   border-radius:8px;background:transparent;color:var(--dim);box-shadow:none;cursor:pointer;transition:background .15s ease,color .15s ease}
 .pair-val .sw-ic:hover{background:var(--t2);color:var(--text)}
+#modal.kind-moe-memory #m-engine-row,
+#modal.kind-moe-memory #m-run-row,
+#modal.kind-moe-memory #m-settings-row,
+#modal.kind-moe-memory #m-sampling-row,
+#modal.kind-moe-memory #m-gpu-group,
+#modal.kind-moe-memory #m-model-row > .pe-group > .pe-list > .pe-row:not(#m-memory-block){display:none!important}
+#moe-modal [hidden]{display:none!important}
 </style></head><body>
 <button id="menubtn" onclick="toggleSide()" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button id="lc-chip" onclick="lcChipOpen()" hidden></button>
@@ -1846,6 +1853,7 @@ button.th-head:hover{background:var(--t1)}
   <div class="sidehead">
     <div class="brandcol">
     <h1 id="brand" aria-label="ajean"><span id="brand-a"><svg viewBox="0 0 4 5" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="2" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="0" y="2" width="4" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/></svg></span><span id="brand-word"><svg viewBox="0 0 17 5" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="3" y="0" width="4" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="3" y="2" width="3" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="4" height="1"/><rect x="9" y="0" width="2" height="1"/><rect x="8" y="1" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="8" y="2" width="4" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="13" y="1" width="2" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="15" y="2" width="2" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/></svg></span><span id="ver" onclick="manualUpdateCheck()" style="cursor:pointer" title="vérifier les mises à jour" data-i18n="settings.check_update_title" data-i18n-attr="title"></span></h1>
+    <div id="memory-test-build" hidden></div>
     <div class="brand-sub">
       <span id="status-svc" class="statuspill" onclick="toggleSvcLog()" title="voir le journal du moteur" data-i18n="sidebar.status_svc_title" data-i18n-attr="title"><span class="skel skel-line" style="width:52px;height:8px;border-radius:999px"></span></span>
     </div>
@@ -2067,6 +2075,12 @@ button.th-head:hover{background:var(--t1)}
     </div>
     <div class="subhead" data-i18n="settings.general_subhead">Général</div>
     <div class="slist">
+        <div class="switchrow" style="flex-wrap:wrap">
+          <span>Système mémoire</span>
+          <span class="help" tabindex="0" onclick="event.stopPropagation();this.classList.toggle('open')">?<span class="tip"><b>Classique</b> : recherche les mots dans les notes, sans encodeur supplémentaire.<br><b>Hybride</b> : combine cette recherche avec EmbeddingGemma 2 pour retrouver aussi les reformulations ; utilise CPU ou GPU selon les réglages mémoire.<br>Ce choix est la valeur générale. Un preset peut la remplacer explicitement. Le mode d’accès aux notes (toujours, recherche, à la demande, désactivé) reste indépendant.</span></span>
+          <span class="pe-selc" style="margin-left:auto"><select id="memory-system" aria-label="Système mémoire général" onchange="setMemorySystem(this.value)"><option value="classic">Classique</option><option value="hybrid">Hybride</option></select></span>
+          <small id="memory-system-effective" style="flex-basis:100%;opacity:.65"></small>
+        </div>
         <label class="switchrow agent-gated"><span class="switch"><input type="checkbox" id="compact-toggle" onchange="toggleCompact()"><span class="slider"></span></span> <span data-i18n="agent.compact_toggle">compactage automatique du contexte</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_help" data-i18n-html>activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.</span></span></label>
         <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="sctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
@@ -2257,6 +2271,17 @@ button.th-head:hover{background:var(--t1)}
     </div>
     <div class="modal-body mform">
       <div id="moe-machine" class="muted" style="font-size:12px;line-height:1.5"></div>
+      <div class="fld" id="moe-windows-options" hidden>
+        <label class="fld-l">Moteur Windows portable</label>
+        <div class="slist moe-details">
+          <div class="moe-kv"><span>Accélération</span><select id="moe-backend" onchange="moeChangeBackend()"><option value="hip">AMD · HIP</option><option value="cuda">NVIDIA · CUDA</option></select></div>
+          <div data-moe-install-only class="moe-kv" id="moe-toolkit-row"><span>Paquet CUDA</span><select id="moe-toolkit"><option value="13">CUDA 13 · RTX récentes</option><option value="12">CUDA 12 · compatibilité</option></select></div>
+          <div data-moe-install-only class="moe-kv"><span>Contexte initial</span><input id="moe-install-context" type="number" min="32768" max="262144" step="4096" value="86016" style="width:95px"></div>
+          <div data-moe-install-only class="moe-kv"><span>Réserve VRAM pour Windows / Unreal (Mio)</span><input id="moe-install-reserve" type="number" min="0" max="65536" step="256" value="4096" style="width:80px"></div>
+          <div data-moe-install-only class="moe-kv"><span>Vision du modèle</span><input id="moe-install-vision" type="checkbox"></div>
+        </div>
+        <div id="moe-windows-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+      </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
         <div class="seg" id="moe-fams"></div>
@@ -2275,6 +2300,9 @@ button.th-head:hover{background:var(--t1)}
         <div class="slist moe-details" id="moe-details"></div>
       </div>
       <div id="moe-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+      <button id="moe-memory-edit" type="button" class="pe-link" hidden onclick="moeEditMemory()">Réglages mémoire de ce preset</button>
+      <button id="moe-verify" type="button" hidden onclick="moeVerify()">Tester réponse et appel d’outil</button>
+      <div id="moe-verify-result" role="status" class="muted" style="font-size:12px;line-height:1.5"></div>
     </div>
     <div class="modal-foot">
       <div class="foot-l">
@@ -2479,6 +2507,7 @@ button.th-head:hover{background:var(--t1)}
     </div>
     <div class="modal-body">
       <div id="mem-block" class="gated-group">
+		<p><a href="/semantic-memory" target="_blank" rel="noopener">Mémoire sémantique · EmbeddingGemma 2</a></p>
         <div class="mm-sub"><span data-i18n="memory.mode_heading">Mode</span><span class="mm-sub-note" data-i18n="memory.mode_perproject">Réglage propre à ce projet.</span></div>
         <div class="mem-seg" role="radiogroup">
           <label class="mem-opt">
@@ -2679,6 +2708,7 @@ button.th-head:hover{background:var(--t1)}
             <span class="pe-row-l"><span data-i18n="preset.vision_label">Vision</span><span class="pe-sub" data-i18n="external.vision_label">le modèle accepte les images</span></span>
             <span class="pe-row-c"><label class="pe-switch"><input type="checkbox" id="s-ext-vision" onchange="cfgWriteKey('EXTERNAL_VISION', this.checked ? '1' : '')"><span class="pe-sl"></span></label></span>
           </div>
+          <span id="m-memory-remote-anchor" hidden></span>
           <div class="pe-row" style="cursor:pointer" onclick="testExternalPreset()">
             <span class="pe-row-l"><span data-i18n="external.test">tester la connexion</span><span class="pe-sub" id="s-ext-status"></span></span>
             <span class="pe-row-c"><span class="pe-unit">→</span></span>
@@ -2796,6 +2826,22 @@ button.th-head:hover{background:var(--t1)}
             <div class="pe-row" id="s-mmproj-cpu-row">
               <span class="pe-row-l"><span data-i18n="preset.mmproj_cpu_label">Projecteur vision sur le CPU</span><span class="pe-sub" data-i18n="preset.mmproj_cpu_sub">libère de la VRAM</span></span>
               <span class="pe-row-c"><label class="pe-switch"><input type="checkbox" id="s-mmproj-cpu" onchange="eaToggleFlag('--no-mmproj-offload', this.checked)"><span class="pe-sl"></span></label></span>
+            </div>
+            <span id="m-memory-local-anchor" hidden></span>
+            <div class="pe-row stack" id="m-memory-block">
+              <span class="pe-row-l">Mémoire <span class="help" tabindex="0" onclick="event.stopPropagation();this.classList.toggle('open')">?<span class="tip">L’encodeur mémoire est indépendant du modèle de conversation et de sa vision. Les réglages ci-dessous remplacent les valeurs générales pour ce preset. CPU préserve la VRAM ; GPU demande un moteur compatible et de la VRAM disponible. GGUF sert le texte. Le moteur complet charge seulement les encodeurs requis : Texte 270M, +vision 440M, +audio 570M, tous 740M paramètres. Vidéo utilise la vision. Les médias locaux référencés par les notes sont indexés ; les résultats renvoient toujours aux notes. Les vecteurs restent en RAM.</span></span></span>
+              <div class="pe-list" style="width:100%">
+                <div class="pe-row"><span class="pe-row-l">Système mémoire</span><span class="pe-selc"><select id="m-memory-mode" onchange="cfgWriteKey('MEMORY_SYSTEM',this.value)"><option value="">Suivre Général</option><option value="classic">Classique</option><option value="hybrid">Hybride</option></select></span></div>
+                <div class="pe-row"><span class="pe-row-l">Moteur mémoire</span><span class="pe-selc"><select id="m-memory-provider" onchange="changeMemoryProvider()"><option value="llama_cpp">GGUF · texte compact</option><option value="transformers">Complet · multimodal</option></select></span></div>
+                <div class="pe-row stack"><span class="pe-row-l">Backend mémoire <span class="pe-sub">llama-server ou Python portable</span></span><input id="m-memory-bin" list="memory-backends" class="pe-inp" style="width:100%" onchange="cfgWriteKey('MEMORY_EMBED_BIN',this.value)"><datalist id="memory-backends"></datalist></div>
+                <div class="pe-row stack"><span class="pe-row-l">Modèle mémoire <span class="pe-sub">fichier GGUF ou dossier du modèle complet</span></span><input id="m-memory-model" list="memory-models" class="pe-inp" style="width:100%" onchange="cfgWriteKey('MEMORY_EMBED_MODEL',this.value)"><datalist id="memory-models"></datalist></div>
+                <div class="pe-row"><span class="pe-row-l">Exécution mémoire</span><span class="pe-selc"><select id="m-memory-device" onchange="changeMemoryDevice()"><option value="cpu">CPU · préserver la VRAM</option><option value="gpu">GPU · accélération</option></select></span></div>
+                <div class="pe-row" id="m-memory-gpu-row"><span class="pe-row-l">Périphérique GPU<span class="pe-sub">GGUF : ROCm0 / Vulkan0 ; complet : cuda:0 (aussi AMD)</span></span><input id="m-memory-gpu" class="pe-val" onchange="cfgWriteKey('MEMORY_EMBED_GPU_DEVICE',this.value)"></div>
+                <div class="pe-row stack"><span class="pe-row-l">Modalités actives<span class="pe-sub">Texte requis pour les recherches ; charger seulement les encodeurs utiles</span></span><div style="display:flex;gap:12px;flex-wrap:wrap"><label><input type="checkbox" checked disabled>Texte / code</label><label><input id="m-memory-image" type="checkbox" onchange="changeMemoryModalities()">Images</label><label><input id="m-memory-audio" type="checkbox" onchange="changeMemoryModalities()">Audio</label><label><input id="m-memory-video" type="checkbox" onchange="changeMemoryModalities()">Vidéo</label></div></div>
+                <div class="pe-row"><span class="pe-row-l">Dimensions<span class="pe-sub">768 : qualité maximale ; 256 : index réduit ; 128 : surtout texte</span></span><span class="pe-selc"><select id="m-memory-dimensions" onchange="cfgWriteKey('MEMORY_EMBED_DIMENSIONS',this.value)"><option value="">Suivre Général</option><option value="768">768</option><option value="512">512</option><option value="256">256</option><option value="128">128</option></select></span></div>
+                <div class="pe-row"><span class="pe-row-l">Threads mémoire</span><input id="m-memory-threads" class="pe-val" type="number" min="1" max="64" placeholder="Général" onchange="cfgWriteKey('MEMORY_EMBED_THREADS',this.value)"></div>
+              </div>
+              <span id="m-memory-note" class="pe-note"></span><button type="button" class="pe-link" onclick="resetMemoryPreset()">Reprendre tous les réglages généraux</button>
             </div>
             <div class="pe-row stack">
               <span class="pe-row-l"><span data-i18n="preset.download_model_label">Télécharger un modèle</span> <span class="pe-sub" data-i18n="preset.download_model_sub">lien direct vers un .gguf</span></span>
@@ -6365,7 +6411,12 @@ function askKeyOnce(){
   return _keyAsk;
 }
 async function jget(u){ const r=await jfetch(u); return r.json(); }
-async function jpost(u,b){ const r=await jfetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); return r.json(); }
+async function jpost(u,b,timeoutMs){
+  const opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})};
+  let timer;
+  if(timeoutMs){const controller=new AbortController();opts.signal=controller.signal;timer=setTimeout(()=>controller.abort(),timeoutMs);}
+  try{const r=await jfetch(u,opts);return await r.json();}finally{if(timer)clearTimeout(timer);}
+}
 let CLOUD_PHASE = '';
 let LAST_BOOT=null; 
 let LAST_PRESET=null; 
@@ -7286,7 +7337,7 @@ async function setLinkBrowser(v){
   toast(t('settings.link_browser_saved'));
 }
 async function loadAll(){
-  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
+  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadMemoryPreferences(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
   releaseHeights(); 
 }
 async function act(a){
@@ -7348,7 +7399,7 @@ async function switchTo(n,name,id){
   if(!await askConfirm(t('models.switch_confirm_prefix')+name+t('models.switch_confirm_suffix'), {title:t('models.switch_title'), okText:t('models.switch_ok')})) return;
   toast(t('models.switching'));
   pendingPreset = n; loadPresets();
-  const r=await jpost('/api/switch',id?{id:id}:{n:n});
+  const r=await jpost('/api/switch',id?{id:id}:{n:n},15*60*1000);
   if(!r.ok){ pendingPreset = 0; toast(t('chat.error')); loadPresets(); return; }
   toast(t('models.switched'));
   try{ await loadPresets(); }catch(e){}
@@ -7381,6 +7432,7 @@ async function openItem(kind, key){
   document.getElementById('m-del').style.display = key ? 'inline-flex' : 'none';
   const benchBtn = document.getElementById('btn-bench');
   if(benchBtn) benchBtn.style.display = (kind === 'preset' && key && key === ACTIVE_PRESET_ID) ? 'inline-flex' : 'none';
+  document.getElementById('m-memory-block').style.display=kind==='preset'?'':'none';
   const modelRow = document.getElementById('m-model-row');
   const engineRow = document.getElementById('m-engine-row'); 
   const settingsRow = document.getElementById('m-settings-row');
@@ -7390,6 +7442,7 @@ async function openItem(kind, key){
   const rawBody = document.getElementById('m-raw-body');
   const rawCaret = document.getElementById('m-raw-caret');
   document.getElementById('modal').classList.toggle('kind-mem', kind === 'mem');
+  document.getElementById('modal').classList.remove('kind-moe-memory');
   const sysRow = document.getElementById('m-sys-row');
   if(sysRow){
     sysRow.style.display = kind === 'preset' ? '' : 'none';
@@ -7439,12 +7492,13 @@ async function openItem(kind, key){
   document.getElementById('m-name').value = display;
   document.getElementById('m-content').value = d.content || '';
   if(kind === 'preset'){
+    document.getElementById('modal').classList.toggle('kind-moe-memory',cfgReadKey('ENGINE')==='moe');
     const sp = document.getElementById('m-sysprompt'); if(sp) sp.value = d.sysprompt || '';
     document.getElementById('m-quant').value = currentQuantInTextarea();
     populateSettings();
     syncRunMode();
     attachDownload();                      
-    await Promise.all([populateBackend(), populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs()]);
+    await Promise.all([populateBackend(), populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs(), populateMemoryPreset()]);
     if(seq !== openSeq) return;
   }
   modalEl.classList.add('no-anim');
@@ -8061,6 +8115,8 @@ function runMode(){
 }
 function syncRunMode(){
   const mode = runMode();
+  const anchor=document.getElementById(mode==='external'?'m-memory-remote-anchor':'m-memory-local-anchor');
+  anchor.after(document.getElementById('m-memory-block'));
   document.querySelectorAll('input[name="m-run"]').forEach(r=>{ r.checked = r.value === mode; });
   document.getElementById('m-cloud-body').style.display = mode === 'modal' ? '' : 'none';
   document.getElementById('m-ext-body').style.display = mode === 'external' ? '' : 'none';
@@ -8313,10 +8369,12 @@ function toggleSampling(){
 const openPreset = (id)=>openItem('preset', id);
 const openMem    = (n)=>openItem('mem', n);
 function closeModal(){ hideModal('modal'); document.getElementById('modal').classList.remove('loading'); stopDlPoll(); }
+let itemSaveRunning=false;
 async function saveItem(){
+  if(itemSaveRunning)return;
   const K = KIND(editingKind);
   const name = document.getElementById('m-name').value.trim();
-  if(editingKind==='preset'){
+  if(editingKind==='preset'&&cfgReadKey('ENGINE')!=='moe'){
     const rsw = document.getElementById('s-reasoning');
     if(rsw){
       const cur = cfgReadKey('REASONING');
@@ -8331,9 +8389,13 @@ async function saveItem(){
     ? {id: editingKey, name, content, sysprompt: (document.getElementById('m-sysprompt')||{}).value || ''}
     : {name, old: editingKey, content};
   if(editingKind==='mem' && typeof MEM_VIEW_PROJECT!=='undefined' && MEM_VIEW_PROJECT) payload.project = MEM_VIEW_PROJECT;
-  const r = await jpost(K.saveUrl, payload);
-  if(!r.ok){ toast(t('common.error_prefix') + (r.error||'')); return; }
-  toast(t('models.saved')); closeModal(); K.reload();
+  const seq=openSeq,button=document.querySelector('#modal .pe-btn.primary');
+  const label=button.textContent;itemSaveRunning=true;button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Enregistrement…';
+  try{
+    const r = await jpost(K.saveUrl, payload, editingKind==='preset'?15*60*1000:undefined);
+    if(!r.ok){ toast(t('common.error_prefix') + (r.error||'')); return; }
+    toast(t('models.saved'));if(seq===openSeq)closeModal();K.reload();
+  }catch(e){toast(e.message);}finally{itemSaveRunning=false;button.disabled=false;button.removeAttribute('aria-busy');button.textContent=label;}
 }
 async function delItem(){
   if(!editingKey) return;
@@ -8469,7 +8531,7 @@ function watchDownload(fname){
       e.prog.innerHTML = '<span style="color:var(--ok)">✓ '+fname+' '+t('models.dl.downloaded')+' ('+fmtSize(st.done)+')</span>';
       e.bar.className = 'pe-bar done'; e.bar.firstElementChild.style.width = '100%';
       stop();
-      await Promise.all([populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs()]);
+      await Promise.all([populateModelPicker(), populateMmproj(), populateSpecDraft(), populateDlDirs(), populateMemoryPreset()]);
       const pick = (id, cb)=>{
         const s = document.getElementById(id);
         const o = Array.from(s.options).find(o => samePath(baseName(o.value), fname));
@@ -8508,6 +8570,85 @@ async function attachDownload(){
   const list = await jget('/api/models/download/status');
   const st = (list||[]).find(d=>!d.finished);
   if(st) watchDownload(st.filename);
+}
+let memoryDefaults = null, memoryPaths = null;
+async function loadMemoryPreferences(){
+  try{
+    const s=await jget('/api/embeddings'); memoryDefaults=s.defaults; memoryPaths=s.default_paths;
+    const el=document.getElementById('memory-system'); if(el) el.value=s.defaults.enabled?'hybrid':'classic';
+    const sub=document.getElementById('memory-system-effective');
+    if(sub) sub.textContent=(s.preset_memory_system?'Preset prioritaire · ':'Actif · ')+(s.config.enabled?(s.ready&&s.chunks?'Hybride prêt':'Hybride demandé · repli Classique tant que l’index n’est pas prêt'):'Classique');
+  }catch(_){}
+}
+async function setMemorySystem(mode){
+  try{const r=await jpost('/api/embeddings/mode',{mode});if(r.error)throw Error(r.error);await loadMemoryPreferences();toast('Système mémoire enregistré.');}catch(e){toast(e.message);await loadMemoryPreferences();}
+}
+function memoryValue(key,fallback){return cfgReadKey('MEMORY_EMBED_'+key)||fallback;}
+async function populateMemoryPreset(){
+  try{
+    const [s,bins,models]=await Promise.all([jget('/api/embeddings'),jget('/api/backends'),jget('/api/models')]);
+    memoryDefaults=s.defaults;memoryPaths=s.default_paths;
+    document.getElementById('m-memory-mode').value=cfgReadKey('MEMORY_SYSTEM');
+    document.getElementById('m-memory-provider').value=memoryValue('PROVIDER',s.defaults.provider);
+    document.getElementById('m-memory-bin').value=memoryValue('BIN',s.defaults.bin);
+    document.getElementById('m-memory-model').value=memoryValue('MODEL',s.defaults.model);
+    document.getElementById('m-memory-device').value=memoryValue('DEVICE',s.defaults.device);
+    document.getElementById('m-memory-gpu').value=memoryValue('GPU_DEVICE',s.defaults.gpu_device||'');
+    document.getElementById('m-memory-dimensions').value=cfgReadKey('MEMORY_EMBED_DIMENSIONS');
+    document.getElementById('m-memory-threads').value=cfgReadKey('MEMORY_EMBED_THREADS');
+    const active=memoryValue('MODALITIES',s.defaults.modalities).split(',');
+    for(const m of ['image','audio','video']) document.getElementById('m-memory-'+m).checked=active.includes(m);
+    for(const [id,items] of [['memory-backends',bins],['memory-models',models.filter(m=>/embeddinggemma/i.test(m.name))]]){
+      const list=document.getElementById(id);list.replaceChildren();for(const item of items){const o=document.createElement('option');o.value=item.path;o.label=item.name;list.append(o);}
+    }
+    for(const p of Object.values(s.default_paths||{})){
+      for(const [id,value] of [['memory-backends',p.bin],['memory-models',p.model]]){const o=document.createElement('option');o.value=value;document.getElementById(id).append(o);}
+    }
+    syncMemoryOptions();
+  }catch(e){document.getElementById('m-memory-note').textContent='Réglages mémoire indisponibles : '+e.message;}
+}
+function syncMemoryOptions(){
+  const provider=document.getElementById('m-memory-provider').value;
+  document.getElementById('m-memory-gpu-row').style.display=document.getElementById('m-memory-device').value==='gpu'?'':'none';
+  document.getElementById('m-memory-note').textContent=provider==='transformers'
+    ?'Premier usage : Installer-Multimodal.cmd (runtime CPU portable + modèle complet). GPU : runtime PyTorch compatible requis. Médias locaux liés depuis les notes ; pas de médias dans le coffre chiffré.'
+    :'GGUF : le moteur CPU est fourni. Pour le GPU, choisir un llama-server ROCm/Vulkan compatible. Les notes restent les sources de vérité.';
+}
+function changeMemoryProvider(){
+  const provider=document.getElementById('m-memory-provider').value;
+  cfgWriteKey('MEMORY_EMBED_PROVIDER',provider);
+  if(memoryPaths && memoryPaths[provider]){
+    for(const key of ['bin','model']){document.getElementById('m-memory-'+key).value=memoryPaths[provider][key];cfgWriteKey('MEMORY_EMBED_'+key.toUpperCase(),memoryPaths[provider][key]);}
+  }
+  if(provider==='llama_cpp'){
+    for(const m of ['image','audio','video'])document.getElementById('m-memory-'+m).checked=false;
+    cfgWriteKey('MEMORY_EMBED_MODALITIES','text');
+  }
+  if(document.getElementById('m-memory-device').value==='gpu') changeMemoryDevice();
+  syncMemoryOptions();
+}
+function changeMemoryDevice(){
+  const device=document.getElementById('m-memory-device').value;
+  cfgWriteKey('MEMORY_EMBED_DEVICE',device);
+  if(device==='gpu'){
+    const id=document.getElementById('m-memory-provider').value==='transformers'?'cuda:0':'ROCm0';
+    document.getElementById('m-memory-gpu').value=id;cfgWriteKey('MEMORY_EMBED_GPU_DEVICE',id);
+    if(document.getElementById('m-memory-provider').value==='llama_cpp'&&cfgReadKey('BIN')){
+      document.getElementById('m-memory-bin').value=cfgReadKey('BIN');cfgWriteKey('MEMORY_EMBED_BIN',cfgReadKey('BIN'));
+    }
+  }
+  syncMemoryOptions();
+}
+function changeMemoryModalities(){
+  const active=['text',...['image','audio','video'].filter(m=>document.getElementById('m-memory-'+m).checked)];
+  if(active.length>1 && document.getElementById('m-memory-provider').value!=='transformers'){
+    document.getElementById('m-memory-provider').value='transformers';changeMemoryProvider();
+  }
+  cfgWriteKey('MEMORY_EMBED_MODALITIES',active.join(','));syncMemoryOptions();
+}
+async function resetMemoryPreset(){
+  for(const key of ['PROVIDER','BIN','MODEL','DEVICE','GPU_DEVICE','MODALITIES','DIMENSIONS','THREADS'])cfgWriteKey('MEMORY_EMBED_'+key,'');
+  cfgWriteKey('MEMORY_SYSTEM','');await populateMemoryPreset();
 }
 let stickyBottom = true;
 let CHAT_TARGET=null;
@@ -10154,10 +10295,10 @@ function lcToggleLog(){
   if(pre.hasAttribute('hidden')){ pre.removeAttribute('hidden'); bar.classList.add('open'); pre.scrollTop = pre.scrollHeight; }
   else { pre.setAttribute('hidden',''); bar.classList.remove('open'); }
 }
-let moeState = null, moeFam = '', moeQuant = '', moeTarget = '';
+let moeState = null, moeFam = '', moeQuant = '', moeTarget = '', moeBackend = '';
 async function loadMoe(){
   let s;
-  try{ s = await jget('/api/moe'); }catch(_){ return; }
+  try{ s = await jget('/api/moe'+(moeBackend?'?backend='+encodeURIComponent(moeBackend):'')); }catch(_){ return; }
   moeState = s;
   const row = document.getElementById('lc-mode-moe');
   if(!row) return;
@@ -10171,12 +10312,24 @@ async function loadMoe(){
 async function openMoe(presetId){
   await loadMoe();
   if(!moeState) return;
-  if(!(moeState.env||{}).supported){ toast(moeState.env.reason || t('moe.chip')); return; }
+  const targetBackend=moeState.preset_backends&&moeState.preset_backends[presetId];
+  if(targetBackend&&targetBackend!==(moeState.env||{}).backend){moeBackend=targetBackend;await loadMoe();}
+  if(!(moeState.env||{}).supported && !moeState.modern){ toast(moeState.env.reason || t('moe.chip')); return; }
   moeTarget = typeof presetId === 'string' ? presetId : '';
   const s = moeState, env = s.env || {};
+  document.getElementById('moe-windows-options').hidden=!s.modern;
+  if(s.modern){
+    moeBackend=env.backend||moeBackend||'hip';
+    document.getElementById('moe-backend').value=moeBackend;
+    document.getElementById('moe-toolkit-row').hidden=moeBackend!=='cuda';
+    const vision=document.getElementById('moe-install-vision');vision.disabled=moeBackend==='hip';if(vision.disabled)vision.checked=false;
+    document.getElementById('moe-windows-note').textContent=(env.reason?env.reason+' · ':'')+(moeBackend==='hip'
+      ?'HIP : pilote AMD requis, ROCm fourni dans le dossier portable. Ce paquet est texte ; la mémoire multimodale reste indépendante.'
+      :'CUDA : runtime Python et bibliothèques dans le dossier portable. CUDA 12 est proposé pour les cartes non couvertes par CUDA 13.');
+  }
   const cards = (env.gpus||[]).filter(g=>g.index===env.main || g.index===env.helper)
     .sort((a,b)=>(a.index===env.main?-1:1))
-    .map(g=>g.name.replace(/^NVIDIA GeForce /,'')+' '+Math.round(g.vram_gb)+' Go');
+    .map(g=>g.name.replace(/^NVIDIA GeForce /,'')+(g.vram_gb?' '+Math.round(g.vram_gb)+' Go':' · VRAM vérifiée à la préparation'));
   document.getElementById('moe-machine').textContent =
     t('moe.machine').replace('{gpus}', cards.join(' + '))
       .replace('{ram}', Math.round(env.ram_gb)).replace('{disk}', Math.round(env.disk_free_gb));
@@ -10198,6 +10351,7 @@ function moeRenderFams(){
     '<label><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
     +' onchange="moeFam=this.value;moeRenderQuants(true)">'
     +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.about)+'</span></label>').join('');
+  const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
 }
 function moeRenderQuants(pickReco){
   const f = moeState.families.find(x=>x.id===moeFam);
@@ -10220,8 +10374,12 @@ function moeRenderQuants(pickReco){
       +'<div class="lc-mode-t">'+q.id+reco+'</div><div class="lc-mode-d">'+desc+'</div></div>';
   }).join('');
   const fit = f.fits.find(x=>x.quant.id===moeQuant);
+  document.querySelectorAll('[data-moe-install-only]').forEach(el=>{el.hidden=!!(fit&&fit.preset)||(el.id==='moe-toolkit-row'&&moeBackend!=='cuda');});
   const go = document.getElementById('moe-go');
-  go.disabled = !fit || !!fit.active;
+  go.disabled = !fit || !!fit.active || (!!moeState.modern && !(moeState.env||{}).supported && !fit.preset);
+  document.getElementById('moe-memory-edit').hidden=!(fit&&fit.preset);
+  document.getElementById('moe-verify').hidden=!(moeState.modern&&fit&&fit.active);
+  document.getElementById('moe-verify-result').textContent='';
   document.getElementById('moe-bench').hidden = !(fit && fit.active);
   go.textContent = fit && fit.active ? t('moe.is_active') : fit && fit.preset ? t('moe.activate') : t('moe.install');
   moeRenderDisk(fit);
@@ -10251,10 +10409,11 @@ function moeRenderSettings(fit){
   moeSetD = d;
   const rows = [
     [t('moe.d_ctx'), '<span class="moe-ctx"><input type="range" id="moe-s-ctx" min="32768" max="'+(d.ctx_max||262144)+'" step="4096" value="'+(+d.ctx||131072)+'" oninput="moeCtxLbl()"><span id="moe-s-ctx-v"></span></span>'],
-    [t('moe.d_kv'), sel('moe-s-kv', [['fp16', t('moe.kv_fp16')],['int8', t('moe.kv_int8')]], d.kv)],
+    [t('moe.d_kv'), sel('moe-s-kv', d.modern?[['int8','int8'],['q4_0','q4_0'],['k8v4','k8v4']]:[['fp16', t('moe.kv_fp16')],['int8', t('moe.kv_int8')]], d.kv)],
     [t('moe.d_mtp'), sel('moe-s-spec', [[2,'2'],[3,'3'],[4,'4']], d.spec)],
     [t('moe.s_vision'), sw('moe-s-vision', d.vision)],
   ];
+  if(d.modern)rows.push(['Réserve VRAM (Mio)','<input type="number" id="moe-s-reserve" min="0" max="65536" step="256" style="width:80px" value="'+d.vram_reserve_mib+'">']);
   if(d.has_helper) rows.push([t('moe.s_helper'), sel('moe-s-helper',
     [['off', t('moe.second_off')], ['helper', t('moe.second_helper')], ['layers', t('moe.second_layers')]],
     !d.helper_on ? 'off' : d.split_layers ? 'layers' : 'helper')]);
@@ -10267,6 +10426,7 @@ function moeRenderSettings(fit){
   const hs = document.getElementById('moe-s-helper');
   if(hs) hs.addEventListener('change', moeCtxLbl);
   moeCtxLbl();
+  if(d.modern&&!d.vision_available){const vision=document.getElementById('moe-s-vision');vision.disabled=true;vision.title='Encodeur absent : la vision se choisit pendant la préparation initiale du modèle (CUDA seulement).';}
 }
 let moeSetD = null;
 function moeCtxCap(){
@@ -10291,7 +10451,8 @@ async function moeSaveSettings(){
   if(!fit || !fit.preset) return;
   const v = id => document.getElementById(id);
   const body = {preset: fit.preset, ctx: +v('moe-s-ctx').value, kv: v('moe-s-kv').value, spec: +v('moe-s-spec').value,
-    vision: v('moe-s-vision').checked, reserve_mib: +v('moe-s-reserve').value};
+    vision: v('moe-s-vision').checked};
+  if(v('moe-s-reserve'))body.reserve_mib=+v('moe-s-reserve').value;
   const second = v('moe-s-helper') ? v('moe-s-helper').value : 'off';
   body.helper = second !== 'off';
   if(body.helper) body.split = second;
@@ -10308,6 +10469,10 @@ function moeRenderDetails(fit){
   const d = fit && fit.details;
   fld.hidden = !d;
   if(!d) return;
+  if(d.modern){
+    const rows=[['Moteur',d.version],['Backend',d.backend.toUpperCase()],['Contexte',d.ctx],['Cache KV',d.kv],['MTP',d.spec],['Réserve VRAM',d.vram_reserve_mib+' Mio'],['Vision',d.vision?'active':'désactivée'],['Réglages de calcul','recommandations du moteur, puis choix du preset']];
+    document.getElementById('moe-details').innerHTML=rows.map(([a,b])=>'<div class="moe-kv"><span>'+escHtml(a)+'</span><span>'+escHtml(String(b))+'</span></div>').join('');return;
+  }
   const k = n => (+n >= 1024 ? Math.round(+n/1024)+'K' : n);
   const rows = [
     [t('moe.d_main'), d.main_gpu],
@@ -10337,11 +10502,26 @@ async function moeInstall(){
   }
   const msg = t('moe.confirm').replace('{name}', f.label+' '+moeQuant).replace('{gb}', Math.round(fit.disk_gb));
   if(!await askConfirm(msg, {title:t('moe.modal_title'), okText:t('moe.install')})) return;
-  const r = await jpost('/api/moe/install', {family:moeFam, quant:moeQuant});
+  const body={family:moeFam, quant:moeQuant};
+  if(moeState.modern)Object.assign(body,{backend:moeBackend,toolkit:document.getElementById('moe-toolkit').value,context:+document.getElementById('moe-install-context').value,vram_reserve_mib:+document.getElementById('moe-install-reserve').value,vision:document.getElementById('moe-install-vision').checked});
+  const r = await jpost('/api/moe/install', body);
   if(!r.ok){ toast(t('llamacpp.error_prefix')+(r.error||'')); return; }
   closeMoe();
   document.getElementById('lc-details').open = true;
   lcStartPolling();
+}
+async function moeChangeBackend(){
+  moeBackend=document.getElementById('moe-backend').value;moeQuant='';moeTarget='';await openMoe();
+}
+async function moeEditMemory(){
+  const f=moeState&&moeState.families.find(x=>x.id===moeFam),fit=f&&f.fits.find(x=>x.quant.id===moeQuant);
+  if(!fit||!fit.preset)return;closeMoe();await openItem('preset',fit.preset);
+}
+async function moeVerify(){
+  const button=document.getElementById('moe-verify'),out=document.getElementById('moe-verify-result');
+  button.disabled=true;out.textContent='Test en cours : réponse, puis appel d’outil sans exécution…';
+  try{const r=await jpost('/api/moe/verify',{},240000);out.textContent=(r.ok?'Réponse et appel d’outil : réussis.':'Échec : '+(r.error||'moteur indisponible'))+(r.report?' Rapport : data/'+r.report:'');}
+  catch(e){out.textContent='Échec : '+e.message;}finally{button.disabled=false;}
 }
 let mcpServers = [];
 let mcpEditing = null; 

@@ -1053,6 +1053,9 @@ func requireTools(tools ...string) error {
 	if len(missing) == 0 {
 		return nil
 	}
+	if parallelBuild() {
+		return fmt.Errorf("prototype portable : outils de compilation requis (%s) ; les fournir séparément ou choisir un moteur précompilé", strings.Join(missing, ", "))
+	}
 
 	// Tentative d'installation automatique (winget sur Windows, apt/brew/dnf sur
 	// Unix). On rafraîchit ensuite le PATH du process car un installeur système

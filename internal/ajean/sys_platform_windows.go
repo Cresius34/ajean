@@ -260,6 +260,9 @@ func ensureCompiler() error {
 	if msvcInstallVersion() != "" {
 		return nil
 	}
+	if parallelBuild() {
+		return fmt.Errorf("prototype portable : compilateur C++ requis ; utiliser des Build Tools déjà installés ou un moteur précompilé")
+	}
 	if _, err := exec.LookPath("winget"); err != nil {
 		return fmt.Errorf("compilateur C++ absent et winget introuvable — installe « Visual Studio Build Tools » (charge de travail C++) manuellement")
 	}
@@ -286,6 +289,9 @@ func ensureCompiler() error {
 // ignores the return value). The CUDA download is large; we only trigger it when
 // a GPU is actually detected.
 func ensureAccelerator() {
+	if parallelBuild() {
+		return
+	} // no global CUDA/toolkit installation from this copy
 	if !hasNvidiaGPU() {
 		return // pas de GPU NVIDIA visible → rien à installer, build CPU
 	}

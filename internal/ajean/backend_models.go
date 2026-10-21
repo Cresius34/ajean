@@ -183,6 +183,11 @@ func deleteModelFile(name string) error {
 	if err != nil {
 		return err
 	}
+	if parallelBuild() {
+		if err := parallelWritablePath(p); err != nil {
+			return err
+		}
+	}
 	if err := os.Remove(p); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("modèle introuvable: %s", filepath.Base(p))

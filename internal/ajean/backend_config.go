@@ -92,14 +92,38 @@ func cmdSetAPIKey(args []string) error {
 // ReadConfig renvoie la configuration active de llama-server. Passe par le cache
 // de lecture (store.go) : elle est relue à chaque itération de la boucle
 // d'inférence et après chaque appel d'outil.
-func ReadConfig() map[string]string { return cachedKV(bkConfig) }
+func ReadConfig() map[string]string {
+	cfg := cachedKV(bkConfig)
+	if parallelBuild() {
+		return resolveParallelConfig(cfg)
+	}
+	return cfg
+}
 
 // SetConfigKey définit une clé de configuration. Une valeur vide la supprime.
-func SetConfigKey(key, value string) error { return putStr(bkConfig, key, value) }
+func SetConfigKey(key, value string) error {
+	if parallelBuild() {
+		cfg, err := normalizeParallelConfig(map[string]string{key: value})
+		if err != nil {
+			return err
+		}
+		value = cfg[key]
+	}
+	return putStr(bkConfig, key, value)
+}
 
 // WriteConfig remplace TOUTE la configuration en une transaction. C'est ce
 // qu'exige l'application d'un preset : jamais un état mi-ancien mi-nouveau.
-func WriteConfig(m map[string]string) error { return replaceKV(bkConfig, m) }
+func WriteConfig(m map[string]string) error {
+	if parallelBuild() {
+		var err error
+		m, err = normalizeParallelConfig(m)
+		if err != nil {
+			return err
+		}
+	}
+	return replaceKV(bkConfig, m)
+}
 
 // unquoteValue retire les guillemets ENTOURANTS d'une valeur, et seulement
 // eux : une paire ouvrante/fermante du même caractère.

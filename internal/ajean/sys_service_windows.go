@@ -74,6 +74,9 @@ func openEngineLog() *os.File {
 var svcMu sync.Mutex
 
 func serviceAction(action string) error {
+	if parallelBuild() {
+		return parallelServiceAction(action)
+	}
 	svcMu.Lock()
 	defer svcMu.Unlock()
 	// API Externe : aucun moteur local (arrêt). GPU Cloud : relais local vers le GPU.
@@ -260,6 +263,9 @@ func serviceLogs() error {
 
 // serviceIsActive reports whether the background server is running.
 func serviceIsActive() bool {
+	if parallelBuild() {
+		return parallelEngineActive()
+	}
 	pid := readServicePID()
 	return pid > 0 && processAlive(pid)
 }

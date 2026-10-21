@@ -3,11 +3,11 @@
 // tout le reste (cartes, RAM, mmap, réglages) est déduit côté serveur
 // (backend_moe.go). L'installation est une tâche comme celles de llama.cpp :
 // même suivi (#lc-job), même pastille, même annulation.
-let moeState = null, moeFam = '', moeQuant = '', moeTarget = '';
+let moeState = null, moeFam = '', moeQuant = '', moeTarget = '', moeBackend = '';
 
 async function loadMoe(){
   let s;
-  try{ s = await jget('/api/moe'); }catch(_){ return; }
+  try{ s = await jget('/api/moe'+(moeBackend?'?backend='+encodeURIComponent(moeBackend):'')); }catch(_){ return; }
   moeState = s;
   const row = document.getElementById('lc-mode-moe');
   if(!row) return;
@@ -29,12 +29,24 @@ async function openMoe(presetId){
   // proposait encore « Installer »
   await loadMoe();
   if(!moeState) return;
-  if(!(moeState.env||{}).supported){ toast(moeState.env.reason || t('moe.chip')); return; }
+  const targetBackend=moeState.preset_backends&&moeState.preset_backends[presetId];
+  if(targetBackend&&targetBackend!==(moeState.env||{}).backend){moeBackend=targetBackend;await loadMoe();}
+  if(!(moeState.env||{}).supported && !moeState.modern){ toast(moeState.env.reason || t('moe.chip')); return; }
   moeTarget = typeof presetId === 'string' ? presetId : '';
   const s = moeState, env = s.env || {};
+  document.getElementById('moe-windows-options').hidden=!s.modern;
+  if(s.modern){
+    moeBackend=env.backend||moeBackend||'hip';
+    document.getElementById('moe-backend').value=moeBackend;
+    document.getElementById('moe-toolkit-row').hidden=moeBackend!=='cuda';
+    const vision=document.getElementById('moe-install-vision');vision.disabled=moeBackend==='hip';if(vision.disabled)vision.checked=false;
+    document.getElementById('moe-windows-note').textContent=(env.reason?env.reason+' · ':'')+(moeBackend==='hip'
+      ?'HIP : pilote AMD requis, ROCm fourni dans le dossier portable. Ce paquet est texte ; la mémoire multimodale reste indépendante.'
+      :'CUDA : runtime Python et bibliothèques dans le dossier portable. CUDA 12 est proposé pour les cartes non couvertes par CUDA 13.');
+  }
   const cards = (env.gpus||[]).filter(g=>g.index===env.main || g.index===env.helper)
     .sort((a,b)=>(a.index===env.main?-1:1))
-    .map(g=>g.name.replace(/^NVIDIA GeForce /,'')+' '+Math.round(g.vram_gb)+' Go');
+    .map(g=>g.name.replace(/^NVIDIA GeForce /,'')+(g.vram_gb?' '+Math.round(g.vram_gb)+' Go':' · VRAM vérifiée à la préparation'));
   document.getElementById('moe-machine').textContent =
     t('moe.machine').replace('{gpus}', cards.join(' + '))
       .replace('{ram}', Math.round(env.ram_gb)).replace('{disk}', Math.round(env.disk_free_gb));
@@ -57,6 +69,9 @@ function moeRenderFams(){
     '<label><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
     +' onchange="moeFam=this.value;moeRenderQuants(true)">'
     +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.about)+'</span></label>').join('');
+  // innerHTML removes the existing slider thumb. Trigger its native checked
+  // setter after a backend refresh, even if the family itself is unchanged.
+  const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
 }
 
 function moeRenderQuants(pickReco){
@@ -81,8 +96,12 @@ function moeRenderQuants(pickReco){
       +'<div class="lc-mode-t">'+q.id+reco+'</div><div class="lc-mode-d">'+desc+'</div></div>';
   }).join('');
   const fit = f.fits.find(x=>x.quant.id===moeQuant);
+  document.querySelectorAll('[data-moe-install-only]').forEach(el=>{el.hidden=!!(fit&&fit.preset)||(el.id==='moe-toolkit-row'&&moeBackend!=='cuda');});
   const go = document.getElementById('moe-go');
-  go.disabled = !fit || !!fit.active;
+  go.disabled = !fit || !!fit.active || (!!moeState.modern && !(moeState.env||{}).supported && !fit.preset);
+  document.getElementById('moe-memory-edit').hidden=!(fit&&fit.preset);
+  document.getElementById('moe-verify').hidden=!(moeState.modern&&fit&&fit.active);
+  document.getElementById('moe-verify-result').textContent='';
   document.getElementById('moe-bench').hidden = !(fit && fit.active);
   go.textContent = fit && fit.active ? t('moe.is_active') : fit && fit.preset ? t('moe.activate') : t('moe.install');
   moeRenderDisk(fit);
@@ -116,10 +135,11 @@ function moeRenderSettings(fit){
   moeSetD = d;
   const rows = [
     [t('moe.d_ctx'), '<span class="moe-ctx"><input type="range" id="moe-s-ctx" min="32768" max="'+(d.ctx_max||262144)+'" step="4096" value="'+(+d.ctx||131072)+'" oninput="moeCtxLbl()"><span id="moe-s-ctx-v"></span></span>'],
-    [t('moe.d_kv'), sel('moe-s-kv', [['fp16', t('moe.kv_fp16')],['int8', t('moe.kv_int8')]], d.kv)],
+    [t('moe.d_kv'), sel('moe-s-kv', d.modern?[['int8','int8'],['q4_0','q4_0'],['k8v4','k8v4']]:[['fp16', t('moe.kv_fp16')],['int8', t('moe.kv_int8')]], d.kv)],
     [t('moe.d_mtp'), sel('moe-s-spec', [[2,'2'],[3,'3'],[4,'4']], d.spec)],
     [t('moe.s_vision'), sw('moe-s-vision', d.vision)],
   ];
+  if(d.modern)rows.push(['Réserve VRAM (Mio)','<input type="number" id="moe-s-reserve" min="0" max="65536" step="256" style="width:80px" value="'+d.vram_reserve_mib+'">']);
   // Seconde carte : aide aux experts (défaut mesuré) ou partage des couches,
   // souvent plus rapide avec deux cartes identiques (#121).
   if(d.has_helper) rows.push([t('moe.s_helper'), sel('moe-s-helper',
@@ -135,6 +155,7 @@ function moeRenderSettings(fit){
   const hs = document.getElementById('moe-s-helper');
   if(hs) hs.addEventListener('change', moeCtxLbl);
   moeCtxLbl();
+  if(d.modern&&!d.vision_available){const vision=document.getElementById('moe-s-vision');vision.disabled=true;vision.title='Encodeur absent : la vision se choisit pendant la préparation initiale du modèle (CUDA seulement).';}
 }
 // Le contexte maximal suit la config : en mode hors RAM (carte d'aide sans
 // partage des couches) le lancement le ramène à drop_cap, le curseur s'y arrête.
@@ -164,7 +185,8 @@ async function moeSaveSettings(){
   if(!fit || !fit.preset) return;
   const v = id => document.getElementById(id);
   const body = {preset: fit.preset, ctx: +v('moe-s-ctx').value, kv: v('moe-s-kv').value, spec: +v('moe-s-spec').value,
-    vision: v('moe-s-vision').checked, reserve_mib: +v('moe-s-reserve').value};
+    vision: v('moe-s-vision').checked};
+  if(v('moe-s-reserve'))body.reserve_mib=+v('moe-s-reserve').value;
   const second = v('moe-s-helper') ? v('moe-s-helper').value : 'off';
   body.helper = second !== 'off';
   if(body.helper) body.split = second;
@@ -183,6 +205,10 @@ function moeRenderDetails(fit){
   const d = fit && fit.details;
   fld.hidden = !d;
   if(!d) return;
+  if(d.modern){
+    const rows=[['Moteur',d.version],['Backend',d.backend.toUpperCase()],['Contexte',d.ctx],['Cache KV',d.kv],['MTP',d.spec],['Réserve VRAM',d.vram_reserve_mib+' Mio'],['Vision',d.vision?'active':'désactivée'],['Réglages de calcul','recommandations du moteur, puis choix du preset']];
+    document.getElementById('moe-details').innerHTML=rows.map(([a,b])=>'<div class="moe-kv"><span>'+escHtml(a)+'</span><span>'+escHtml(String(b))+'</span></div>').join('');return;
+  }
   const k = n => (+n >= 1024 ? Math.round(+n/1024)+'K' : n);
   const rows = [
     [t('moe.d_main'), d.main_gpu],
@@ -214,10 +240,26 @@ async function moeInstall(){
   }
   const msg = t('moe.confirm').replace('{name}', f.label+' '+moeQuant).replace('{gb}', Math.round(fit.disk_gb));
   if(!await askConfirm(msg, {title:t('moe.modal_title'), okText:t('moe.install')})) return;
-  const r = await jpost('/api/moe/install', {family:moeFam, quant:moeQuant});
+  const body={family:moeFam, quant:moeQuant};
+  if(moeState.modern)Object.assign(body,{backend:moeBackend,toolkit:document.getElementById('moe-toolkit').value,context:+document.getElementById('moe-install-context').value,vram_reserve_mib:+document.getElementById('moe-install-reserve').value,vision:document.getElementById('moe-install-vision').checked});
+  const r = await jpost('/api/moe/install', body);
   if(!r.ok){ toast(t('llamacpp.error_prefix')+(r.error||'')); return; }
   closeMoe();
   document.getElementById('lc-details').open = true;
   lcStartPolling();
+}
+
+async function moeChangeBackend(){
+  moeBackend=document.getElementById('moe-backend').value;moeQuant='';moeTarget='';await openMoe();
+}
+async function moeEditMemory(){
+  const f=moeState&&moeState.families.find(x=>x.id===moeFam),fit=f&&f.fits.find(x=>x.quant.id===moeQuant);
+  if(!fit||!fit.preset)return;closeMoe();await openItem('preset',fit.preset);
+}
+async function moeVerify(){
+  const button=document.getElementById('moe-verify'),out=document.getElementById('moe-verify-result');
+  button.disabled=true;out.textContent='Test en cours : réponse, puis appel d’outil sans exécution…';
+  try{const r=await jpost('/api/moe/verify',{},240000);out.textContent=(r.ok?'Réponse et appel d’outil : réussis.':'Échec : '+(r.error||'moteur indisponible'))+(r.report?' Rapport : data/'+r.report:'');}
+  catch(e){out.textContent='Échec : '+e.message;}finally{button.disabled=false;}
 }
 

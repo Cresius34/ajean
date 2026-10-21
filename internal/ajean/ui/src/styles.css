@@ -2770,3 +2770,12 @@ button.th-head:hover{background:var(--t1)}
 .pair-val .sw-ic{flex:none;width:32px;height:32px;min-height:32px;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:none;
   border-radius:8px;background:transparent;color:var(--dim);box-shadow:none;cursor:pointer;transition:background .15s ease,color .15s ease}
 .pair-val .sw-ic:hover{background:var(--t2);color:var(--text)}
+
+/* The MoE panel keeps engine controls; this native editor changes its memory. */
+#modal.kind-moe-memory #m-engine-row,
+#modal.kind-moe-memory #m-run-row,
+#modal.kind-moe-memory #m-settings-row,
+#modal.kind-moe-memory #m-sampling-row,
+#modal.kind-moe-memory #m-gpu-group,
+#modal.kind-moe-memory #m-model-row > .pe-group > .pe-list > .pe-row:not(#m-memory-block){display:none!important}
+#moe-modal [hidden]{display:none!important}

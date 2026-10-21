@@ -14,6 +14,9 @@ import (
 // serviceAction wraps `systemctl <action> <svc>` with passwordless sudo where
 // it makes sense, and prints a follow-up status check after start/restart.
 func serviceAction(action string) error {
+	if parallelBuild() {
+		return parallelServiceAction(action)
+	}
 	// API Externe : aucun moteur local (arrêt). GPU Cloud : relais local vers le GPU.
 	action = cloudServiceAction(action)
 	svc := serviceName()
@@ -113,6 +116,9 @@ func serviceLogs() error {
 
 // serviceIsActive reports whether the systemd unit is currently running.
 func serviceIsActive() bool {
+	if parallelBuild() {
+		return parallelEngineActive()
+	}
 	out, _ := exec.Command("systemctl", "is-active", serviceName()).Output()
 	return strings.TrimSpace(string(out)) == "active"
 }
@@ -120,6 +126,9 @@ func serviceIsActive() bool {
 // serviceLogTail renvoie les n dernières lignes du journal du service (pour
 // l'UI web). Linux : journalctl.
 func serviceLogTail(n int) string {
+	if parallelBuild() {
+		return parallelEngineLogTail(n)
+	}
 	out, err := exec.Command("journalctl", "-u", serviceName(), "-n", strconv.Itoa(n), "--no-pager").CombinedOutput()
 	if err != nil && len(out) == 0 {
 		return "journalctl indisponible : " + err.Error()

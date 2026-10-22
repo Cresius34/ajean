@@ -215,6 +215,12 @@ func reloadEncryptedStores() {
 // delta). L'appelant NE doit PAS détenir mu.
 func (c *Conversation) persist() {
 	c.mu.Lock()
+	// Appariement assistant(tool_calls) / tool : un arrêt en pleine série laissait
+	// une demi-paire, et le moteur refusait alors TOUS les tours suivants. On
+	// répare ici — l'entonnoir unique d'écriture de la vue modèle — pour que les
+	// conversations déjà empoisonnées par une version antérieure se réparent
+	// seules (StartTurn persiste avant de générer) et que le blob reste sain.
+	c.Messages = repairToolPairs(c.Messages)
 	// Images/vidéos en base64 → références (chat_images.go / chat_video.go)
 	// avant d'écrire : c'est ce qui faisait peser une conversation des dizaines
 	// de Mo.

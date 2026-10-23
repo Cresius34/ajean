@@ -787,40 +787,68 @@
       <button class="modal-x" onclick="closeJeanMem()" aria-label="Fermer" data-i18n="memory.close_aria" data-i18n-attr="aria-label">×</button>
     </div>
     <div class="modal-body">
-      <div class="jm-head">
-        <span class="jm-title" data-i18n="jean.mem_profile">Profil</span>
-        <span id="jm-budget" class="jm-budget"></span>
-        <button class="mem-add-btn" onclick="jmEdit(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+      <div class="seg jm-tabs" role="tablist">
+        <label><input type="radio" name="jm-tab" value="profile" onchange="jmTab(this.value)"><span data-i18n="jean.mem_profile">Profil</span></label>
+        <label><input type="radio" name="jm-tab" value="lessons" onchange="jmTab(this.value)"><span data-i18n="jean.mem_lessons">Leçons</span></label>
+        <label><input type="radio" name="jm-tab" value="fiches" onchange="jmTab(this.value)"><span data-i18n="jean.mem_fiches">Fiches</span></label>
+        <label><input type="radio" name="jm-tab" value="sleep" onchange="jmTab(this.value)"><span data-i18n="jean.sleep_title">Sommeil</span></label>
+        <label><input type="radio" name="jm-tab" value="journal" onchange="jmTab(this.value)"><span data-i18n="jean.mem_journal">Journal</span></label>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_profile_hint">Ce que Jean sait de toi à coup sûr.</div>
-      <div id="jm-profile" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_lessons">Leçons</span>
-        <span id="jm-lbudget" class="jm-budget"></span>
+      <div class="jm-pane" data-pane="profile">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_profile">Profil</span>
+          <span id="jm-budget" class="jm-budget"></span>
+          <button class="mem-add-btn" onclick="jmEdit(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_profile_hint">Ce que Jean sait de toi à coup sûr.</div>
+        <div id="jm-profile" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_lessons_hint">Ce que Jean a appris de ses erreurs.</div>
-      <div id="jm-lessons" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_fiches">Fiches</span>
-        <span id="jm-fcount" class="jm-budget"></span>
-        <button class="mem-add-btn" onclick="jmEditFiche(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+      <div class="jm-pane" data-pane="lessons">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_lessons">Leçons</span>
+          <span id="jm-lbudget" class="jm-budget"></span>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_lessons_hint">Ce que Jean a appris de ses erreurs.</div>
+        <div id="jm-lessons" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_fiches_hint">Procédures et guides gardés en entier.</div>
-      <div id="jm-fiches" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.sleep_title">Sommeil</span>
+      <div class="jm-pane" data-pane="fiches">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_fiches">Fiches</span>
+          <span id="jm-fcount" class="jm-budget"></span>
+          <button class="mem-add-btn" onclick="jmEditFiche(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_fiches_hint">Procédures et guides gardés en entier.</div>
+        <div id="jm-fiches" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.sleep_hint">Modèle utilisé la nuit pour réorganiser la mémoire.</div>
-      <select id="jm-sleep" class="sctl jm-sleep" onchange="jmSaveSleep()"></select>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_journal">Journal</span>
-        <span id="jm-count" class="jm-budget"></span>
+      <div class="jm-pane" data-pane="sleep">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.sleep_title">Sommeil</span>
+          <span id="jm-sleep-st" class="jm-budget"></span>
+          <button id="jm-sleep-now" class="mem-add-btn" onclick="jmSleepNow()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span data-i18n="jean.sleep_now">Dormir maintenant</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.sleep_hint">Modèle utilisé la nuit pour réorganiser la mémoire.</div>
+        <div class="jm-sleep-row">
+          <label class="jm-sleep-f"><span data-i18n="jean.sleep_hour">Heure</span><select id="jm-sleep-hour" class="sctl" onchange="jmSaveSleepHour()"></select></label>
+          <label class="jm-sleep-f jm-sleep-fp"><span data-i18n="jean.sleep_model">Modèle</span><select id="jm-sleep" class="sctl" onchange="jmSaveSleep()"></select></label>
+        </div>
+        <div class="jm-sub" data-i18n="jean.sleep_history">Derniers sommeils</div>
+        <div class="jm-hint" data-i18n="jean.sleep_history_hint">Ce que chaque sommeil a changé. Une copie de la mémoire est gardée avant chacun des 14 derniers.</div>
+        <div id="jm-sleeps" class="jm-sleeps"></div>
+        <div class="jm-sub" data-i18n="jean.archives_title">Fiches archivées</div>
+        <div class="jm-hint" data-i18n="jean.archives_hint">Fiches retirées ou fusionnées. Rien n'est effacé : une fiche peut être ressortie.</div>
+        <div id="jm-archives" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_journal_hint">Tout ce qui s'est passé.</div>
-      <label class="jm-embed"><span class="switch"><input type="checkbox" id="jm-embed" onchange="jmToggleEmbed()"><span class="slider"></span></span><span class="jm-embed-t"><span data-i18n="jean.embed_title">Recherche par le sens</span><span id="jm-embed-st" class="jm-embed-st"></span></span></label>
-      <input id="jm-search" class="mem-search sctl" type="search" oninput="jmSearchDebounced()" placeholder="chercher dans le journal…" data-i18n="jean.mem_search" data-i18n-attr="placeholder">
-      <div id="jm-journal" class="jm-list"></div>
-      <button id="jm-more" class="jm-more" style="display:none" onclick="jmLoad(true)" data-i18n="chat.show_more">voir plus</button>
+      <div class="jm-pane" data-pane="journal">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_journal">Journal</span>
+          <span id="jm-count" class="jm-budget"></span>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_journal_hint">Tout ce qui s'est passé.</div>
+        <label class="jm-embed"><span class="switch"><input type="checkbox" id="jm-embed" onchange="jmToggleEmbed()"><span class="slider"></span></span><span class="jm-embed-t"><span data-i18n="jean.embed_title">Recherche par le sens</span><span id="jm-embed-st" class="jm-embed-st"></span></span></label>
+        <input id="jm-search" class="mem-search sctl" type="search" oninput="jmSearchDebounced()" placeholder="chercher dans le journal…" data-i18n="jean.mem_search" data-i18n-attr="placeholder">
+        <div id="jm-journal" class="jm-list"></div>
+        <button id="jm-more" class="jm-more" style="display:none" onclick="jmLoad(true)" data-i18n="chat.show_more">voir plus</button>
+      </div>
     </div>
   </div>
 </div>

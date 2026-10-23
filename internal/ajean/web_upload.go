@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -414,6 +415,14 @@ func handleChatFile(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	// Le modèle écrit souvent le nom seul d'un fichier rangé dans un sous-dossier
+	// (« media.jpg » pour « comedie-direct/media.jpg ») : on le cherche par son nom,
+	// s'il n'y en a qu'un.
+	if !localOK && inside && !strings.Contains(filepath.ToSlash(rel), "/") {
+		if found := findUniqueByName(roots, filepath.Base(rel)); found != "" {
+			abs, localOK = found, true
+		}
+	}
 	if !localOK {
 		if !inside {
 			sendJSON(w, 403, map[string]any{"ok": false, "error": "hors du dossier de travail"})
@@ -715,4 +724,36 @@ func cleanStaleUploadParts() {
 			os.Remove(filepath.Join(dir, n))
 		}
 	}
+}
+
+// findUniqueByName cherche un fichier par son nom dans les dossiers de travail
+// (trois niveaux au plus). Renvoie "" s'il est absent ou s'il y en a plusieurs.
+func findUniqueByName(roots []string, name string) string {
+	found := ""
+	for _, root := range roots {
+		base := strings.Count(filepath.Clean(root), string(filepath.Separator))
+		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if strings.Count(p, string(filepath.Separator))-base >= 3 || (p != root && strings.HasPrefix(d.Name(), ".")) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if d.Name() == name {
+				if found != "" && found != p {
+					found = "\x00" // plusieurs : ambigu
+					return filepath.SkipAll
+				}
+				found = p
+			}
+			return nil
+		})
+		if found == "\x00" {
+			return ""
+		}
+	}
+	return found
 }

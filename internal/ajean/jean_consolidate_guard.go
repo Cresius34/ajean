@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -44,8 +45,12 @@ func jeanSnapMemory() jeanMemSnap {
 			snap[n] = s
 		}
 	}
-	dir := filepath.Join(jeanDir(), jeanGuardDir)
-	_ = os.RemoveAll(dir)
+	// Une copie DATÉE par sommeil, les jeanSleepKeep dernières gardées : la
+	// personne peut voir ce qu'un sommeil a changé et revenir avant lui.
+	id := time.Now().Format("20060102-150405")
+	dir := filepath.Join(jeanDir(), jeanGuardDir, id)
+	jeanLastSnapID = id
+	jeanPruneSleepsLocked()
 	if os.MkdirAll(dir, 0o755) == nil {
 		for n, s := range snap {
 			if out, err := encodeMemContent([]byte(s)); err == nil {

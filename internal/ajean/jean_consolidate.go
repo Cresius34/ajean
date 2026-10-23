@@ -18,6 +18,7 @@ package ajean
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -130,7 +131,7 @@ func jeanSleepWindowMissed(now time.Time) bool {
 		return false
 	}
 	n := now.In(loc(defaultTaskTZ()))
-	end := time.Date(n.Year(), n.Month(), n.Day(), jeanSleepToHour, 0, 0, 0, n.Location())
+	end := time.Date(n.Year(), n.Month(), n.Day(), jeanSleepHour(), 0, 0, 0, n.Location()).Add(jeanSleepSpan * time.Hour)
 	if end.After(n) {
 		end = end.AddDate(0, 0, -1) // la dernière plage terminée
 	}
@@ -154,21 +155,41 @@ func jeanTurnCapsLocked() (Caps, float64) {
 	return caps, temp
 }
 
-// Le sommeil ne démarre que la nuit, entre 3 h et 5 h à l'heure de l'utilisateur :
-// en journée il occupait les cartes et faisait croire à une utilisation inconnue.
+// Le sommeil ne démarre que dans sa plage de deux heures, à l'heure de
+// l'utilisateur (3 h par défaut, réglable) : en journée il occupait les cartes et
+// faisait croire à une utilisation inconnue.
 const (
-	jeanSleepFromHour = 3
-	jeanSleepToHour   = 5
+	jeanSleepDefaultHour = 3
+	jeanSleepSpan        = 2 // heures
 )
 
+// jeanSleepHour : heure de début du sommeil (0-23), réglée par l'utilisateur.
+func jeanSleepHour() int {
+	v := strings.TrimSpace(getStr(bkState, "jean_sleep_hour"))
+	if h, err := strconv.Atoi(v); err == nil && h >= 0 && h < 24 {
+		return h
+	}
+	return jeanSleepDefaultHour
+}
+
+// jeanSleepForce : sommeil demandé à la main (bouton) ; passe outre la plage
+// horaire et l'absence de changement en mémoire, une seule fois.
+var jeanSleepForce atomic.Bool
+
+// jeanSleeping : consolidation en cours ; l'interface montre Jean endormi.
+var jeanSleeping atomic.Bool
+
+// jeanInSleepWindow : l'heure tombe dans la plage (qui peut passer minuit).
+func jeanInSleepWindow(h int) bool { return (h-jeanSleepHour()+24)%24 < jeanSleepSpan }
+
 // jeanUntilSleepWindow : 0 si on est dans la plage du sommeil, sinon le délai
-// jusqu'au prochain 3 h.
+// jusqu'à sa prochaine ouverture.
 func jeanUntilSleepWindow(now time.Time) time.Duration {
 	now = now.In(loc(defaultTaskTZ()))
-	if h := now.Hour(); h >= jeanSleepFromHour && h < jeanSleepToHour {
+	if jeanInSleepWindow(now.Hour()) {
 		return 0
 	}
-	next := time.Date(now.Year(), now.Month(), now.Day(), jeanSleepFromHour, 0, 0, 0, now.Location())
+	next := time.Date(now.Year(), now.Month(), now.Day(), jeanSleepHour(), 0, 0, 0, now.Location())
 	if !next.After(now) {
 		next = next.AddDate(0, 0, 1)
 	}
@@ -176,10 +197,11 @@ func jeanUntilSleepWindow(now time.Time) time.Duration {
 }
 
 func runJeanConsolidate() {
-	if !jeanMemDirty.Load() && !jeanMemChangedSinceConsolidation() {
+	forced := jeanSleepForce.Load()
+	if !forced && !jeanMemDirty.Load() && !jeanMemChangedSinceConsolidation() {
 		return
 	}
-	if os.Getenv("AJEAN_JEAN_CONSOLIDATE_DELAY") == "" {
+	if !forced && os.Getenv("AJEAN_JEAN_CONSOLIDATE_DELAY") == "" {
 		if d := jeanUntilSleepWindow(time.Now()); d > 0 && !jeanSleepWindowMissed(time.Now()) {
 			jeanReflect.mu.Lock()
 			jeanConsolidateArmLocked(d)
@@ -256,29 +278,77 @@ func runJeanConsolidate() {
 		return
 	}
 	caps, temp := jeanTurnCapsLocked()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), jeanSleepTimeout())
 	ctx = context.WithValue(ctx, jeanReflectKey{}, true)
 	jeanReflect.cancel = cancel
 	jeanReflect.mu.Unlock()
 	defer cancel()
+	defer jeanSleepForce.Store(false) // sommeil manuel : servi
+	jeanSleeping.Store(true)
+	defer jeanSleeping.Store(false)
 
-	dump, err := jeanMemoryDump()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[jean] consolidation impossible : %v\n", err)
-		jeanReflect.mu.Lock()
-		jeanReflect.cancel = nil
-		jeanConsolidateArmLocked(30 * time.Minute) // à retenter, pas perdue (#159)
+	sum, rerr := jeanConsolidateRun(ctx, cancel, caps, temp)
+	jeanReflect.mu.Lock()
+	jeanReflect.cancel = nil
+	if rerr != nil {
+		if rerr == errJeanSleepRetry {
+			jeanConsolidateArmLocked(30 * time.Minute) // à retenter, pas perdue (#159)
+		} else {
+			jeanMemDirty.Store(true) // à refaire
+			jeanConsolidateArmLocked(jeanConsolidateDelay())
+		}
 		jeanReflect.mu.Unlock()
+		fmt.Fprintf(os.Stderr, "[jean] consolidation interrompue : %v\n", rerr)
 		return
 	}
+	jeanReflect.mu.Unlock()
+	fmt.Fprintf(os.Stderr, "[jean] consolidation : %s\n", sum)
+}
+
+var errJeanSleepRetry = fmt.Errorf("mémoire illisible, à retenter")
+
+// jeanSleepGroups : groupes de fiches donnés en entier au dernier dump (v2).
+var jeanSleepGroups int
+
+// jeanConsolidateRun : le sommeil lui-même, sans planification ni bascule de
+// preset (partagé avec le banc d'essai « ajean jean-sleep-test »). Renvoie le
+// bilan lisible.
+func jeanConsolidateRun(ctx context.Context, cancel context.CancelFunc, caps Caps, temp float64) (string, error) {
+	start := time.Now()
+	jeanSleepGroups = 0
+	ctx = context.WithValue(ctx, jeanSleepCtxKey{}, true)
+	before := jeanSnapMemory()
+	dump, err := jeanMemoryDump()
+	if err != nil {
+		return "", errJeanSleepRetry
+	}
 	jeanMemDirty.Store(false) // ce que la consolidation écrit la re-salira : normal, on ne relance pas pour ça
-	msgs := []Message{{Role: "user", Content: jeanConsolidatePrompt() + "\n\n" + dump}}
+	prompt, maxIter, ver := jeanConsolidatePrompt(), jeanConsolidateMaxIter, "v1"
+	if !jeanSleepV1 {
+		prompt, ver = jeanSleepV2Prompt(), "v2"
+		if jeanSleepGroups > 0 {
+			maxIter = jeanSleepV2MaxIter
+		}
+	}
+	msgs := []Message{{Role: "user", Content: prompt + "\n\n" + dump}}
 	if sp := readSysPrompt(); sp != "" {
 		msgs = append([]Message{{Role: "system", Content: sp}}, msgs...)
 	}
-	before := jeanSnapMemory()
-	r := jeanSilentRun(ctx, cancel, InjectSkills(msgs, caps), caps, temp, jeanConsolidateMaxIter, "consolidation")
-	// Même interrompue, une consolidation a pu écrire : le garde-fou passe toujours.
+	r := jeanSilentRun(ctx, cancel, InjectSkills(msgs, caps), caps, temp, maxIter, "consolidation")
+	aborted := ctx.Err() == context.Canceled && r.iter < maxIter
+	if ver == "v2" && errors.Is(ctx.Err(), context.Canceled) && r.iter < maxIter { // plafond d'actions ou délai : fin normale, le travail reste
+		// Tout ou rien : un sommeil coupé ne laisse pas une mémoire à moitié rangée.
+		if err := jeanRollback(before); err == nil && len(r.used) > 0 {
+			jeanMu.Lock()
+			_ = jeanAppendLocked("consolidation", "Sommeil interrompu : ses changements ont été annulés ("+strings.Join(r.used, " · ")+")")
+			jeanMu.Unlock()
+		}
+		jeanMemDirty.Store(true)
+		jeanSleepSaveAfter(jeanLastSnapID)
+		jeanSleepSaveMeta(jeanLastSnapID, "sommeil", "interrompu", fmt.Sprintf("Sommeil interrompu, ses %d changement(s) ont été annulés", len(r.used)))
+		return "", fmt.Errorf("interrompu (%d écriture(s) annulée(s))", len(r.used))
+	}
+	// Même interrompue (v1), une consolidation a pu écrire : le garde-fou passe toujours.
 	if rep := jeanGuardReport(jeanGuardCheck(before)); rep != "" {
 		jeanMu.Lock()
 		_ = jeanAppendLocked("consolidation", rep)
@@ -287,28 +357,26 @@ func runJeanConsolidate() {
 	}
 	jeanMemDirty.Store(false)
 	jeanMarkConsolidated()
-
-	jeanReflect.mu.Lock()
-	aborted := ctx.Err() == context.Canceled && r.iter < jeanConsolidateMaxIter
-	jeanReflect.cancel = nil
 	if aborted || (r.err != nil && r.iter == 0) {
-		jeanMemDirty.Store(true) // à refaire
-		jeanConsolidateArmLocked(jeanConsolidateDelay())
-		jeanReflect.mu.Unlock()
-		return
+		jeanMemDirty.Store(true)
+		return "", fmt.Errorf("interrompu")
 	}
-	jeanReflect.mu.Unlock()
-
+	stats := fmt.Sprintf("%s · %d écriture(s) · %d action(s) · %d groupe(s) · prompt %d tokens · %s", ver, len(r.used), r.iter, jeanSleepGroups, r.totalToks, time.Since(start).Round(time.Second))
+	sum := "rien à changer"
 	if len(r.used) > 0 {
-		sum := strings.Join(r.used, " · ")
+		sum = strings.Join(r.used, " · ")
 		if r.said != "" && !strings.EqualFold(r.said, "ok") {
 			sum = clipRunes(r.said, 400) + " (" + sum + ")"
 		}
+	}
+	if len(r.used) > 0 || ver == "v2" {
 		jeanMu.Lock()
 		_ = jeanAppendLocked("consolidation", "Mémoire consolidée : "+sum)
 		jeanMu.Unlock()
 	}
-	fmt.Fprintf(os.Stderr, "[jean] consolidation : %d écriture(s), prompt %d tokens\n", len(r.used), r.totalToks)
+	jeanSleepSaveAfter(jeanLastSnapID)
+	jeanSleepSaveMeta(jeanLastSnapID, "sommeil", "ok", sum)
+	return stats + " · " + sum, nil
 }
 
 // jeanMemoryDump : toute la mémoire durable, en un texte lisible par le modèle.
@@ -340,9 +408,14 @@ func jeanMemoryDump() (string, error) {
 	for _, f := range fs {
 		total += len(f.Content)
 	}
-	b.WriteString("\n## FICHES (most recently changed first)\n")
 	userLoc := loc(defaultTaskTZ())
 	usage := jeanUsageLocked()
+	if !jeanSleepV1 {
+		jeanSleepGroups = jeanSleepV2Fiches(&b, fs, usage)
+		fs = nil // la v2 a écrit la partie fiches
+	} else {
+		b.WriteString("\n## FICHES (most recently changed first)\n")
+	}
 	for _, f := range fs {
 		use := jeanFicheUsageLine(f.Name, usage)
 		changed := time.UnixMilli(f.ModTime).In(userLoc).Format("2006-01-02 15:04")
@@ -492,14 +565,43 @@ func jeanSleepPreset() string { return getStr(bkState, "jean_sleep_preset") }
 func handleJeanSleep(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var b struct {
-			Preset string `json:"preset"`
+			Preset *string `json:"preset"`
+			Hour   *int    `json:"hour"`
+			Now    bool    `json:"now"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&b)
-		if err := putStr(bkState, "jean_sleep_preset", strings.TrimSpace(b.Preset)); err != nil {
-			sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
-			return
+		if b.Preset != nil {
+			if err := putStr(bkState, "jean_sleep_preset", strings.TrimSpace(*b.Preset)); err != nil {
+				sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
 		}
-		sendJSON(w, 200, map[string]any{"ok": true})
+		if b.Hour != nil {
+			if *b.Hour < 0 || *b.Hour > 23 {
+				sendJSON(w, 400, map[string]any{"ok": false, "error": "heure invalide"})
+				return
+			}
+			if err := putStr(bkState, "jean_sleep_hour", strconv.Itoa(*b.Hour)); err != nil {
+				sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			jeanConsolidateArmAtStart() // reprogramme sur la nouvelle plage
+		}
+		if b.Now {
+			jeanReflect.mu.Lock()
+			running := jeanReflect.cancel != nil
+			if !running {
+				jeanSleepForce.Store(true)
+				jeanConsolidateArmLocked(time.Second)
+			}
+			jeanReflect.mu.Unlock()
+			if running {
+				sendJSON(w, 409, map[string]any{"ok": false, "error": "Jean est déjà en train de réfléchir ou de dormir"})
+				return
+			}
+			fmt.Fprintf(os.Stderr, "[jean] sommeil lancé à la main\n")
+		}
+		sendJSON(w, 200, map[string]any{"ok": true, "hour": jeanSleepHour()})
 		return
 	}
 	list, _ := ListPresets()
@@ -507,5 +609,8 @@ func handleJeanSleep(w http.ResponseWriter, r *http.Request) {
 	for _, p := range list {
 		ps = append(ps, map[string]string{"id": p.ID, "name": p.Name})
 	}
-	sendJSON(w, 200, map[string]any{"ok": true, "preset": jeanSleepPreset(), "presets": ps})
+	jeanReflect.mu.Lock()
+	sleeping := jeanReflect.cancel != nil && jeanSleepForce.Load()
+	jeanReflect.mu.Unlock()
+	sendJSON(w, 200, map[string]any{"ok": true, "preset": jeanSleepPreset(), "presets": ps, "hour": jeanSleepHour(), "sleeping": sleeping || jeanSleepForce.Load()})
 }

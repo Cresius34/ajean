@@ -544,6 +544,7 @@ type StreamEvent struct {
 }
 type ToolUsedEvent struct {
 	Name   string
+	Desc   string // mode Jean : ce que l'IA dit faire avec cet appel (chat_tool_desc.go)
 	Label  string // user-visible summary (skill name or the command)
 	Result string // tool output (stdout/stderr/exit for run_shell, skill body for read_skill)
 	Done   bool   // false = call announced (command only); true = result is ready
@@ -967,6 +968,11 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// mal formés contre ~0,2 %, mesuré sur 750 conversations). groupTools reste
 	// disponible mais n'est plus branché.
 	tools := withRecallTools(EnabledTools(caps), messages)
+	// Mode Jean : chaque appel porte une description lisible (chat_tool_desc.go).
+	var descSet map[string]bool
+	if isJeanSpace(ctx) {
+		tools, descSet = withToolDesc(tools)
+	}
 	// Destination des complétions : llama-server local, ou une API OpenAI-compatible
 	// externe si le preset actif en est un (voir backend_external.go). Résolu une
 	// fois par tour ; une bascule de preset en plein tour est rare et se rejoue au
@@ -1600,12 +1606,13 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				}
 				var args map[string]any
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				desc := takeToolDesc(descSet, tc.Function.Name, args)
 				// Outil de domaine → outil interne (tools_grouped.go). Tout ce qui suit
 				// (libellé, exécution, UI, garde-fous) voit l'outil interne.
 				if !badArgs[tc.ID] {
 					legacy, eargs, emsg := expandToolCall(tc.Function.Name, args)
 					if emsg != "" {
-						cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: str(args["action"]), Done: true, ArgToks: flushArgToks()}, emsg)})
+						cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: str(args["action"]), Done: true, ArgToks: flushArgToks()}, emsg)})
 						toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: emsg}
 						messages = append(messages, toolMsg)
 						extra = append(extra, toolMsg)
@@ -1624,7 +1631,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					label, _ = args["file"].(string)
 				case "recall":
 					label, _ = args["id"].(string)
-				case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_rule", "jean_projects", "jean_project_mem", "jean_project_file":
+				case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_merge", "jean_rule", "jean_projects", "jean_project_mem", "jean_project_file":
 					label = jeanToolLabel(tc.Function.Name, args)
 				case "bash":
 					label, _ = args["command"].(string)
@@ -1654,7 +1661,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 						label = mcpArgLabel(args)
 					}
 				}
-				cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Label: label}})
+				cb(StreamEvent{ToolUsed: &ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: label}})
 
 				result := ""
 				// diff : rempli par les outils d'écriture (edit / mémoire) pour que
@@ -1669,9 +1676,9 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// Arguments illisibles : l'exécuter avec des arguments vides donnait une
 				// erreur trompeuse (« fichier manquant », « commande vide »). On le dit
 				// tel quel au modèle, pour qu'il renvoie un appel complet.
-				if isJeanReflecting(ctx) && !jeanReflectAllowed(tc.Function.Name) && !jeanReflectScriptWrite(ctx, tc.Function.Name, args) && !jeanReflectReadFile(ctx, tc.Function.Name, args) {
+				if isJeanReflecting(ctx) && !jeanReflectAllowed(tc.Function.Name) && (isJeanSleepCtx(ctx) || !jeanReflectScriptWrite(ctx, tc.Function.Name, args)) && !jeanReflectReadFile(ctx, tc.Function.Name, args) {
 					result = "[erreur] pendant une révision de la mémoire, seul l'outil jean (mémoire) est permis"
-					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
+					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
 					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
 					messages = append(messages, toolMsg)
 					extra = append(extra, toolMsg)
@@ -1679,7 +1686,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				}
 				if badArgs[tc.ID] {
 					result = "[erreur] arguments de l'appel illisibles (JSON invalide ou tronqué) : l'outil n'a PAS été exécuté. Renvoie l'appel avec des arguments JSON complets et valides."
-					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
+					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
 					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
 					messages = append(messages, toolMsg)
 					extra = append(extra, toolMsg)
@@ -1689,7 +1696,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				if prev, seen := doneCalls[callKey]; seen && dedupableTool(tc.Function.Name) {
 					repeatCount[callKey]++
 					result = repeatedCallResult(prev, repeatCount[callKey])
-					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
+					cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: label, Done: true, ArgToks: flushArgToks()}, result)})
 					toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
 					messages = append(messages, toolMsg)
 					extra = append(extra, toolMsg)
@@ -1811,7 +1818,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					} else {
 						result = fmt.Sprintf("[ok] page '%s' supprimée", label)
 					}
-				case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_rule", "jean_projects", "jean_project_mem", "jean_project_file":
+				case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_merge", "jean_rule", "jean_projects", "jean_project_mem", "jean_project_file":
 					if isJeanReflecting(ctx) && args != nil {
 						args["_silent"] = true // révision, ménage : une relecture n'est pas un usage
 					}
@@ -1888,7 +1895,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 						shot = cuAutoShot()
 					}
 				}
-				cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Label: label, Done: true, Diff: diff, Added: diffAdd, Removed: diffDel, ArgToks: flushArgToks(), Shot: shot}, result)})
+				cb(StreamEvent{ToolUsed: fillToolResult(&ToolUsedEvent{Name: tc.Function.Name, Desc: desc, Label: label, Done: true, Diff: diff, Added: diffAdd, Removed: diffDel, ArgToks: flushArgToks(), Shot: shot}, result)})
 				toolMsg := Message{Role: "tool", ToolCallID: tc.ID, Content: result}
 				messages = append(messages, toolMsg)
 				extra = append(extra, toolMsg)
@@ -1946,6 +1953,9 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				if changed {
 					messages = c
 					tools = withRecallTools(EnabledTools(caps), messages)
+					if isJeanSpace(ctx) {
+						tools, descSet = withToolDesc(tools)
+					}
 					// La nouvelle base contient déjà tout ce tour : on la publie et on
 					// repart d'un `extra` vide, sinon l'appelant la ré-empilerait avec
 					// les messages du tour et dupliquerait tout.

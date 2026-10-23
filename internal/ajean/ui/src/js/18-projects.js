@@ -276,7 +276,7 @@ async function pickProjFromMenu(slug){
 // en entier) et journal (à parcourir, filtrer, nettoyer). Tout passe par le
 // serveur, qui détient la clé : marche aussi avec la mémoire chiffrée.
 let JM_OFF=0, JM_T=null;
-function openJeanMem(){ showModal('jean-mem-modal'); const s=document.getElementById('jm-search'); if(s) s.value=''; jmLoad(false); jmLoadSleep(); jmLoadEmbed(); }
+function openJeanMem(){ showModal('jean-mem-modal'); const s=document.getElementById('jm-search'); if(s) s.value=''; let tab='profile'; try{ tab=localStorage.getItem('jm-tab')||tab; }catch(_){} jmTab(tab); jmLoad(false); jmLoadSleep(); jmLoadEmbed(); }
 // Recherche par le sens dans le journal (jean_embed.go) : état, avancement de
 // l'indexation, rafraîchi tant que la fenêtre est ouverte et que ça avance.
 async function jmLoadEmbed(){
@@ -317,6 +317,33 @@ async function jmLoadSleep(){
   (r.presets||[]).forEach(p=>add(p.id, p.name||p.id));
   if(r.preset && !(r.presets||[]).some(p=>p.id===r.preset)) add(r.preset, r.preset+' '+t('jean.sleep_missing'));
   sel.value=r.preset||'';
+  const hs=document.getElementById('jm-sleep-hour');
+  if(hs){
+    if(!hs.options.length) for(let h=0;h<24;h++){ const o=document.createElement('option'); o.value=h; o.textContent=String(h).padStart(2,'0')+':00'; hs.appendChild(o); }
+    hs.value=String(r.hour==null?3:r.hour);
+  }
+  jmSleepState(!!r.sleeping);
+}
+// Bouton « Dormir maintenant » : désactivé tant qu'un sommeil est en cours, et on
+// repasse voir toutes les 5 s pour le rendre quand c'est fini.
+function jmSleepState(sleeping){
+  const b=document.getElementById('jm-sleep-now'), st=document.getElementById('jm-sleep-st');
+  if(b) b.disabled=sleeping;
+  if(st) st.textContent=sleeping ? t('jean.sleep_running') : '';
+  clearTimeout(jmSleepState.t);
+  const modal=document.getElementById('jean-mem-modal');
+  if(sleeping && modal && modal.style.display!=='none') jmSleepState.t=setTimeout(jmLoadSleep, 5000);
+}
+async function jmSaveSleepHour(){
+  const hs=document.getElementById('jm-sleep-hour'); if(!hs) return;
+  try{ const r=await jpost('/api/jean/sleep', {hour:parseInt(hs.value,10)}); if(!r || !r.ok) toast((r&&r.error)||'erreur'); }catch(e){ toast(String(e)); }
+}
+async function jmSleepNow(){
+  try{
+    const r=await jpost('/api/jean/sleep', {now:true});
+    if(!r || !r.ok){ toast((r&&r.error)||'erreur'); return; }
+    JEAN_SLEEP_HOLD=Date.now()+6000; toast(t('jean.sleep_started')); jmSleepState(true);
+  }catch(e){ toast(String(e)); }
 }
 async function jmSaveSleep(){
   const sel=document.getElementById('jm-sleep'); if(!sel) return;
@@ -440,4 +467,76 @@ function jmEditFiche(f, row){
     else if(e.key==='Enter' && (e.ctrlKey||e.metaKey || (e.target!==c && !e.shiftKey))){ e.preventDefault(); save(); }
   };
   (f?c:n).focus();
+}
+// Onglets de la mémoire de Jean (rail arrondi .seg, pastille 03e-seg.js) : un seul
+// panneau visible, le dernier ouvert est retenu.
+function jmTab(v){
+  const card=document.querySelector('#jean-mem-modal .jm-card'); if(!card) return;
+  if(!card.querySelector('.jm-pane[data-pane="'+v+'"]')) v='profile';
+  card.querySelectorAll('.jm-pane').forEach(p=>p.classList.toggle('on', p.dataset.pane===v));
+  const r=card.querySelector('input[name="jm-tab"][value="'+v+'"]'); if(r && !r.checked) r.checked=true;
+  try{ localStorage.setItem('jm-tab', v); }catch(_){}
+  if(v==='sleep') jmLoadSleeps();
+}
+function jmFileLabel(n){
+  if(n==='profile.md') return t('jean.mem_profile');
+  if(n==='lessons.md') return t('jean.mem_lessons');
+  return n.replace(/^fiche-/,'').replace(/\.md$/,'');
+}
+// Historique des sommeils : ce que chacun a changé, et le retour à l'état d'avant.
+async function jmLoadSleeps(){
+  const box=document.getElementById('jm-sleeps'), ab=document.getElementById('jm-archives'); if(!box) return;
+  let r; try{ r=await jget('/api/jean/sleeps'); }catch(_){ return; }
+  if(!r || !r.ok) return;
+  box.textContent='';
+  const list=r.sleeps||[];
+  if(!list.length) box.innerHTML='<div class="jm-empty">'+jmEsc(t('jean.sleep_history_empty'))+'</div>';
+  for(const s of list){
+    const m=s.meta||{}, ch=s.changes||[];
+    const d=new Date(m.when||0);
+    const when=d.toLocaleDateString(undefined,{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    const kind=m.kind==='restauration' ? t('jean.sleep_kind_restore') : m.status==='interrompu' ? t('jean.sleep_kind_cut') : t('jean.sleep_kind_sleep');
+    const merged=ch.filter(c=>c.status==='removed').length, edited=ch.filter(c=>c.status==='changed').length;
+    const row=document.createElement('div'); row.className='jm-sl';
+    const head=document.createElement('button'); head.type='button'; head.className='jm-sl-head';
+    head.innerHTML='<span class="jm-sl-when">'+jmEsc(when)+'</span><span class="jm-sl-kind">'+jmEsc(kind)+'</span>'
+      +'<span class="jm-sl-n">'+jmEsc(ch.length ? t('jean.sleep_counts').replace('{e}',edited).replace('{a}',merged) : t('jean.sleep_nothing'))+'</span>';
+    row.appendChild(head);
+    const det=document.createElement('div'); det.className='jm-sl-det';
+    if(m.summary){ const p=document.createElement('div'); p.className='jm-sl-sum'; p.textContent=m.summary; det.appendChild(p); }
+    for(const c of ch){
+      const f=document.createElement('div'); f.className='jm-sl-file';
+      const st=c.status==='removed' ? t('jean.sleep_f_archived') : c.status==='created' ? t('jean.sleep_f_created') : '+'+c.n_add+'  −'+c.n_del;
+      f.innerHTML='<div class="jm-sl-fh"><span>'+jmEsc(jmFileLabel(c.name))+'</span><span class="jm-sl-fst">'+jmEsc(st)+'</span></div>';
+      for(const l of (c.removed||[])){ const x=document.createElement('div'); x.className='jm-sl-l del'; x.textContent=l; f.appendChild(x); }
+      for(const l of (c.added||[])){ const x=document.createElement('div'); x.className='jm-sl-l add'; x.textContent=l; f.appendChild(x); }
+      det.appendChild(f);
+    }
+    const back=document.createElement('button'); back.type='button'; back.className='jm-sl-back';
+    back.textContent=t('jean.sleep_restore');
+    back.onclick=async()=>{
+      if(!confirm(t('jean.sleep_restore_confirm').replace('{when}', when))) return;
+      const x=await jpost('/api/jean/sleeps',{restore:m.id}).catch(e=>({ok:false,error:String(e)}));
+      if(!x || !x.ok){ toast((x&&x.error)||t('jean.mem_error')); return; }
+      toast(t('jean.sleep_restored')); jmLoad(false); jmLoadSleeps();
+    };
+    det.appendChild(back);
+    row.appendChild(det);
+    head.onclick=()=>row.classList.toggle('open');
+    box.appendChild(row);
+  }
+  if(!ab) return;
+  ab.textContent='';
+  const arch=r.archives||[];
+  if(!arch.length) ab.innerHTML='<div class="jm-empty">'+jmEsc(t('jean.archives_empty'))+'</div>';
+  for(const a of arch){
+    const row=document.createElement('div'); row.className='jm-row jm-fiche';
+    row.innerHTML='<span class="jm-ic">'+JM_DOC+'</span><div class="jm-main"><div class="jm-fname">'+jmEsc(a.name)+'</div><div class="jm-when">'+jmEsc(a.when)+'</div></div><button class="jm-unarch" type="button">'+jmEsc(t('jean.archives_restore'))+'</button>';
+    row.querySelector('.jm-unarch').onclick=async()=>{
+      const x=await jpost('/api/jean/sleeps',{unarchive:a.name}).catch(e=>({ok:false,error:String(e)}));
+      if(!x || !x.ok){ toast((x&&x.error)||t('jean.mem_error')); return; }
+      toast(t('jean.archives_restored').replace('{name}', a.name)); jmLoad(false); jmLoadSleeps();
+    };
+    ab.appendChild(row);
+  }
 }

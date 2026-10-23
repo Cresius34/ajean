@@ -627,6 +627,8 @@ func jeanTools() []Tool {
 			obj(map[string]any{"text": str("One sentence: the rule to follow and why"), "fiche": str("Optional fiche name")}, "text")),
 		mk("jean_rule", "Have your harness enforce a mechanical writing rule on all you write: kind=replace (banned text 'from' becomes 'to'), no_numbered_lists, or max_list_items (max). action=remove, from=rule-N drops one. Behavior rules go in jean_lesson.",
 			obj(map[string]any{"kind": str("replace | no_numbered_lists | max_list_items"), "from": str("replace: the exact banned text; remove: rule-N"), "to": str("replace: what to write instead"), "max": map[string]any{"type": "integer", "description": "max_list_items: the limit"}, "action": str("add (default) or remove"), "why": str("Short reason")}, "kind")),
+		mk("jean_merge", "Merge a whole fiche into another one covering the same task: its full text becomes a new section of the reference fiche, then it is archived. Nothing is lost.",
+			obj(map[string]any{"from": str("Fiche absorbed (archived after)"), "into": str("Reference fiche that receives it")}, "from", "into")),
 		mk("jean_patch", "Fix part of a fiche without rewriting it: replace an exact passage.",
 			obj(map[string]any{"name": str("Fiche name"), "old": str("Exact passage to replace"), "new": str("Replacement (empty = delete)")}, "name", "old", "new")),
 		mk("jean_note", "Write a note in your journal: details or events to find later (not changing lists, those live in a fiche).",
@@ -681,6 +683,8 @@ func jeanToolCall(name string, args map[string]any) (result string, ok bool) {
 		}
 	case "jean_lesson":
 		result, err = JeanLesson(s("text"), s("fiche"))
+	case "jean_merge":
+		result, err = JeanMerge(s("from"), s("into"))
 	case "jean_patch":
 		if fiche() == "" {
 			return "[erreur] paramètre name manquant (nom de la fiche à modifier)", true
@@ -725,7 +729,9 @@ func jeanPromptSection() string {
 		"- When a request took many steps or trial and error, save the direct path in a fiche BEFORE answering: exact commands, URLs and values that worked, plus pitfalls, and its script (robust, kept in your scripts folder) if one did the job, so next time takes one or two calls. When a saved script fails, fix the script. A fiche keeps HOW to get a changing value, never the value. Drafts and tests stay in your workspace.\n" +
 		"- Your answer: in the user's language (every visible word, notes before tool calls too); first answer the question actually asked, in one line, then only what helps; never refer to something you didn't show. Save to memory before answering, then stop: nothing after the answer.\n" +
 		"- Reminders are tasks: their result reaches the user as your message here, so write the prompt as what you will do then (\"Remind the user to call their mother\"). One-time: in_minutes or at (\"HH:MM\"), never a cron. Times are the user's, in brackets at the start of their messages; never the server clock.\n" +
-		"- The user's AJEAN projects are read-only for you (jean_projects); to reuse something, make your own copy.\n"
+		"- The user's AJEAN projects are read-only for you (jean_projects); to reuse something, make your own copy.\n" +
+		"- To show an image, write ![short caption](path) with the EXACT path of a file you saw exist in a tool result (relative to your workspace). Never invent or rename a file name in the answer.\n" +
+		"- Every tool call has a description field: one plain sentence in the user's language saying what you are doing, without commands or file names (\"Je regarde l'image de midi pour voir si la caméra est propre\").\n"
 }
 
 // lastUserText : texte du dernier message utilisateur (parties texte seulement

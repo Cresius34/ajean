@@ -469,6 +469,7 @@ func (c *Conversation) state() map[string]any {
 		// Non vide seulement quand une tâche de fond occupe le verrou de génération.
 		"running_task":    c.runningTaskName,
 		"running_task_id": c.runningTaskID,
+		"sleeping":        jeanSleeping.Load(), // Jean range sa mémoire (jean_consolidate.go)
 	}
 }
 
@@ -830,6 +831,9 @@ func (c *Conversation) generate(ctx context.Context, caps Caps, temperature floa
 			// Référence pour charger le reste à la demande (bouton « voir plus »).
 			if ev.ToolUsed.ResultID != "" {
 				tu["result_id"] = ev.ToolUsed.ResultID
+			}
+			if ev.ToolUsed.Desc != "" {
+				tu["desc"] = ev.ToolUsed.Desc
 			}
 			if ev.ToolUsed.Shot != "" {
 				tu["shot"] = ev.ToolUsed.Shot

@@ -112,15 +112,20 @@ func JeanSave(name, when, content string) (string, error) {
 	if when == "" {
 		return "", fmt.Errorf("'when' obligatoire : une ligne qui dit quand se servir de cette fiche")
 	}
-	if len([]rune(when)) > jeanFicheWhenMax {
-		return "", fmt.Errorf("'when' trop long (%d car. max)", jeanFicheWhenMax)
+	prevLen, prevWhen := 0, 0
+	if old, err := jeanRead(ficheFile(name)); err == nil && old != "" {
+		pf := parseFiche(name, old)
+		prevLen, prevWhen = len([]rune(pf.Content)), len([]rune(pf.When))
+	}
+	if whenMax := min(max(jeanFicheWhenMax, prevWhen), jeanMergeWhenMax); len([]rune(when)) > whenMax {
+		return "", fmt.Errorf("'when' trop long (%d car. max)", whenMax)
 	}
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return "", fmt.Errorf("contenu vide")
 	}
-	if n := len([]rune(content)); n > jeanFicheMaxChars {
-		return "", fmt.Errorf("fiche trop longue (%d car., max %d) : découpe-la en plusieurs fiches", n, jeanFicheMaxChars)
+	if n := len([]rune(content)); n > jeanFicheLimit(prevLen) {
+		return "", fmt.Errorf("fiche trop longue (%d car., max %d) : découpe-la en plusieurs fiches", n, jeanFicheLimit(prevLen))
 	}
 	// Nouvelle fiche qui double une existante : refusée, sinon la mémoire se
 	// remplit de deux procédures pour la même chose (vu en vrai : youtube-vues

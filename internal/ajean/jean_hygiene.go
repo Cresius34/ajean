@@ -243,7 +243,7 @@ func jeanAnswerThenSave(assistant Message, results []Message) bool {
 	for _, tc := range assistant.ToolCalls {
 		n, _ := toolCallLegacy(tc)
 		switch n {
-		case "jean_save", "jean_patch", "jean_lesson", "jean_remember", "jean_note", "jean_rule", "jean_forget":
+		case "jean_save", "jean_patch", "jean_merge", "jean_lesson", "jean_remember", "jean_note", "jean_rule", "jean_forget":
 		default:
 			return false
 		}

@@ -69,7 +69,7 @@ func isJeanReflecting(ctx context.Context) bool {
 // jeanReflectAllowed : les seuls outils d'une révision (mémoire de Jean).
 func jeanReflectAllowed(name string) bool {
 	switch name {
-	case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_rule":
+	case "jean_search", "jean_remember", "jean_forget", "jean_note", "jean_save", "jean_read", "jean_lesson", "jean_patch", "jean_merge", "jean_rule":
 		return true
 	}
 	return false

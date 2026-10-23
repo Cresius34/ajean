@@ -218,6 +218,9 @@ function paintGenStatus(){
 // ce que fait l'IA, en une phrase animée dans la ligne d'état (« Réfléchit… »,
 // « Fouille dans sa mémoire… »). Vide = rien à dire (le texte de la réponse coule).
 let JACT='';
+// Jean dort (consolidation de sa mémoire) : relevé par reconcileBusy, montré par la scène.
+// JEAN_SLEEP_HOLD : juste après « Dormir maintenant », endormi sans attendre le sondage.
+let JEAN_SLEEPING=false, JEAN_SLEEP_HOLD=0;
 function jeanActFor(name){
   if(/^(jean_search|jean_read|recall|recall_search|mem_search|mem_read)$/.test(name)) return 'jean.act_search';
   if(/^(jean_remember|jean_note|jean_save|jean_lesson|jean_patch|jean_rule|mem_add|mem_edit)$/.test(name)) return 'jean.act_remember';
@@ -229,11 +232,13 @@ function jeanActFor(name){
   if(/^(bash|write|edit)$/.test(name)) return 'jean.act_machine';
   return 'jean.act_work';
 }
-function setJeanAct(k){
-  if(MODE!=='jean' || REPLAYING || k===JACT) return;
-  JACT=k; JeanAvatar&&JeanAvatar.act(k);
+// txt : phrase libre (description d'un appel d'outil) affichée à la place du libellé de k.
+function setJeanAct(k, txt){
+  const id=k+' '+(txt||'');
+  if(MODE!=='jean' || REPLAYING || id===JACT) return;
+  JACT=id; JeanAvatar&&JeanAvatar.act(k);
   const a=GENEL && GENEL.querySelector('.jact'); if(!a) return;
-  a.textContent=k ? t(k) : '';
+  a.textContent=txt || (k ? t(k) : '');
   a.classList.remove('jact-in'); void a.offsetWidth; if(k) a.classList.add('jact-in'); // fondu à chaque changement d'activité
 }
 // Tâche de Jean en cours : même ligne animée, dans le fil Jean, hors de tout tour.
@@ -645,7 +650,7 @@ function handleDelta(d){
   if(d.tool_used){
     smoothSnap(); flushRender(); // le bloc texte précédent (raisonnement/contenu) est terminé
     killTyping('tool'); T.contentEl=null; T.reasonEl=null; const tu=d.tool_used;
-    setJeanAct(jeanActFor(tu.name||''));
+    setJeanAct(jeanActFor(tu.name||''), tu.desc);
     if(!T.pendingToolEl){ collapseAll(T.turnCollapsibles); T.pendingToolEl=addMsg('tool',''); if(REPLAYING||viewOn('fold-tools')) collapseInstant(T.pendingToolEl); T.turnCollapsibles.push(T.pendingToolEl); setActive(T.pendingToolEl); }
     renderToolMsg(T.pendingToolEl, tu);
     if(tu.done && tu.shot) showCuShot(tu);
@@ -953,6 +958,7 @@ async function reconcileBusy(settle){
     const rt = s.running_task || '';
     if(rt !== RUNNING_TASK){ RUNNING_TASK = rt; if(!REPLAYING) syncSendBtn(); }
     if(typeof s.generating==='boolean' && s.generating!==busy) setBusy(s.generating);
+    JEAN_SLEEPING=!!s.sleeping;
     if(typeof s.compact_count==='number') setCompactCount(s.compact_count); // source de vérité après rejeu
     // Reprise d'une génération DÉJÀ en cours (page actualisée en plein tour) : au
     // replay, l'événement `user` qui démarre la ligne d'état a été rejoué alors que

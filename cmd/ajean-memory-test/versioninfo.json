@@ -3,13 +3,13 @@
     "FileVersion": {
       "Major": 0,
       "Minor": 18,
-      "Patch": 9,
+      "Patch": 11,
       "Build": 1
     },
     "ProductVersion": {
       "Major": 0,
       "Minor": 18,
-      "Patch": 9,
+      "Patch": 11,
       "Build": 1
     },
     "FileFlagsMask": "3f",
@@ -20,13 +20,13 @@
   },
   "StringFileInfo": {
     "CompanyName": "AJEAN contributors",
-    "FileDescription": "Compatibilité base 0.18.9 upstream, EmbeddingGemma 2 + recherche, MoE AMD Strata, dedup exemptee",
+    "FileDescription": "Compatibilité base 0.18.11 upstream, EmbeddingGemma 2 + recherche, MoE AMD Strata, dedup exemptee",
     "InternalName": "ajean-memoire-test",
     "LegalCopyright": "Copyright (c) 2026 AJEAN contributors. MIT License.",
     "OriginalFilename": "ajean-memoire-test.exe",
-    "ProductName": "AJEAN v0.18.9.1 Cresius",
-    "FileVersion": "0.18.9.1 Cresius",
-    "ProductVersion": "0.18.9.1 Cresius",
+    "ProductName": "AJEAN v0.18.11.1 Cresius",
+    "FileVersion": "0.18.11.1 Cresius",
+    "ProductVersion": "0.18.11.1 Cresius",
     "Comments": "https://github.com/nathaninline/ajean — projet open source (MIT)"
   },
   "VarFileInfo": {

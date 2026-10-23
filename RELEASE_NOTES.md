@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.9.1 Cresius` / étiquette `v0.18.9.1+rev11`
+# Notes de version — AJEAN `0.18.11.1 Cresius` / étiquette `v0.18.11+rev1`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -8,23 +8,100 @@ validés sur d'autres machines, ni garantis transposables. Pour installer AJEAN,
 prenez les versions publiées sur
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-Cette version **absorbe l'amont `v0.18.9`** — qui va de
-[`v0.18.5`](#amont-v0185--tâches-et-consolidation) à
-[`v0.18.9`](#amont-v0189--menu-latéral-paramètres-tâches-api-ajean-link) —
-dans la ligne privée `Cresius`, qui s'arrêtait à `0.18.4.2+rev10`. Le socle est
-donc celui de l'amont, et la ligne privée se réduit à ce qu'elle apporte encore.
+Cette version **absorbe l'amont `v0.18.11`** — donc aussi
+[`v0.18.10`](#amont-v01810--mode-jean-actions-décrites-terminal-sommeil-v2) —
+dans la ligne privée `Cresius`, qui s'arrêtait à `0.18.9.1+rev11`. Le socle est
+celui de l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
 
 ## En-tête
 
-Menu latéral plus clair (amont `v0.18.9`) ; le moteur MoE **Strata** passe en
-`0.1.44.1` avec réglage de la fenêtre de contexte et de la quantification
-clé/valeurs ; la dédup d'appels ne masque plus une lecture d'état vivant ; la
-base s'ouvre en mode immutable pour survivre à une copie maladroite.
+Le navigateur piloté sait remplir les formulaires des sites modernes et s'arrête
+quand un site le bloque (amont `v0.18.11`) ; en mode Jean, chaque action est
+décrite et le sommeil range vraiment la mémoire (amont `v0.18.10`). Côté ligne
+privée : le **journal de Jean** et la **mémoire sémantique** partagent désormais
+un **seul encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul moteur, un seul
+espace vectoriel sur le poste.
 
-## Ce que cette version ajoute à l'amont `v0.18.9`
+## Amont `v0.18.11` — navigateur piloté, scène de Jean après l'envoi
 
+Le navigateur piloté par l'IA sait remplir les formulaires des sites modernes,
+et s'arrête quand un site le bloque.
+
+- **Choix impossibles à cocher sur certains sites** : sur une boutique en ligne,
+  les options d'un produit (couleur, capacité…) n'apparaissaient pas dans la
+  liste des éléments, et un clic dessus restait sans effet. Le bouton suivant
+  restait grisé, et l'IA recommençait sans fin. Ces cases cachées derrière une
+  étiquette sont maintenant listées et cliquées à travers l'étiquette, et le
+  cochage est vérifié.
+- **États visibles** : la liste des éléments indique ce qui est coché,
+  sélectionné ou désactivé. Un clic sur un bouton désactivé est refusé, avec
+  l'explication qu'un choix obligatoire manque.
+- **Lecture du texte de la page** : la recherche dans la page trouve aussi le
+  texte simple (une date de livraison, un prix, un message), et plus seulement
+  les boutons et les liens.
+- **Fin de tâche plus nette** : quand un site répond par une page d'erreur ou de
+  blocage après une action normale, l'IA en est avertie et passe à une autre
+  piste au lieu d'insister. Une même action répétée sans effet est signalée, et
+  un rappel de conclure arrive au bout de 25 actions.
+- **Mode Jean, juste après l'envoi d'un message** : après une mise à jour ou un
+  rafraîchissement de la page, la scène affichait quelques secondes « Clique sur
+  moi pour me parler » au lieu de « Lit le message… ».
+
+## Amont `v0.18.10` — mode Jean : actions décrites, terminal, sommeil v2
+
+Mode Jean : on voit ce qu'il fait, et son sommeil range vraiment la mémoire.
+
+- **Chaque action de Jean est décrite** : en mode Jean, chaque outil utilisé
+  s'accompagne d'une phrase qui dit ce qu'il fait et pourquoi (« Je regarde
+  l'image de midi pour voir si la caméra est propre »). Les étapes restent dans
+  le fil sous forme de liste sobre ; l'étape en cours s'affiche sur la ligne
+  d'état.
+- **Terminal en direct dans la scène** : en plein écran, quand Jean lance une
+  commande, une fenêtre de terminal s'ouvre au-dessus de lui. La commande
+  s'écrit lettre par lettre, puis le résultat apparaît.
+- **Résultats de recherche web dans la scène** : une recherche ouvre une carte
+  avec la requête et les résultats (site, titre, extrait), qui arrivent en
+  cascade.
+- **Heure du sommeil réglable et sommeil à la demande** : l'heure à laquelle Jean
+  range sa mémoire se choisit dans sa mémoire (onglet Sommeil), et un bouton
+  « Dormir maintenant » le lance tout de suite. Pendant le sommeil, Jean dort
+  dans la scène.
+- **Historique des sommeils** : l'onglet Sommeil montre, pour chacun des 14
+  derniers sommeils, ce qui a changé fichier par fichier, avec un bouton
+  « Revenir à avant ce sommeil ». Les fiches archivées y sont listées et peuvent
+  être ressorties.
+- **Sommeil plus efficace** : sur une mémoire volumineuse, le sommeil ne voyait
+  que la liste des fiches et ne fusionnait jamais rien. Les fiches qui se
+  ressemblent lui sont maintenant données en entier, par groupes, et un outil de
+  fusion verse une fiche entière dans une autre avant de l'archiver.
+- **Sommeil plus sûr** : un sommeil interrompu (message de l'utilisateur,
+  redémarrage) est entièrement annulé ; aucun fichier ne peut être écrit pendant
+  le sommeil ; son bilan est toujours noté dans le journal.
+- **Mémoire de Jean en onglets** : Profil, Leçons, Fiches, Sommeil et Journal se
+  choisissent avec un sélecteur, au lieu d'une longue page à faire défiler.
+- **Images cassées dans les réponses** : une image citée par son seul nom alors
+  qu'elle est rangée dans un sous-dossier est retrouvée.
+
+## Ce que cette version ajoute à l'amont `v0.18.11`
+
+- **Un seul encodeur pour l'appareil** : le journal de Jean demandait son propre
+  modèle d'embeddings (l'ancien 300 M, 512 dimensions) pendant que la mémoire
+  sémantique et la recherche utilisaient déjà **EmbeddingGemma 2** (768
+  dimensions). Deux modèles, donc deux espaces vectoriels sur le même poste : ce
+  que le journal retrouvait n'avait rien à voir avec ce que la mémoire
+  retrouvait. Le journal utilise maintenant le modèle que l'appareil a déjà
+  choisi pour les embeddings, avec les mêmes réglages que l'encodeur mémoire
+  (mêmes dimensions, même pooling, même périphérique), et ne relance pas un
+  moteur déjà vivant. L'identifiant écrit dans les fichiers `.embed` passe de
+  `egemma300-v1` à `egemma2-q8-v1` : les fichiers portant l'ancien sceau sont
+  refusés et le journal se recalcule, au lieu de fusionner silencieusement deux
+  espaces dans le même index.
+- **Contrôles de largeur de vecteur** : une réponse du moteur qui n'a pas la
+  largeur attendue (768), qui contient `NaN` ou `±Infini`, ou qui ne renvoie pas
+  un vecteur par texte, est rejetée. Sans ces contrôles, l'index se remplit de
+  vecteurs faux pendant que tous les autres voyants restent au vert.
 - **Moteur MoE Strata** : c'est `0.1.44.1` qui est installé (5,47 Go, SHA-256
-  vérifié), et non le paquet `0.1.43.1` décrit dans les notes de la `rev10`.
+  vérifié). Voir [le point sur le moteur](#le-moteur-moe-où-en-sommes-nous).
 - **Réglage de la fenêtre de contexte (`CtxMax`)** : la jauge et le compactage
   suivent la limite réellement appliquée par le moteur.
 - **Quantification clé/valeurs (`KvQuant`)** : quatre choix dans l'interface,
@@ -44,14 +121,28 @@ base s'ouvre en mode immutable pour survivre à une copie maladroite.
 
 ## Ce qui disparaît de la ligne privée, repris par l'amont
 
-Ces Correctifs Cresius ont été **abandonnés** faute d'objet, l'amont ayant tranché
+Ces correctifs Cresius ont été **abandonnés** faute d'objet, l'amont ayant tranché
 dans le même sens :
 
 | Correctif Cresius | Sort |
 | --- | --- |
 | Crawl4AI (`crawl4ai-repair`) | **retiré** — l'amont a supprimé Crawl4AI en `v0.18.5` au profit d'un moteur de lecture natif |
-| Moteur d'embeddings local (`embeddingv2`) | **non repris** — l'amont fournit le même service en `v0.18.7` (mode Jean) |
+| Moteur d'embeddings local embarqué (`embeddingv2`) | **non repris** — l'amont fournit le même service en `v0.18.7` (mode Jean) |
 | Réparation des appels d'outils (`toolfix`) | **non repris** — l'amont l'a corrigé en `v0.18.6` |
+
+## Le moteur MoE, où en sommes-nous
+
+Le moteur embarqué est toujours **Strata `0.1.44.1`**, téléchargé et vérifié par
+le manifeste interne (`internal/ajean/moe_windows_manifest.json`).
+
+La bascule sur **Strata `0.2.2` / moteur `0.1.47`** est **préparée mais non
+encore greffée** dans ce build. Ce qui est acquis et mesuré : les versions
+`0.2` ne publient plus les archives plates attendues par notre manifeste, mais
+une archive par carte (`strata-engine-0.1.47-windows-x86_64-hip-rx9070.tar.gz`
+pour la carte de ce poste, `gfx1201`) ; `setup.py` accepte un moteur déjà en
+place si son cachet `BUILD.json` porte `source: prebuilt`. Le travail restant est
+borné (manifeste, script d'installation portable, constantes de version du
+moteur) et ne touche pas au reste de la ligne privée.
 
 ## Amont `v0.18.9` — menu latéral : Paramètres, Tâches, API, AJEAN LINK
 
@@ -121,18 +212,16 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.9.1 Cresius` |
-| Étiquette Git | `v0.18.9.1+rev11` |
-| Socle amont | `v0.18.9` |
-| Moteur MoE | Strata `0.1.44.1` (5,47 Go, SHA-256 vérifié) |
-| Précédent | `0.18.4.2+rev10`, étiquette `v0.18.4.2+rev10` |
+| Version affichée | `0.18.11.1 Cresius` |
+| Étiquette Git | `v0.18.11+rev1` |
+| Socle amont | `v0.18.11` |
+| Moteur MoE | Strata `0.1.44.1` (5,47 Go, SHA-256 vérifié) — `0.2.2` / `0.1.47` en préparation |
+| Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
+| Précédent | `0.18.9.1 Cresius`, étiquette `v0.18.9.1+rev11` |
 
-### Le moteur MoE a changé de version
-
-`rev10` décrivait le pack **Strata `0.1.43.1`**. La présente version installe
-**`0.1.44.1`** : le manifeste interne (`internal/ajean/moe_windows_manifest.json`)
-pointe sur l'archive `0.1.44.1`, avec son empreinte SHA-256. Aucun pack
-`0.1.43.1` n'est présent dans le dépôt.
+La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
+de notre numéro de révision**. `0.18.11` + révision `1` → `0.18.11.1 Cresius`,
+étiquette `v0.18.11+rev1`. Les deux désignent le même build.
 
 ## Installation
 
@@ -143,14 +232,14 @@ ajean update
 ou, depuis le dépôt :
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.9.1+rev11`
+2. `git checkout v0.18.11+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`
 
 ---
 
 # English
 
-# Release notes — AJEAN `0.18.9.1 Cresius` / tag `v0.18.9.1+rev11`
+# Release notes — AJEAN `0.18.11.1 Cresius` / tag `v0.18.11+rev1`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -160,23 +249,88 @@ machines and are not guaranteed transposable. To install AJEAN, use the
 releases published at
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-This build **absorbs upstream `v0.18.9`** — which covers
-[`v0.18.5`](#upstream-v0185--tasks-and-consolidation) through
-[`v0.18.9`](#upstream-v0189--sidebar-settings-tasks-api-ajean-link) — into the
-`Cresius` patch line, which stopped at `0.18.4.2+rev10`. The base is now
+This build **absorbs upstream `v0.18.11`** — and therefore
+[`v0.18.10`](#upstream-v01810--jean-mode-described-actions-terminal-sleep-v2) —
+into the `Cresius` patch line, which stopped at `0.18.9.1+rev11`. The base is
 upstream's; the private line is reduced to what it still adds.
 
 ## Headline
 
-A clearer sidebar (upstream `v0.18.9`); the **Strata** MoE engine moves to
-`0.1.44.1` with context-window and key/value quantification settings; call
-de-duplication no longer masks a live-state read; the database can be opened
-immutable to survive a clumsy copy.
+The controlled browser can fill modern web forms and stops when a site blocks it
+(upstream `v0.18.11`); in Jean mode every action is described and Jean's sleep
+really tidies memory (upstream `v0.18.10`). On the private side: **Jean's
+journal** and **semantic memory** now share a **single encoder**, EmbeddingGemma
+2 — one GGUF, one engine, one vector space on the machine.
 
-## What this build adds on top of upstream `v0.18.9`
+## Upstream `v0.18.11` — controlled browser, Jean scene after sending
 
-- **Strata MoE engine**: it installs `0.1.44.1` (5.47 GB, SHA-256 verified),
-  not the `0.1.43.1` pack described in the `rev10` notes.
+The AI-controlled browser can fill modern web forms, and stops when a site blocks it.
+
+- **Choices that could not be ticked on some sites**: on an online store, product
+  options (colour, capacity…) were missing from the element list, and clicking
+  them did nothing. The next button stayed greyed out and the AI looped. These
+  checkboxes hidden behind a label are now listed, clicked through the label,
+  and the tick is verified.
+- **Visible states**: the element list shows what is checked, selected or
+  disabled. Clicking a disabled button is refused, with the explanation that a
+  required choice is missing.
+- **Reading page text**: in-page search now finds plain text (a delivery date, a
+  price, a message), not only buttons and links.
+- **Cleaner task ending**: when a site answers with an error or block page after
+  a normal action, the AI is told and tries another route instead of insisting.
+  A repeated no-effect action is flagged, and a reminder to conclude arrives
+  after 25 actions.
+- **Jean mode, right after sending a message**: after an update or page refresh,
+  the scene showed "Click me to talk" for a few seconds instead of "Reading the
+  message…".
+
+## Upstream `v0.18.10` — Jean mode: described actions, terminal, sleep v2
+
+Jean mode: you see what he does, and his sleep really tidies memory.
+
+- **Every Jean action is described**: in Jean mode, each tool used comes with a
+  sentence saying what it does and why. Steps stay in the thread as a sober
+  list; the current step shows on the status line.
+- **Live terminal in the scene**: in full screen, when Jean runs a command, a
+  terminal window opens above him; the command is typed letter by letter, then
+  the result appears.
+- **Web search results in the scene**: a search opens a card with the query and
+  the results (site, title, snippet), arriving in cascade.
+- **Adjustable sleep time and on-demand sleep**: the time at which Jean tidies
+  his memory is set in his memory (Sleep tab), and a "Sleep now" button starts
+  it immediately. During sleep, Jean sleeps in the scene.
+- **Sleep history**: the Sleep tab shows, for each of the last 14 sleeps, what
+  changed file by file, with a "Go back to before this sleep" button. Archived
+  cards are listed there and can be restored.
+- **More effective sleep**: on a large memory, sleep only saw the list of cards
+  and never merged anything. Similar cards are now given in full, in groups, and
+  a merge tool pours one whole card into another before archiving it.
+- **Safer sleep**: an interrupted sleep (user message, restart) is fully rolled
+  back; no file can be written during sleep; its report is always logged.
+- **Jean memory in tabs**: Profile, Lessons, Cards, Sleep and Journal are chosen
+  with a selector instead of one long scrolling page.
+- **Broken images in answers**: an image cited by name only while stored in a
+  subfolder is now found.
+
+## What this build adds on top of upstream `v0.18.11`
+
+- **One encoder for the whole machine**: Jean's journal asked for its own
+  embedding model (the old 300 M, 512 dimensions) while semantic memory and
+  search already used **EmbeddingGemma 2** (768 dimensions). Two models meant
+  two vector spaces on the same machine: what the journal retrieved had nothing
+  to do with what memory retrieved. The journal now uses the model the device
+  already chose for embeddings, with the same settings as the memory encoder
+  (same dimensions, same pooling, same device), and does not restart an engine
+  that is already running. The tag written into each `.embed` file moves from
+  `egemma300-v1` to `egemma2-q8-v1`: files carrying the old seal are rejected
+  and the journal is recomputed, instead of silently merging two vector spaces
+  into one index.
+- **Vector width checks**: an engine answer with the wrong width (768),
+  containing `NaN` or `±Infinity`, or not returning one vector per text, is
+  rejected. Without these checks the index fills with wrong vectors while every
+  other indicator stays green.
+- **Strata MoE engine**: it installs `0.1.44.1` (5.47 GB, SHA-256 verified). See
+  [the engine status](#the-moe-engine-where-we-stand).
 - **Context window (`CtxMax`)**: the gauge and the compaction follow the limit
   actually applied by the engine.
 - **Key/value quantization (`KvQuant`)**: four choices in the interface,
@@ -202,6 +356,20 @@ These Cresius fixes were **abandoned** as moot — upstream made the same call:
 | Crawl4AI (`crawl4ai-repair`) | **removed** — upstream dropped Crawl4AI in `v0.18.5` for a native reader |
 | Local embedding engine (`embeddingv2`) | **not carried over** — upstream delivers the same service in `v0.18.7` (Jean mode) |
 | Tool-call repair (`toolfix`) | **not carried over** — upstream fixed it in `v0.18.6` |
+
+## The MoE engine, where we stand
+
+The shipped engine is still **Strata `0.1.44.1`**, downloaded and verified by the
+internal manifest (`internal/ajean/moe_windows_manifest.json`).
+
+The move to **Strata `0.2.2` / engine `0.1.47`** is **prepared but not yet
+grafted** into this build. What is measured and settled: the `0.2` releases no
+longer publish the flat archives our manifest expects, but one archive per card
+(`strata-engine-0.1.47-windows-x86_64-hip-rx9070.tar.gz` for this machine's card,
+`gfx1201`); `setup.py` accepts an engine already in place if its `BUILD.json`
+stamp carries `source: prebuilt`. The remaining work is bounded (manifest,
+portable install script, engine version constants) and does not touch the rest
+of the private line.
 
 ## Upstream `v0.18.9` — sidebar: Settings, Tasks, API, AJEAN LINK
 
@@ -267,18 +435,16 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.9.1 Cresius` |
-| Git tag | `v0.18.9.1+rev11` |
-| Upstream base | `v0.18.9` |
-| MoE engine | Strata `0.1.44.1` (5.47 GB, SHA-256 verified) |
-| Previous | `0.18.4.2+rev10`, tag `v0.18.4.2+rev10` |
+| Version displayed | `0.18.11.1 Cresius` |
+| Git tag | `v0.18.11+rev1` |
+| Upstream base | `v0.18.11` |
+| MoE engine | Strata `0.1.44.1` (5.47 GB, SHA-256 verified) — `0.2.2` / `0.1.47` in preparation |
+| Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
+| Previous | `0.18.9.1 Cresius`, tag `v0.18.9.1+rev11` |
 
-### The MoE engine did change version
-
-`rev10` described the **Strata `0.1.43.1`** pack. This build installs
-**`0.1.44.1`**: the internal manifest
-(`internal/ajean/moe_windows_manifest.json`) points at the `0.1.44.1` archive
-with its SHA-256 fingerprint. No `0.1.43.1` pack is present in the repository.
+The private line's naming rule: **upstream's number, as is, followed by our
+revision number**. `0.18.11` + revision `1` → `0.18.11.1 Cresius`, tag
+`v0.18.11+rev1`. Both names denote the same build.
 
 ## Installation
 
@@ -289,5 +455,5 @@ ajean update
 or, from the repository:
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.9.1+rev11`
+2. `git checkout v0.18.11+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`

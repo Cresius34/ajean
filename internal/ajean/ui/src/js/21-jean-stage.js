@@ -13,7 +13,11 @@
 // direct comme après un rechargement. Le bouton en haut à droite bascule sur le
 // fil complet (body.jean-history) et en revient.
 (()=>{
-  let stage, scene, bubble, bubbleBody, caption, capText, capStop, inputBox, ta, sendBtn, histBtn;
+  let srch, srchQ, srchList, srchSig='';
+  const srchSeen=new WeakSet();
+  let term, termView, termKey='', termTyped=0, termTimer=0, termSig='', avatarLooking=false, termRuns=[], termCmd='';
+  const termSeen=new WeakSet(); // résultats déjà apparus (leur fondu ne se rejoue pas)
+  let stage, scene, bubble, bubbleBody, caption, capPast, capText, capStop, inputBox, ta, sendBtn, histBtn;
   let screen, screenView, screenUrl, screenSrc='';
   let jeanWasOn=false;
   let inputOpen=false, syncTimer=0, lastHTML='', userScrolled=false;
@@ -34,12 +38,27 @@
     screen=$('div','jst-screen', scene);
     screenUrl=$('div','jst-screen-url', screen);
     screenView=$('div','jst-screen-view', screen);
+    // Terminal : même principe que l'écran du navigateur, pour les commandes bash.
+    term=$('div','jst-term', scene);
+    const tbar=$('div','jst-term-bar', term);
+    for(let i=0;i<3;i++) $('span','', tbar);
+    $('div','jst-term-title', tbar).textContent='terminal';
+    termView=$('pre','jst-term-view', term);
+    // Recherche web : la requête puis les résultats, présentés comme une page de résultats.
+    srch=$('div','jst-srch', scene);
+    const sbar=$('div','jst-srch-bar', srch);
+    sbar.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+    srchQ=$('span','jst-srch-q', sbar);
+    srchList=$('div','jst-srch-list', srch);
     const charWrap=$('div','jst-char', scene);
     const orbit=$('div','jst-orbit', charWrap);
     for(let i=0;i<3;i++) $('span','', orbit).style.setProperty('--i', i);
     const charHost=$('div','jst-char-host', charWrap);
+    const zzz=$('div','jst-zzz', charWrap); zzz.setAttribute('aria-hidden','true');
+    for(let i=0;i<3;i++){ const z=$('span','', zzz); z.textContent='z'; z.style.setProperty('--i', i); }
     caption=$('div','jst-caption', scene);
-    capText=$('span','jst-cap-text', caption);
+    capPast=$('div','jst-cap-past', caption);
+    capText=$('div','jst-cap-text', caption);
     capStop=$('button','jst-cap-stop', caption); capStop.type='button'; capStop.hidden=true; capStop.onclick=()=>stopGen();
     inputBox=$('div','jst-input', scene);
     ta=$('textarea','', inputBox); ta.rows=1;
@@ -140,18 +159,44 @@
     }
     stage.classList.toggle('has-answer', !!html.trim());
     if(settled) syncScreen(chat, answer);
+    if(settled) syncTerm(chat, answer);
+    // Un seul appel par passage : basculer faux puis vrai faisait clignoter Jean.
+    const looking=stage.classList.contains('browsing') || stage.classList.contains('terminal') || stage.classList.contains('searching');
+    if(looking!==avatarLooking){ avatarLooking=looking; JeanAvatar&&JeanAvatar.browsing(looking); }
     // Phrase d'activité : celle de la ligne du tour en cours (« Réfléchit… »).
     const act=chat && [...chat.querySelectorAll(':scope > .genstatus .jact')].pop();
     // Chargement : du modèle, ou de la conversation (le fil se reconstruit). Jean
     // le dit et patiente (yeux qui tournent, points autour de lui).
     const modelLoading=STATUS_SEEN && !MODEL_READY;
     const loading=modelLoading || !settled;
-    const working=settled && !loading && busy && !!(ELAPSED || RUNNING_TASK);
+    // Message envoyé mais pas encore confirmé par le serveur (PENDS) : il travaille
+    // déjà. Après un rafraîchissement, la confirmation met 2 à 3 s à arriver et
+    // l'invite « Clique sur moi pour me parler » revenait entre-temps.
+    const sent=PENDS.length>0;
+    const working=settled && !loading && (busy && !!(ELAPSED || RUNNING_TASK) || sent);
     const hint=settled && !loading && !working && !html;
-    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || '') : (hint ? t('jean.stage_hint') : '');
+    // Sommeil : Jean range sa mémoire (consolidation). Endormi, « z » qui montent.
+    const asleep=(JEAN_SLEEPING || Date.now()<JEAN_SLEEP_HOLD) && !working && !loading && !inputOpen;
+    stage.classList.toggle('sleeping', asleep);
+    JeanAvatar&&JeanAvatar.sleeping&&JeanAvatar.sleeping(asleep);
+    if(Date.now()<JEAN_SLEEP_HOLD) setTimeout(schedule, 1000);
+    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || (sent ? t('jean.act_read') : '')) : asleep ? t('jean.sleep_caption') : (hint ? t('jean.stage_hint') : '');
     stage.classList.toggle('loading', loading);
     stage.classList.toggle('idle-hint', hint);
     JeanAvatar&&JeanAvatar.loading(loading);
+    // Étape précédente, en petit au-dessus de l'étape en cours : on voit le fil
+    // du travail sans liste qui s'allonge. Seulement les étapes du tour en cours.
+    let past='';
+    if(working && chat){
+      const steps=[...chat.querySelectorAll(':scope > .msg.user, :scope > .msg.tool.has-desc:not(.working)')];
+      const last=steps[steps.length-1];
+      if(last && !last.classList.contains('user')){ const l=last.querySelector('.label .txt')||last.querySelector('.label'); past=l ? l.textContent : ''; }
+      if(past===txt) past='';
+    }
+    if(capPast.textContent!==past){
+      capPast.textContent=past;
+      capPast.classList.remove('in'); void capPast.offsetWidth; if(past) capPast.classList.add('in');
+    }
     if(capText.textContent!==txt){
       capText.textContent=txt;
       capText.classList.remove('in'); void capText.offsetWidth; if(txt) capText.classList.add('in');
@@ -172,7 +217,6 @@
     const answerAfter=!!(card && answer && (card.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
     const on=!!(card && frame) && !answerAfter;
     stage.classList.toggle('browsing', on);
-    JeanAvatar&&JeanAvatar.browsing(on);
     if(!on){ screenSrc=''; return; }
     const url=(card.querySelector('.cu-shot-t')||{}).textContent||'';
     if(screenUrl.textContent!==url) screenUrl.textContent=url;
@@ -182,6 +226,119 @@
     screenView.appendChild(img);
     setTimeout(()=>img.classList.add('in'), 20);
     setTimeout(()=>{ let x=img.previousElementSibling; while(x){ const p=x.previousElementSibling; x.remove(); x=p; } }, 480);
+  }
+  // Terminal : les commandes bash du tour en cours, la dernière tapée lettre à
+  // lettre, puis son résultat. Visible tant que la dernière action est une
+  // commande et que la réponse n'a pas commencé ; le navigateur reste prioritaire.
+  function syncTerm(chat, answer){
+    const all=chat ? [...chat.querySelectorAll(':scope > .msg.user, :scope > .msg.tool')] : [];
+    let from=0; for(let i=all.length-1;i>=0;i--){ if(all[i].classList.contains('user')){ from=i+1; break; } }
+    const tools=all.slice(from);
+    // Ouvert dès la première commande du tour et jusqu'à la réponse : le fermer à
+    // chaque outil d'un autre type le faisait s'ouvrir et se refermer sans cesse.
+    const runs=tools.filter(el=>el.dataset.tool==='bash' && el._tu).slice(-4);
+    const last=runs[runs.length-1];
+    // Terminal ou recherche : c'est le dernier des deux utilisé qui s'affiche.
+    const panels=tools.filter(el=>(el.dataset.tool==='bash' || el.dataset.tool==='web_search') && el._tu);
+    const lastPanel=panels[panels.length-1];
+    syncSearch(lastPanel && lastPanel.dataset.tool==='web_search' ? lastPanel : null, answer);
+    if(lastPanel && lastPanel!==last){ stage.classList.remove('terminal'); return; }
+    const answerAfter=!!(last && answer && (last.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const on=!!last && !answerAfter && !stage.classList.contains('browsing') && busy && !!(ELAPSED || RUNNING_TASK);
+    stage.classList.toggle('terminal', on);
+    if(!on){ return; }
+    const cur=runs[runs.length-1]._tu;
+    const cmd=String(cur.label||'');
+    const key=runs.length+'|'+cmd;
+    // La commande arrive par morceaux pendant que le modèle l'écrit : même commande
+    // qui s'allonge = on continue de taper, sans repartir du début (le curseur
+    // sautait au début à chaque morceau).
+    if(key!==termKey){
+      const prev=termKey.slice(termKey.indexOf('|')+1);
+      const grows=termKey.split('|')[0]===String(runs.length) && cmd.startsWith(prev);
+      termKey=key;
+      if(!grows) termTyped=cur.done ? cmd.length : 0;
+    }
+    termRuns=runs; termCmd=cmd;
+    paintTerm(runs, cmd);
+    if(termTyped<cmd.length && !termTimer){
+      // Lit toujours la commande la plus récente (termCmd) : une copie figée se
+      // battait avec la version qui s'allonge et faisait sauter le curseur.
+      termTimer=setInterval(()=>{
+        const step=Math.max(1, Math.ceil(termCmd.length/45)); // ~1,5 s au plus pour taper
+        termTyped=Math.min(termCmd.length, termTyped+step);
+        paintTerm(termRuns, termCmd);
+        if(termTyped>=termCmd.length){ clearInterval(termTimer); termTimer=0; }
+      }, 33);
+    }
+  }
+  function syncSearch(el, answer){
+    const answerAfter=!!(el && answer && (el.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const on=!!el && !answerAfter && !stage.classList.contains('browsing') && busy && !!(ELAPSED || RUNNING_TASK);
+    stage.classList.toggle('searching', on);
+    if(!on) return;
+    const tu=el._tu, q=String(tu.label||'');
+    const sig=q+'|'+(tu.done?1:0)+'|'+(tu.result||'').length;
+    if(sig===srchSig) return;
+    srchSig=sig;
+    if(srchQ.textContent!==q) srchQ.textContent=q;
+    const fresh=tu.done && !srchSeen.has(el); if(tu.done) srchSeen.add(el);
+    const frag=document.createDocumentFragment();
+    if(!tu.done){
+      for(let i=0;i<3;i++){ const sk=$('div','jst-srch-sk', frag); $('i','',sk); $('i','',sk); $('i','',sk); }
+    } else {
+      const items=parseSearch(tu.result);
+      if(!items.length){ const n=$('div','jst-srch-none', frag); n.textContent=t('jean.stage_no_results'); }
+      items.slice(0,6).forEach((it,i)=>{
+        const row=$('div','jst-srch-item'+(fresh?' in':''), frag); row.style.setProperty('--i', i);
+        const src=$('div','jst-srch-src', row);
+        const ic=$('span','jst-srch-ic', src); ic.textContent=(it.host[0]||'?').toUpperCase();
+        $('span','', src).textContent=it.host;
+        $('div','jst-srch-t', row).textContent=it.title;
+        if(it.snip) $('div','jst-srch-s', row).textContent=it.snip;
+      });
+    }
+    srchList.replaceChildren(frag);
+    srchList.scrollTop=0;
+  }
+  // « 1. Titre / adresse / extrait » (toolWebSearch côté serveur).
+  function parseSearch(txt){
+    const out=[]; const lines=String(txt||'').split('\n');
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(/^\d+\.\s+(.+)$/); if(!m) continue;
+      const url=(lines[i+1]||'').trim(), snip=(lines[i+2]||'').trim();
+      let host=''; try{ host=new URL(url).hostname.replace(/^www\./,''); }catch(_){ continue; }
+      out.push({title:m[1].trim(), host, snip: /^\d+\.\s/.test(snip) ? '' : snip});
+    }
+    return out;
+  }
+  function tail(s, n){ const l=String(s||'').replace(/\s+$/,'').split('\n'); return l.slice(-n).join('\n'); }
+  function paintTerm(runs, cmd){
+    // Rien n'a changé (cas le plus fréquent : le fil bouge ailleurs) : on ne touche
+    // pas au DOM, sinon tout se reconstruit dix fois par seconde et clignote.
+    const sig=termTyped+'|'+runs.map(el=>{ const tu=el._tu; return (tu.label||'').length+':'+(tu.done?1:0)+':'+(tu.result||'').length; }).join(',');
+    if(sig===termSig) return;
+    termSig=sig;
+    const frag=document.createDocumentFragment();
+    runs.forEach((el,i)=>{
+      const tu=el._tu, isLast=i===runs.length-1;
+      const line=document.createElement('div'); line.className='jt-cmd';
+      const ps=document.createElement('span'); ps.className='jt-ps'; ps.textContent='$ ';
+      line.appendChild(ps);
+      line.appendChild(document.createTextNode(isLast ? cmd.slice(0, termTyped) : String(tu.label||'')));
+      const typing=isLast && termTyped<cmd.length;
+      const waiting=isLast && !typing && !tu.done;
+      if(typing || waiting){ const c=document.createElement('span'); c.className='jt-caret'; line.appendChild(c); }
+      frag.appendChild(line);
+      if(tu.done && !(isLast && typing) && tu.result){
+        const fresh=!termSeen.has(el); termSeen.add(el);
+        const out=document.createElement('div'); out.className='jt-out'+(fresh?' in':'');
+        out.textContent=tail(tu.result, isLast ? 40 : 6);
+        frag.appendChild(out);
+      }
+    });
+    termView.replaceChildren(frag);
+    termView.scrollTop=termView.scrollHeight;
   }
   // Images de la bulle : innerHTML recopie le fil, sans les écouteurs (clic vers
   // la visionneuse) et en recréant chaque <img> à chaque mise à jour (rechargement,

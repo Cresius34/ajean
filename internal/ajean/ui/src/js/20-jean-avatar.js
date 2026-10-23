@@ -28,7 +28,7 @@ var JeanAvatar = (()=>{
   let root=null, wrap=null, P=null, raf=0, last=0, t=0;
   let host=null;                                      // ligne d'activité du tour en cours
   let state='idle', stateUntil=0, lastActivity=performance.now();
-  let blinkAt=0, blinkT=1, hopT=1, pulse=0, pointer=null, browsing=false, loadingNow=false;
+  let blinkAt=0, blinkT=1, hopT=1, pulse=0, pointer=null, browsing=false, loadingNow=false, sleepingNow=false;
 
   // Ressort amorti : x tend vers target avec raideur k et amortissement d.
   const spring=(k,d)=>({x:0,v:0,target:0,k,d});
@@ -72,7 +72,7 @@ var JeanAvatar = (()=>{
   function targets(now){
     let lx=0, ly=0, open=1, happy=0, tilt=0;
     // Devant son écran (navigation) : il le regarde et lit, quel que soit l'état.
-    const st = loadingNow ? 'loading' : browsing && state!=='happy' && state!=='sleep' ? 'browse' : state;
+    const st = sleepingNow ? 'sleep' : loadingNow ? 'loading' : browsing && state!=='happy' && state!=='sleep' ? 'browse' : state;
     switch(st){
       // Modèle en cours de chargement : les yeux tournent lentement, comme une roue.
       case 'loading': lx=Math.cos(now/520)*0.85; ly=Math.sin(now/520)*0.85; open=0.9; break;
@@ -260,6 +260,8 @@ var JeanAvatar = (()=>{
     done(){ setState('happy', 1600); },
     // Le modèle se charge : il patiente (yeux qui tournent).
     loading(on){ loadingNow=!!on; },
+    // Sommeil (consolidation) : yeux fermés tant qu'il dure, petit saut joyeux au réveil.
+    sleeping(on){ if(sleepingNow && !on){ hopT=0.3; setState('happy', 1600); } sleepingNow=!!on; },
     // Il travaille sur son écran (navigateur piloté) : il le regarde.
     browsing(on){ if(on && !browsing) wake(); browsing=!!on; },
     // Scène plein écran : le conteneur qui l'accueille en grand.

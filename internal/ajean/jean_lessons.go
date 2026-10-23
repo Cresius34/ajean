@@ -243,6 +243,7 @@ func JeanPatch(name, old, repl string) (string, error) {
 		return "", fmt.Errorf("fiche « %s » introuvable", name)
 	}
 	f := parseFiche(name, s)
+	limit := jeanFicheLimit(len([]rune(f.Content)))
 	switch n := strings.Count(f.Content, old); {
 	case n == 0:
 		return "", fmt.Errorf("passage introuvable dans « %s » : jean_read la fiche et recopie-le exactement", name)
@@ -250,8 +251,8 @@ func JeanPatch(name, old, repl string) (string, error) {
 		return "", fmt.Errorf("passage présent %d fois dans « %s » : allonge 'old' pour qu'il soit unique", n, name)
 	}
 	f.Content = strings.TrimSpace(strings.Replace(f.Content, old, repl, 1))
-	if n := len([]rune(f.Content)); n > jeanFicheMaxChars {
-		return "", fmt.Errorf("fiche trop longue après modification (%d car., max %d)", n, jeanFicheMaxChars)
+	if n := len([]rune(f.Content)); n > limit {
+		return "", fmt.Errorf("fiche trop longue après modification (%d car., max %d)", n, limit)
 	}
 	if err := jeanWrite(ficheFile(name), "# "+name+"\nwhen: "+f.When+"\n\n"+f.Content+"\n"); err != nil {
 		return "", err

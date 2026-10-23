@@ -307,6 +307,7 @@ function bodyLineCount(s){ s=String(s).replace(/\r\n/g,'\n').replace(/\n$/,''); 
 // Render a tool call as its own conversation message: the command the model
 // wrote, then the response it got back. textContent keeps it injection-safe.
 function renderToolMsg(el, tu){
+  el._tu=tu; el.dataset.tool=tu.name||''; // relu par la scène de Jean (fenêtre terminal)
   // Métadonnées d'affichage par outil : nom court + en-tête. Les outils web
   // (web_search/open/read/grep) ont leur propre libellé, pas le fallback mémoire.
   // `ico` = clé d'icône SVG (voir ICONS) affichée devant l'étiquette pour repérer
@@ -358,6 +359,12 @@ function renderToolMsg(el, tu){
   meta = meta || {ico:'wrench', lbl:t('chat.tool.fallback_lbl'), head:t('chat.tool.fallback_head')};
   setIcon(el, meta.ico);
   let lbl = meta.lbl;
+  // Mode Jean : l'IA décrit chaque appel (champ description). Cette phrase prend
+  // la place du nom générique de l'outil : visible même bulle repliée, elle reste
+  // dans le fil et dit ce qui se passe vraiment.
+  if(tu.desc){ lbl = tu.desc; el.classList.add('has-desc'); }
+  // Mode Jean : la phrase seule, sans compteur ni détail.
+  if(tu.desc && MODE==='jean'){ setLabel(el, lbl); return; }
   // Indication du volume de la réponse de l'outil (~tokens, estimation 1 tok ≈ 4 car).
   // On utilise la taille RÉELLE (result_chars) quand le flux n'a envoyé qu'un aperçu,
   // sinon on retombe sur la longueur du résultat présent.

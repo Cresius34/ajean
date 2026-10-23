@@ -1518,6 +1518,16 @@ details[open]:not(.closing)>summary>.preset-add{opacity:1;transform:none;pointer
 @keyframes chat-in{from{opacity:0;transform:translateY(6px)}}
 @media (prefers-reduced-motion: reduce){#chat.chat-in{animation:none}}
 body.jean-mode #chat .msg.reasoning,body.jean-mode #chat .msg.tool{display:none}
+body.jean-mode #chat .msg.tool.has-desc{display:block;position:relative;padding-left:18px;pointer-events:none}
+body.jean-mode #chat .msg.tool.has-desc.working{display:none}
+body.jean-mode #chat .msg.tool.has-desc + .msg.tool.has-desc{margin-top:-14px}
+body.jean-mode #chat .msg.tool.has-desc::before{content:"";position:absolute;left:3px;top:.6em;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45}
+body.jean-mode #chat .msg.tool.has-desc .body,
+body.jean-mode #chat .msg.tool.has-desc .label .ic-slot,
+body.jean-mode #chat .msg.tool.has-desc .label .diff-count{display:none}
+body.jean-mode #chat .msg.tool.has-desc .label{display:block;padding:0;width:auto;font-size:13.5px;font-weight:400;line-height:1.45;color:var(--dim)}
+body.jean-mode #chat .msg.tool.has-desc .label::after{content:none}
+body.jean-mode #chat .msg.tool.has-desc .label .txt{white-space:normal}
 .genstatus .jact{display:none}
 body.jean-mode .genstatus .jact:not(:empty){display:inline-block;position:relative;overflow:hidden;
   font-family:var(--font, inherit);font-size:13px;letter-spacing:0;color:var(--dim);padding-right:2px}
@@ -1533,7 +1543,11 @@ body.jean-mode .genstatus .jact.jact-in{animation:jactin .3s cubic-bezier(.2,.7,
 .jm-head-j{margin-top:22px}
 .jm-title{font-size:13px;font-weight:600;color:var(--text)}
 .jm-budget{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;flex:1}
-.jm-sleep{width:100%;margin:0 0 18px}
+.jm-sleep-row{display:flex;gap:10px;margin:0 0 18px}
+.jm-sleep-f{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--dim);flex:none;width:96px}
+.jm-sleep-fp{flex:1;width:auto;min-width:0}
+.jm-sleep-f select{width:100%}
+#jm-sleep-st{text-align:right}
 .jm-hint{font-size:11.5px;color:var(--dim);margin:0 0 10px;line-height:1.45}
 .jm-list{display:flex;flex-direction:column;gap:2px}
 .jm-row{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border-radius:10px;transition:background .15s}
@@ -1648,6 +1662,66 @@ body.jean-mode .jst-hist{display:flex}
   border:7px solid var(--text);box-shadow:0 12px 34px rgba(0,0,0,.14)}
 .jst-screen-view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;opacity:0;transition:opacity .45s ease}
 .jst-screen-view img.in{opacity:1}
+.jst-term{position:relative;width:min(560px,92%);max-height:0;opacity:0;margin-bottom:0;transform:translateY(16px) scale(.9);
+  transform-origin:50% 100%;overflow:hidden;pointer-events:none;border-radius:14px;background:#111114;
+  box-shadow:0 14px 40px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.06) inset;
+  transition:max-height .6s cubic-bezier(.2,.9,.25,1),opacity .35s ease,transform .55s cubic-bezier(.2,.9,.25,1.15),margin .6s cubic-bezier(.2,.9,.25,1)}
+#jean-stage.terminal .jst-term{max-height:46vh;opacity:1;transform:none;margin-bottom:24px;pointer-events:auto}
+#jean-stage.terminal .jst-bubble{max-height:0;opacity:0;margin-bottom:0;transform:translateY(16px) scale(.92);pointer-events:none}
+.jst-term-bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:rgba(255,255,255,.04)}
+.jst-term-bar span{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18)}
+.jst-term-title{flex:1;text-align:center;margin-right:42px;font:500 11px var(--font,system-ui);color:rgba(255,255,255,.38);letter-spacing:.04em}
+.jst-term-view{margin:0;padding:12px 14px 14px;height:min(260px,34vh);overflow:hidden;
+  font:12.5px/1.55 var(--mono,ui-monospace,Menlo,monospace);color:rgba(255,255,255,.86);white-space:pre-wrap;word-break:break-word;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
+.jt-cmd{color:#fff}
+.jt-cmd + .jt-cmd,.jt-out + .jt-cmd{margin-top:8px}
+.jt-ps{color:rgba(255,255,255,.4)}
+.jt-out{color:rgba(255,255,255,.55);margin-top:2px}
+.jt-out.in{animation:jtout .4s ease both}
+@keyframes jtout{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.jt-caret{display:inline-block;width:.55em;height:1.05em;margin-left:1px;vertical-align:-.18em;background:rgba(255,255,255,.85);animation:jtcaret 1.4s ease-in-out infinite}
+@keyframes jtcaret{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.jt-caret,.jt-out.in{animation:none}}
+.jst-srch{position:relative;width:min(560px,92%);max-height:0;opacity:0;margin-bottom:0;transform:translateY(16px) scale(.9);
+  transform-origin:50% 100%;overflow:hidden;pointer-events:none;border-radius:16px;background:var(--row-bg);
+  box-shadow:0 14px 40px rgba(0,0,0,.18);
+  transition:max-height .6s cubic-bezier(.2,.9,.25,1),opacity .35s ease,transform .55s cubic-bezier(.2,.9,.25,1.15),margin .6s cubic-bezier(.2,.9,.25,1)}
+#jean-stage.searching .jst-srch{max-height:52vh;opacity:1;transform:none;margin-bottom:24px;pointer-events:auto}
+#jean-stage.searching .jst-bubble{max-height:0;opacity:0;margin-bottom:0;transform:translateY(16px) scale(.92);pointer-events:none}
+.jst-srch-bar{display:flex;align-items:center;gap:9px;margin:12px 12px 4px;padding:9px 14px;border-radius:999px;
+  background:var(--bg);color:var(--dim);font-size:13.5px}
+.jst-srch-bar svg{flex:none}
+.jst-srch-q{flex:1;min-width:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jst-srch-list{max-height:min(320px,40vh);overflow-y:auto;padding:4px 16px 14px;scrollbar-width:none}
+.jst-srch-list::-webkit-scrollbar{display:none}
+.jst-srch-item{padding:10px 0}
+.jst-srch-item + .jst-srch-item{border-top:1px solid color-mix(in srgb,var(--text) 6%,transparent)}
+.jst-srch-item.in{animation:jsrin .45s cubic-bezier(.2,.7,.3,1) both;animation-delay:calc(var(--i) * 70ms)}
+@keyframes jsrin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.jst-srch-src{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dim);margin-bottom:3px}
+.jst-srch-ic{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;
+  background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);font-size:10px;font-weight:600}
+.jst-srch-t{font-size:14px;font-weight:500;line-height:1.35;color:var(--text);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.jst-srch-s{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--dim);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.jst-srch-none{padding:18px 0;text-align:center;font-size:13px;color:var(--dim)}
+.jst-srch-sk{padding:12px 0}
+.jst-srch-sk i{display:block;height:9px;border-radius:5px;margin:7px 0;background:color-mix(in srgb,var(--text) 9%,transparent);animation:jsrsk 1.6s ease-in-out infinite}
+.jst-srch-sk i:nth-child(1){width:34%;height:8px}
+.jst-srch-sk i:nth-child(2){width:78%;height:11px}
+.jst-srch-sk i:nth-child(3){width:92%}
+@keyframes jsrsk{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.jst-srch-item.in,.jst-srch-sk i{animation:none}}
+.jst-zzz{position:absolute;left:68%;top:2%;width:0;height:0;pointer-events:none;opacity:0;transition:opacity .6s ease}
+#jean-stage.sleeping .jst-zzz{opacity:1}
+.jst-zzz span{position:absolute;left:0;top:0;font-weight:700;font-size:calc(15px + var(--i) * 6px);line-height:1;color:var(--dim);opacity:0;
+  animation:jzzz 3.6s ease-in-out infinite;animation-delay:calc(var(--i) * 1.2s)}
+@keyframes jzzz{0%{opacity:0;transform:translate(0,6px) rotate(-8deg) scale(.6)}18%{opacity:.85}
+  70%{opacity:.5}100%{opacity:0;transform:translate(34px,-58px) rotate(12deg) scale(1.15)}}
+#jean-stage.sleeping .jst-char{animation:jsleep 4.2s ease-in-out infinite}
+@keyframes jsleep{0%,100%{transform:scale(1) rotate(3deg)}50%{transform:scale(1.035,.975) rotate(4.5deg)}}
+#jean-stage.sleeping .jst-bubble{max-height:0;opacity:0;margin-bottom:0;transform:translateY(16px) scale(.92);pointer-events:none}
+@media (prefers-reduced-motion:reduce){.jst-zzz span{animation:none;opacity:.6}#jean-stage.sleeping .jst-char{animation:none}}
 .jst-char{position:relative;flex:none;width:150px;height:150px;--orbit:94px;transition:transform .6s cubic-bezier(.2,.9,.25,1.15)}
 .jst-char-host{width:100%;height:100%}
 #jean-avatar.jav-stage{display:block;width:100%;height:100%}
@@ -1656,14 +1730,20 @@ body.jean-mode .jst-hist{display:flex}
 .jst-orbit span{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:var(--text);opacity:.45;
   animation:jorbit 2.6s cubic-bezier(.45,.05,.55,.95) infinite;animation-delay:calc(var(--i) * -0.87s)}
 @keyframes jorbit{0%{transform:rotate(0deg) translateX(var(--orbit)) scale(1)}50%{transform:rotate(180deg) translateX(var(--orbit)) scale(.55)}100%{transform:rotate(360deg) translateX(var(--orbit)) scale(1)}}
-.jst-caption{min-height:22px;margin-top:14px;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--dim)}
+.jst-caption{min-height:22px;margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  width:min(340px,86vw);text-align:center;font-size:14px;line-height:1.45;color:var(--dim)}
+.jst-cap-past{font-size:12px;opacity:.5;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jst-cap-past:empty{display:none}
+.jst-cap-past.in{animation:jcapin .35s cubic-bezier(.2,.7,.3,1) both}
+.jst-cap-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:color-mix(in srgb,var(--text) 78%,transparent)}
+.jst-cap-stop{margin-top:10px}
 .jst-cap-text.in{animation:jcapin .35s cubic-bezier(.2,.7,.3,1) both}
 #jean-stage.idle-hint .jst-cap-text{cursor:pointer;transition:color .2s}
 #jean-stage.idle-hint .jst-cap-text:hover{color:var(--text)}
 #jean-stage.typing .jst-caption{opacity:0}
 .jst-caption{transition:opacity .25s ease}
 @keyframes jcapin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.jst-cap-stop{border:none;background:none;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px;opacity:.7}
+.jst-cap-stop{border:none;background:var(--row-bg);color:var(--dim);font:inherit;font-size:12px;cursor:pointer;padding:5px 14px;border-radius:999px;opacity:.85}
 .jst-cap-stop:hover{opacity:1;color:var(--text);background:var(--row-bg)}
 .jst-cap-stop[hidden]{display:none}
 .jst-input{width:min(560px,94%);display:flex;align-items:flex-end;gap:8px;max-height:0;opacity:0;margin-top:0;pointer-events:none;
@@ -1845,6 +1925,37 @@ button.th-head:hover{background:var(--t1)}
 #modal.kind-moe-memory #m-gpu-group,
 #modal.kind-moe-memory #m-model-row > .pe-group > .pe-list > .pe-row:not(#m-memory-block){display:none!important}
 #moe-modal [hidden]{display:none!important}
+.msg.tool.has-desc .label .txt{white-space:normal;text-transform:none;letter-spacing:normal}
+.jm-tabs{margin:0 0 16px}
+.jm-tabs>label{padding:7px 2px;font-size:12px}
+.jm-pane{display:none}
+.jm-pane.on{display:block;animation:jmpane .25s ease both}
+@keyframes jmpane{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.jm-pane>.jm-head:first-child{margin-top:0}
+.jm-sub{font-size:13px;font-weight:600;color:var(--text);margin:22px 0 4px}
+.jm-unarch{flex:none;border:none;background:var(--t2);color:var(--text);font:inherit;font-size:12px;padding:5px 12px;border-radius:999px;cursor:pointer}
+.jm-unarch:hover{background:color-mix(in srgb,var(--text) 12%,transparent)}
+.jm-sleeps{display:flex;flex-direction:column;gap:4px}
+.jm-sl{border-radius:12px;transition:background .15s}
+.jm-sl.open,.jm-sl:hover{background:var(--row-bg)}
+.jm-sl-head{display:flex;align-items:baseline;gap:10px;width:100%;padding:10px 12px;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.jm-sl-when{font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.jm-sl-kind{font-size:12.5px;color:var(--text)}
+.jm-sl-n{margin-left:auto;font-size:11.5px;color:var(--dim)}
+.jm-sl-det{display:none;padding:0 12px 12px}
+.jm-sl.open .jm-sl-det{display:block}
+.jm-sl-sum{font-size:12.5px;line-height:1.5;color:var(--dim);margin:0 0 10px;white-space:pre-wrap}
+.jm-sl-file{margin:0 0 10px}
+.jm-sl-fh{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:500;color:var(--text);margin-bottom:3px}
+.jm-sl-fst{color:var(--dim);font-weight:400;font-variant-numeric:tabular-nums;white-space:pre}
+.jm-sl-l{font-size:12px;line-height:1.45;padding:2px 0 2px 16px;position:relative;word-break:break-word}
+.jm-sl-l::before{position:absolute;left:3px;top:2px;color:var(--dim)}
+.jm-sl-l.add{color:var(--text)}
+.jm-sl-l.add::before{content:"+"}
+.jm-sl-l.del{color:var(--dim);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--dim) 60%,transparent)}
+.jm-sl-l.del::before{content:"−";text-decoration:none}
+.jm-sl-back{margin-top:4px;border:none;background:var(--text);color:var(--bg);font:inherit;font-size:12.5px;font-weight:500;padding:7px 14px;border-radius:999px;cursor:pointer}
+.jm-sl-back:hover{opacity:.85}
 </style></head><body>
 <button id="menubtn" onclick="toggleSide()" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button id="lc-chip" onclick="lcChipOpen()" hidden></button>
@@ -2462,40 +2573,68 @@ button.th-head:hover{background:var(--t1)}
       <button class="modal-x" onclick="closeJeanMem()" aria-label="Fermer" data-i18n="memory.close_aria" data-i18n-attr="aria-label">×</button>
     </div>
     <div class="modal-body">
-      <div class="jm-head">
-        <span class="jm-title" data-i18n="jean.mem_profile">Profil</span>
-        <span id="jm-budget" class="jm-budget"></span>
-        <button class="mem-add-btn" onclick="jmEdit(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+      <div class="seg jm-tabs" role="tablist">
+        <label><input type="radio" name="jm-tab" value="profile" onchange="jmTab(this.value)"><span data-i18n="jean.mem_profile">Profil</span></label>
+        <label><input type="radio" name="jm-tab" value="lessons" onchange="jmTab(this.value)"><span data-i18n="jean.mem_lessons">Leçons</span></label>
+        <label><input type="radio" name="jm-tab" value="fiches" onchange="jmTab(this.value)"><span data-i18n="jean.mem_fiches">Fiches</span></label>
+        <label><input type="radio" name="jm-tab" value="sleep" onchange="jmTab(this.value)"><span data-i18n="jean.sleep_title">Sommeil</span></label>
+        <label><input type="radio" name="jm-tab" value="journal" onchange="jmTab(this.value)"><span data-i18n="jean.mem_journal">Journal</span></label>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_profile_hint">Ce que Jean sait de toi à coup sûr.</div>
-      <div id="jm-profile" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_lessons">Leçons</span>
-        <span id="jm-lbudget" class="jm-budget"></span>
+      <div class="jm-pane" data-pane="profile">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_profile">Profil</span>
+          <span id="jm-budget" class="jm-budget"></span>
+          <button class="mem-add-btn" onclick="jmEdit(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_profile_hint">Ce que Jean sait de toi à coup sûr.</div>
+        <div id="jm-profile" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_lessons_hint">Ce que Jean a appris de ses erreurs.</div>
-      <div id="jm-lessons" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_fiches">Fiches</span>
-        <span id="jm-fcount" class="jm-budget"></span>
-        <button class="mem-add-btn" onclick="jmEditFiche(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+      <div class="jm-pane" data-pane="lessons">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_lessons">Leçons</span>
+          <span id="jm-lbudget" class="jm-budget"></span>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_lessons_hint">Ce que Jean a appris de ses erreurs.</div>
+        <div id="jm-lessons" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_fiches_hint">Procédures et guides gardés en entier.</div>
-      <div id="jm-fiches" class="jm-list"></div>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.sleep_title">Sommeil</span>
+      <div class="jm-pane" data-pane="fiches">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_fiches">Fiches</span>
+          <span id="jm-fcount" class="jm-budget"></span>
+          <button class="mem-add-btn" onclick="jmEditFiche(null)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="memory.add_page_button_short">ajouter</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_fiches_hint">Procédures et guides gardés en entier.</div>
+        <div id="jm-fiches" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.sleep_hint">Modèle utilisé la nuit pour réorganiser la mémoire.</div>
-      <select id="jm-sleep" class="sctl jm-sleep" onchange="jmSaveSleep()"></select>
-      <div class="jm-head jm-head-j">
-        <span class="jm-title" data-i18n="jean.mem_journal">Journal</span>
-        <span id="jm-count" class="jm-budget"></span>
+      <div class="jm-pane" data-pane="sleep">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.sleep_title">Sommeil</span>
+          <span id="jm-sleep-st" class="jm-budget"></span>
+          <button id="jm-sleep-now" class="mem-add-btn" onclick="jmSleepNow()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span data-i18n="jean.sleep_now">Dormir maintenant</span></button>
+        </div>
+        <div class="jm-hint" data-i18n="jean.sleep_hint">Modèle utilisé la nuit pour réorganiser la mémoire.</div>
+        <div class="jm-sleep-row">
+          <label class="jm-sleep-f"><span data-i18n="jean.sleep_hour">Heure</span><select id="jm-sleep-hour" class="sctl" onchange="jmSaveSleepHour()"></select></label>
+          <label class="jm-sleep-f jm-sleep-fp"><span data-i18n="jean.sleep_model">Modèle</span><select id="jm-sleep" class="sctl" onchange="jmSaveSleep()"></select></label>
+        </div>
+        <div class="jm-sub" data-i18n="jean.sleep_history">Derniers sommeils</div>
+        <div class="jm-hint" data-i18n="jean.sleep_history_hint">Ce que chaque sommeil a changé. Une copie de la mémoire est gardée avant chacun des 14 derniers.</div>
+        <div id="jm-sleeps" class="jm-sleeps"></div>
+        <div class="jm-sub" data-i18n="jean.archives_title">Fiches archivées</div>
+        <div class="jm-hint" data-i18n="jean.archives_hint">Fiches retirées ou fusionnées. Rien n'est effacé : une fiche peut être ressortie.</div>
+        <div id="jm-archives" class="jm-list"></div>
       </div>
-      <div class="jm-hint" data-i18n="jean.mem_journal_hint">Tout ce qui s'est passé.</div>
-      <label class="jm-embed"><span class="switch"><input type="checkbox" id="jm-embed" onchange="jmToggleEmbed()"><span class="slider"></span></span><span class="jm-embed-t"><span data-i18n="jean.embed_title">Recherche par le sens</span><span id="jm-embed-st" class="jm-embed-st"></span></span></label>
-      <input id="jm-search" class="mem-search sctl" type="search" oninput="jmSearchDebounced()" placeholder="chercher dans le journal…" data-i18n="jean.mem_search" data-i18n-attr="placeholder">
-      <div id="jm-journal" class="jm-list"></div>
-      <button id="jm-more" class="jm-more" style="display:none" onclick="jmLoad(true)" data-i18n="chat.show_more">voir plus</button>
+      <div class="jm-pane" data-pane="journal">
+        <div class="jm-head">
+          <span class="jm-title" data-i18n="jean.mem_journal">Journal</span>
+          <span id="jm-count" class="jm-budget"></span>
+        </div>
+        <div class="jm-hint" data-i18n="jean.mem_journal_hint">Tout ce qui s'est passé.</div>
+        <label class="jm-embed"><span class="switch"><input type="checkbox" id="jm-embed" onchange="jmToggleEmbed()"><span class="slider"></span></span><span class="jm-embed-t"><span data-i18n="jean.embed_title">Recherche par le sens</span><span id="jm-embed-st" class="jm-embed-st"></span></span></label>
+        <input id="jm-search" class="mem-search sctl" type="search" oninput="jmSearchDebounced()" placeholder="chercher dans le journal…" data-i18n="jean.mem_search" data-i18n-attr="placeholder">
+        <div id="jm-journal" class="jm-list"></div>
+        <button id="jm-more" class="jm-more" style="display:none" onclick="jmLoad(true)" data-i18n="chat.show_more">voir plus</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3431,9 +3570,34 @@ fr: {
   "jean.sleep_hint": "Preset utilisé la nuit pour réorganiser la mémoire. Jean y bascule le temps du sommeil, puis revient au preset d'avant.",
   "jean.sleep_active": "Preset actif au moment du sommeil",
   "jean.sleep_missing": "(introuvable)",
+  "jean.sleep_history": "Derniers sommeils",
+  "jean.sleep_history_hint": "Ce que chaque sommeil a changé. Une copie de la mémoire est gardée avant chacun des 14 derniers.",
+  "jean.sleep_history_empty": "Aucun sommeil pour l'instant.",
+  "jean.sleep_kind_sleep": "Sommeil",
+  "jean.sleep_kind_cut": "Sommeil interrompu, annulé",
+  "jean.sleep_kind_restore": "Retour en arrière",
+  "jean.sleep_counts": "{e} retouchée(s), {a} archivée(s)",
+  "jean.sleep_nothing": "rien changé",
+  "jean.sleep_f_archived": "archivée",
+  "jean.sleep_f_created": "créée",
+  "jean.sleep_restore": "Revenir à avant ce sommeil",
+  "jean.sleep_restore_confirm": "Remettre la mémoire de Jean telle qu'avant le sommeil du {when} ? Ce qui a été appris depuis sera aussi retiré. L'état actuel est gardé : ce retour pourra lui-même être annulé.",
+  "jean.sleep_restored": "Mémoire remise telle qu'avant ce sommeil.",
+  "jean.archives_title": "Fiches archivées",
+  "jean.archives_hint": "Fiches retirées ou fusionnées. Rien n'est effacé : une fiche peut être ressortie.",
+  "jean.archives_empty": "Aucune fiche archivée.",
+  "jean.archives_restore": "Ressortir",
+  "jean.archives_restored": "Fiche « {name} » ressortie des archives.",
+  "jean.sleep_now": "Dormir maintenant",
+  "jean.sleep_caption": "Je dors, je range ma mémoire…",
+  "jean.sleep_hour": "Heure",
+  "jean.sleep_model": "Modèle",
+  "jean.sleep_running": "En sommeil",
+  "jean.sleep_started": "Jean s'endort. La mémoire sera réorganisée dans quelques minutes.",
   "jean.stage_loading": "Chargement du modèle…",
   "jean.stage_placeholder": "Écris à Jean…",
   "jean.stage_stop": "Arrêter",
+  "jean.stage_no_results": "Aucun résultat",
   "jean.stage_back": "Revenir à Jean",
   "jean.stage_history": "Voir toute la conversation",
   "jean.stage_hint": "Clique sur moi pour me parler",
@@ -4781,9 +4945,34 @@ en: {
   "jean.sleep_hint": "Preset used at night to reorganize memory. Jean switches to it for the sleep, then returns to the previous preset.",
   "jean.sleep_active": "Preset active at sleep time",
   "jean.sleep_missing": "(not found)",
+  "jean.sleep_history": "Recent sleeps",
+  "jean.sleep_history_hint": "What each sleep changed. A copy of the memory is kept before each of the last 14.",
+  "jean.sleep_history_empty": "No sleep yet.",
+  "jean.sleep_kind_sleep": "Sleep",
+  "jean.sleep_kind_cut": "Sleep interrupted, undone",
+  "jean.sleep_kind_restore": "Rollback",
+  "jean.sleep_counts": "{e} edited, {a} archived",
+  "jean.sleep_nothing": "nothing changed",
+  "jean.sleep_f_archived": "archived",
+  "jean.sleep_f_created": "created",
+  "jean.sleep_restore": "Go back to before this sleep",
+  "jean.sleep_restore_confirm": "Restore Jean's memory as it was before the sleep of {when}? What was learned since will also be removed. The current state is kept: this rollback can itself be undone.",
+  "jean.sleep_restored": "Memory restored to before this sleep.",
+  "jean.archives_title": "Archived fiches",
+  "jean.archives_hint": "Fiches removed or merged. Nothing is deleted: a fiche can be brought back.",
+  "jean.archives_empty": "No archived fiche.",
+  "jean.archives_restore": "Bring back",
+  "jean.archives_restored": "Fiche “{name}” brought back from the archives.",
+  "jean.sleep_now": "Sleep now",
+  "jean.sleep_caption": "Sleeping, tidying my memory…",
+  "jean.sleep_hour": "Time",
+  "jean.sleep_model": "Model",
+  "jean.sleep_running": "Sleeping",
+  "jean.sleep_started": "Jean is falling asleep. Memory will be reorganized in a few minutes.",
   "jean.stage_loading": "Loading the model…",
   "jean.stage_placeholder": "Write to Jean…",
   "jean.stage_stop": "Stop",
+  "jean.stage_no_results": "No results",
   "jean.stage_back": "Back to Jean",
   "jean.stage_history": "See the whole conversation",
   "jean.stage_hint": "Click me to talk",
@@ -8851,6 +9040,7 @@ function fadeTail(root, n){
 }
 function bodyLineCount(s){ s=String(s).replace(/\r\n/g,'\n').replace(/\n$/,''); return s ? s.split('\n').length : 0; }
 function renderToolMsg(el, tu){
+  el._tu=tu; el.dataset.tool=tu.name||''; 
   const META = {
     bash:       {ico:'terminal', lbl:t('chat.tool.bash_lbl'),            head:t('chat.tool.bash_head')},
     write:      {ico:'file',     lbl:t('chat.tool.write_lbl'),           head:t('chat.tool.write_head')},
@@ -8896,6 +9086,8 @@ function renderToolMsg(el, tu){
   meta = meta || {ico:'wrench', lbl:t('chat.tool.fallback_lbl'), head:t('chat.tool.fallback_head')};
   setIcon(el, meta.ico);
   let lbl = meta.lbl;
+  if(tu.desc){ lbl = tu.desc; el.classList.add('has-desc'); }
+  if(tu.desc && MODE==='jean'){ setLabel(el, lbl); return; }
   const realChars = tu.result_chars || (tu.result ? tu.result.length : 0);
   if(realChars){ lbl += '  ·  ' + Math.max(1, Math.round(realChars/4)) + ' ' + t('chat.tok_unit'); }
   setLabel(el, lbl);
@@ -9451,6 +9643,7 @@ function paintGenStatus(){
   scrollMaybe();
 }
 let JACT='';
+let JEAN_SLEEPING=false, JEAN_SLEEP_HOLD=0;
 function jeanActFor(name){
   if(/^(jean_search|jean_read|recall|recall_search|mem_search|mem_read)$/.test(name)) return 'jean.act_search';
   if(/^(jean_remember|jean_note|jean_save|jean_lesson|jean_patch|jean_rule|mem_add|mem_edit)$/.test(name)) return 'jean.act_remember';
@@ -9462,11 +9655,12 @@ function jeanActFor(name){
   if(/^(bash|write|edit)$/.test(name)) return 'jean.act_machine';
   return 'jean.act_work';
 }
-function setJeanAct(k){
-  if(MODE!=='jean' || REPLAYING || k===JACT) return;
-  JACT=k; JeanAvatar&&JeanAvatar.act(k);
+function setJeanAct(k, txt){
+  const id=k+' '+(txt||'');
+  if(MODE!=='jean' || REPLAYING || id===JACT) return;
+  JACT=id; JeanAvatar&&JeanAvatar.act(k);
   const a=GENEL && GENEL.querySelector('.jact'); if(!a) return;
-  a.textContent=k ? t(k) : '';
+  a.textContent=txt || (k ? t(k) : '');
   a.classList.remove('jact-in'); void a.offsetWidth; if(k) a.classList.add('jact-in'); 
 }
 function showJeanTask(j){
@@ -9709,7 +9903,7 @@ function handleDelta(d){
   if(d.tool_used){
     smoothSnap(); flushRender(); 
     killTyping('tool'); T.contentEl=null; T.reasonEl=null; const tu=d.tool_used;
-    setJeanAct(jeanActFor(tu.name||''));
+    setJeanAct(jeanActFor(tu.name||''), tu.desc);
     if(!T.pendingToolEl){ collapseAll(T.turnCollapsibles); T.pendingToolEl=addMsg('tool',''); if(REPLAYING||viewOn('fold-tools')) collapseInstant(T.pendingToolEl); T.turnCollapsibles.push(T.pendingToolEl); setActive(T.pendingToolEl); }
     renderToolMsg(T.pendingToolEl, tu);
     if(tu.done && tu.shot) showCuShot(tu);
@@ -9905,6 +10099,7 @@ async function reconcileBusy(settle){
     const rt = s.running_task || '';
     if(rt !== RUNNING_TASK){ RUNNING_TASK = rt; if(!REPLAYING) syncSendBtn(); }
     if(typeof s.generating==='boolean' && s.generating!==busy) setBusy(s.generating);
+    JEAN_SLEEPING=!!s.sleeping;
     if(typeof s.compact_count==='number') setCompactCount(s.compact_count); 
     if(s.generating && !REPLAYING && !RUNNING_TASK && !ELAPSED && !TURN_ENDED){
       elapsedStart();
@@ -12096,7 +12291,7 @@ async function pickProjFromMenu(slug){
   await switchProjectUI(slug);
 }
 let JM_OFF=0, JM_T=null;
-function openJeanMem(){ showModal('jean-mem-modal'); const s=document.getElementById('jm-search'); if(s) s.value=''; jmLoad(false); jmLoadSleep(); jmLoadEmbed(); }
+function openJeanMem(){ showModal('jean-mem-modal'); const s=document.getElementById('jm-search'); if(s) s.value=''; let tab='profile'; try{ tab=localStorage.getItem('jm-tab')||tab; }catch(_){} jmTab(tab); jmLoad(false); jmLoadSleep(); jmLoadEmbed(); }
 async function jmLoadEmbed(){
   const cb=document.getElementById('jm-embed'), st=document.getElementById('jm-embed-st'); if(!cb||!st) return;
   let r; try{ r=await jget('/api/jean/embed'); }catch(_){ return; }
@@ -12134,6 +12329,31 @@ async function jmLoadSleep(){
   (r.presets||[]).forEach(p=>add(p.id, p.name||p.id));
   if(r.preset && !(r.presets||[]).some(p=>p.id===r.preset)) add(r.preset, r.preset+' '+t('jean.sleep_missing'));
   sel.value=r.preset||'';
+  const hs=document.getElementById('jm-sleep-hour');
+  if(hs){
+    if(!hs.options.length) for(let h=0;h<24;h++){ const o=document.createElement('option'); o.value=h; o.textContent=String(h).padStart(2,'0')+':00'; hs.appendChild(o); }
+    hs.value=String(r.hour==null?3:r.hour);
+  }
+  jmSleepState(!!r.sleeping);
+}
+function jmSleepState(sleeping){
+  const b=document.getElementById('jm-sleep-now'), st=document.getElementById('jm-sleep-st');
+  if(b) b.disabled=sleeping;
+  if(st) st.textContent=sleeping ? t('jean.sleep_running') : '';
+  clearTimeout(jmSleepState.t);
+  const modal=document.getElementById('jean-mem-modal');
+  if(sleeping && modal && modal.style.display!=='none') jmSleepState.t=setTimeout(jmLoadSleep, 5000);
+}
+async function jmSaveSleepHour(){
+  const hs=document.getElementById('jm-sleep-hour'); if(!hs) return;
+  try{ const r=await jpost('/api/jean/sleep', {hour:parseInt(hs.value,10)}); if(!r || !r.ok) toast((r&&r.error)||'erreur'); }catch(e){ toast(String(e)); }
+}
+async function jmSleepNow(){
+  try{
+    const r=await jpost('/api/jean/sleep', {now:true});
+    if(!r || !r.ok){ toast((r&&r.error)||'erreur'); return; }
+    JEAN_SLEEP_HOLD=Date.now()+6000; toast(t('jean.sleep_started')); jmSleepState(true);
+  }catch(e){ toast(String(e)); }
 }
 async function jmSaveSleep(){
   const sel=document.getElementById('jm-sleep'); if(!sel) return;
@@ -12250,6 +12470,75 @@ function jmEditFiche(f, row){
     else if(e.key==='Enter' && (e.ctrlKey||e.metaKey || (e.target!==c && !e.shiftKey))){ e.preventDefault(); save(); }
   };
   (f?c:n).focus();
+}
+function jmTab(v){
+  const card=document.querySelector('#jean-mem-modal .jm-card'); if(!card) return;
+  if(!card.querySelector('.jm-pane[data-pane="'+v+'"]')) v='profile';
+  card.querySelectorAll('.jm-pane').forEach(p=>p.classList.toggle('on', p.dataset.pane===v));
+  const r=card.querySelector('input[name="jm-tab"][value="'+v+'"]'); if(r && !r.checked) r.checked=true;
+  try{ localStorage.setItem('jm-tab', v); }catch(_){}
+  if(v==='sleep') jmLoadSleeps();
+}
+function jmFileLabel(n){
+  if(n==='profile.md') return t('jean.mem_profile');
+  if(n==='lessons.md') return t('jean.mem_lessons');
+  return n.replace(/^fiche-/,'').replace(/\.md$/,'');
+}
+async function jmLoadSleeps(){
+  const box=document.getElementById('jm-sleeps'), ab=document.getElementById('jm-archives'); if(!box) return;
+  let r; try{ r=await jget('/api/jean/sleeps'); }catch(_){ return; }
+  if(!r || !r.ok) return;
+  box.textContent='';
+  const list=r.sleeps||[];
+  if(!list.length) box.innerHTML='<div class="jm-empty">'+jmEsc(t('jean.sleep_history_empty'))+'</div>';
+  for(const s of list){
+    const m=s.meta||{}, ch=s.changes||[];
+    const d=new Date(m.when||0);
+    const when=d.toLocaleDateString(undefined,{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    const kind=m.kind==='restauration' ? t('jean.sleep_kind_restore') : m.status==='interrompu' ? t('jean.sleep_kind_cut') : t('jean.sleep_kind_sleep');
+    const merged=ch.filter(c=>c.status==='removed').length, edited=ch.filter(c=>c.status==='changed').length;
+    const row=document.createElement('div'); row.className='jm-sl';
+    const head=document.createElement('button'); head.type='button'; head.className='jm-sl-head';
+    head.innerHTML='<span class="jm-sl-when">'+jmEsc(when)+'</span><span class="jm-sl-kind">'+jmEsc(kind)+'</span>'
+      +'<span class="jm-sl-n">'+jmEsc(ch.length ? t('jean.sleep_counts').replace('{e}',edited).replace('{a}',merged) : t('jean.sleep_nothing'))+'</span>';
+    row.appendChild(head);
+    const det=document.createElement('div'); det.className='jm-sl-det';
+    if(m.summary){ const p=document.createElement('div'); p.className='jm-sl-sum'; p.textContent=m.summary; det.appendChild(p); }
+    for(const c of ch){
+      const f=document.createElement('div'); f.className='jm-sl-file';
+      const st=c.status==='removed' ? t('jean.sleep_f_archived') : c.status==='created' ? t('jean.sleep_f_created') : '+'+c.n_add+'  −'+c.n_del;
+      f.innerHTML='<div class="jm-sl-fh"><span>'+jmEsc(jmFileLabel(c.name))+'</span><span class="jm-sl-fst">'+jmEsc(st)+'</span></div>';
+      for(const l of (c.removed||[])){ const x=document.createElement('div'); x.className='jm-sl-l del'; x.textContent=l; f.appendChild(x); }
+      for(const l of (c.added||[])){ const x=document.createElement('div'); x.className='jm-sl-l add'; x.textContent=l; f.appendChild(x); }
+      det.appendChild(f);
+    }
+    const back=document.createElement('button'); back.type='button'; back.className='jm-sl-back';
+    back.textContent=t('jean.sleep_restore');
+    back.onclick=async()=>{
+      if(!confirm(t('jean.sleep_restore_confirm').replace('{when}', when))) return;
+      const x=await jpost('/api/jean/sleeps',{restore:m.id}).catch(e=>({ok:false,error:String(e)}));
+      if(!x || !x.ok){ toast((x&&x.error)||t('jean.mem_error')); return; }
+      toast(t('jean.sleep_restored')); jmLoad(false); jmLoadSleeps();
+    };
+    det.appendChild(back);
+    row.appendChild(det);
+    head.onclick=()=>row.classList.toggle('open');
+    box.appendChild(row);
+  }
+  if(!ab) return;
+  ab.textContent='';
+  const arch=r.archives||[];
+  if(!arch.length) ab.innerHTML='<div class="jm-empty">'+jmEsc(t('jean.archives_empty'))+'</div>';
+  for(const a of arch){
+    const row=document.createElement('div'); row.className='jm-row jm-fiche';
+    row.innerHTML='<span class="jm-ic">'+JM_DOC+'</span><div class="jm-main"><div class="jm-fname">'+jmEsc(a.name)+'</div><div class="jm-when">'+jmEsc(a.when)+'</div></div><button class="jm-unarch" type="button">'+jmEsc(t('jean.archives_restore'))+'</button>';
+    row.querySelector('.jm-unarch').onclick=async()=>{
+      const x=await jpost('/api/jean/sleeps',{unarchive:a.name}).catch(e=>({ok:false,error:String(e)}));
+      if(!x || !x.ok){ toast((x&&x.error)||t('jean.mem_error')); return; }
+      toast(t('jean.archives_restored').replace('{name}', a.name)); jmLoad(false); jmLoadSleeps();
+    };
+    ab.appendChild(row);
+  }
 }
 let TRACKER_CUR = null;  
 let TRACKER_EDIT = null; 
@@ -12446,7 +12735,7 @@ var JeanAvatar = (()=>{
   let root=null, wrap=null, P=null, raf=0, last=0, t=0;
   let host=null;                                      
   let state='idle', stateUntil=0, lastActivity=performance.now();
-  let blinkAt=0, blinkT=1, hopT=1, pulse=0, pointer=null, browsing=false, loadingNow=false;
+  let blinkAt=0, blinkT=1, hopT=1, pulse=0, pointer=null, browsing=false, loadingNow=false, sleepingNow=false;
   const spring=(k,d)=>({x:0,v:0,target:0,k,d});
   const S={ lookX:spring(90,13), lookY:spring(90,13), squash:spring(220,12),
     open:spring(170,16), happy:spring(120,14), tilt:spring(70,11) };
@@ -12480,7 +12769,7 @@ var JeanAvatar = (()=>{
   function speak(n){ pulse=Math.min(1, pulse+0.12*(n||1)); if(state!=='talk') setState('talk'); }
   function targets(now){
     let lx=0, ly=0, open=1, happy=0, tilt=0;
-    const st = loadingNow ? 'loading' : browsing && state!=='happy' && state!=='sleep' ? 'browse' : state;
+    const st = sleepingNow ? 'sleep' : loadingNow ? 'loading' : browsing && state!=='happy' && state!=='sleep' ? 'browse' : state;
     switch(st){
       case 'loading': lx=Math.cos(now/520)*0.85; ly=Math.sin(now/520)*0.85; open=0.9; break;
       case 'browse': lx=0.55*Math.sin(now/650); ly=-0.85+0.12*Math.sin(now/1300); open=0.95; tilt=-0.05; break;
@@ -12631,6 +12920,7 @@ var JeanAvatar = (()=>{
     speak,
     done(){ setState('happy', 1600); },
     loading(on){ loadingNow=!!on; },
+    sleeping(on){ if(sleepingNow && !on){ hopT=0.3; setState('happy', 1600); } sleepingNow=!!on; },
     browsing(on){ if(on && !browsing) wake(); browsing=!!on; },
     mount(el){ stage=el; place(); },
     listen(){ wake(); if(state==='idle'||state==='listen'||state==='happy') setState('listen', 3000); },
@@ -12640,7 +12930,11 @@ var JeanAvatar = (()=>{
   };
 })();
 (()=>{
-  let stage, scene, bubble, bubbleBody, caption, capText, capStop, inputBox, ta, sendBtn, histBtn;
+  let srch, srchQ, srchList, srchSig='';
+  const srchSeen=new WeakSet();
+  let term, termView, termKey='', termTyped=0, termTimer=0, termSig='', avatarLooking=false, termRuns=[], termCmd='';
+  const termSeen=new WeakSet(); 
+  let stage, scene, bubble, bubbleBody, caption, capPast, capText, capStop, inputBox, ta, sendBtn, histBtn;
   let screen, screenView, screenUrl, screenSrc='';
   let jeanWasOn=false;
   let inputOpen=false, syncTimer=0, lastHTML='', userScrolled=false;
@@ -12658,12 +12952,25 @@ var JeanAvatar = (()=>{
     screen=$('div','jst-screen', scene);
     screenUrl=$('div','jst-screen-url', screen);
     screenView=$('div','jst-screen-view', screen);
+    term=$('div','jst-term', scene);
+    const tbar=$('div','jst-term-bar', term);
+    for(let i=0;i<3;i++) $('span','', tbar);
+    $('div','jst-term-title', tbar).textContent='terminal';
+    termView=$('pre','jst-term-view', term);
+    srch=$('div','jst-srch', scene);
+    const sbar=$('div','jst-srch-bar', srch);
+    sbar.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+    srchQ=$('span','jst-srch-q', sbar);
+    srchList=$('div','jst-srch-list', srch);
     const charWrap=$('div','jst-char', scene);
     const orbit=$('div','jst-orbit', charWrap);
     for(let i=0;i<3;i++) $('span','', orbit).style.setProperty('--i', i);
     const charHost=$('div','jst-char-host', charWrap);
+    const zzz=$('div','jst-zzz', charWrap); zzz.setAttribute('aria-hidden','true');
+    for(let i=0;i<3;i++){ const z=$('span','', zzz); z.textContent='z'; z.style.setProperty('--i', i); }
     caption=$('div','jst-caption', scene);
-    capText=$('span','jst-cap-text', caption);
+    capPast=$('div','jst-cap-past', caption);
+    capText=$('div','jst-cap-text', caption);
     capStop=$('button','jst-cap-stop', caption); capStop.type='button'; capStop.hidden=true; capStop.onclick=()=>stopGen();
     inputBox=$('div','jst-input', scene);
     ta=$('textarea','', inputBox); ta.rows=1;
@@ -12742,15 +13049,34 @@ var JeanAvatar = (()=>{
     }
     stage.classList.toggle('has-answer', !!html.trim());
     if(settled) syncScreen(chat, answer);
+    if(settled) syncTerm(chat, answer);
+    const looking=stage.classList.contains('browsing') || stage.classList.contains('terminal') || stage.classList.contains('searching');
+    if(looking!==avatarLooking){ avatarLooking=looking; JeanAvatar&&JeanAvatar.browsing(looking); }
     const act=chat && [...chat.querySelectorAll(':scope > .genstatus .jact')].pop();
     const modelLoading=STATUS_SEEN && !MODEL_READY;
     const loading=modelLoading || !settled;
-    const working=settled && !loading && busy && !!(ELAPSED || RUNNING_TASK);
+    const sent=PENDS.length>0;
+    const working=settled && !loading && (busy && !!(ELAPSED || RUNNING_TASK) || sent);
     const hint=settled && !loading && !working && !html;
-    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || '') : (hint ? t('jean.stage_hint') : '');
+    const asleep=(JEAN_SLEEPING || Date.now()<JEAN_SLEEP_HOLD) && !working && !loading && !inputOpen;
+    stage.classList.toggle('sleeping', asleep);
+    JeanAvatar&&JeanAvatar.sleeping&&JeanAvatar.sleeping(asleep);
+    if(Date.now()<JEAN_SLEEP_HOLD) setTimeout(schedule, 1000);
+    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || (sent ? t('jean.act_read') : '')) : asleep ? t('jean.sleep_caption') : (hint ? t('jean.stage_hint') : '');
     stage.classList.toggle('loading', loading);
     stage.classList.toggle('idle-hint', hint);
     JeanAvatar&&JeanAvatar.loading(loading);
+    let past='';
+    if(working && chat){
+      const steps=[...chat.querySelectorAll(':scope > .msg.user, :scope > .msg.tool.has-desc:not(.working)')];
+      const last=steps[steps.length-1];
+      if(last && !last.classList.contains('user')){ const l=last.querySelector('.label .txt')||last.querySelector('.label'); past=l ? l.textContent : ''; }
+      if(past===txt) past='';
+    }
+    if(capPast.textContent!==past){
+      capPast.textContent=past;
+      capPast.classList.remove('in'); void capPast.offsetWidth; if(past) capPast.classList.add('in');
+    }
     if(capText.textContent!==txt){
       capText.textContent=txt;
       capText.classList.remove('in'); void capText.offsetWidth; if(txt) capText.classList.add('in');
@@ -12766,7 +13092,6 @@ var JeanAvatar = (()=>{
     const answerAfter=!!(card && answer && (card.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
     const on=!!(card && frame) && !answerAfter;
     stage.classList.toggle('browsing', on);
-    JeanAvatar&&JeanAvatar.browsing(on);
     if(!on){ screenSrc=''; return; }
     const url=(card.querySelector('.cu-shot-t')||{}).textContent||'';
     if(screenUrl.textContent!==url) screenUrl.textContent=url;
@@ -12776,6 +13101,105 @@ var JeanAvatar = (()=>{
     screenView.appendChild(img);
     setTimeout(()=>img.classList.add('in'), 20);
     setTimeout(()=>{ let x=img.previousElementSibling; while(x){ const p=x.previousElementSibling; x.remove(); x=p; } }, 480);
+  }
+  function syncTerm(chat, answer){
+    const all=chat ? [...chat.querySelectorAll(':scope > .msg.user, :scope > .msg.tool')] : [];
+    let from=0; for(let i=all.length-1;i>=0;i--){ if(all[i].classList.contains('user')){ from=i+1; break; } }
+    const tools=all.slice(from);
+    const runs=tools.filter(el=>el.dataset.tool==='bash' && el._tu).slice(-4);
+    const last=runs[runs.length-1];
+    const panels=tools.filter(el=>(el.dataset.tool==='bash' || el.dataset.tool==='web_search') && el._tu);
+    const lastPanel=panels[panels.length-1];
+    syncSearch(lastPanel && lastPanel.dataset.tool==='web_search' ? lastPanel : null, answer);
+    if(lastPanel && lastPanel!==last){ stage.classList.remove('terminal'); return; }
+    const answerAfter=!!(last && answer && (last.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const on=!!last && !answerAfter && !stage.classList.contains('browsing') && busy && !!(ELAPSED || RUNNING_TASK);
+    stage.classList.toggle('terminal', on);
+    if(!on){ return; }
+    const cur=runs[runs.length-1]._tu;
+    const cmd=String(cur.label||'');
+    const key=runs.length+'|'+cmd;
+    if(key!==termKey){
+      const prev=termKey.slice(termKey.indexOf('|')+1);
+      const grows=termKey.split('|')[0]===String(runs.length) && cmd.startsWith(prev);
+      termKey=key;
+      if(!grows) termTyped=cur.done ? cmd.length : 0;
+    }
+    termRuns=runs; termCmd=cmd;
+    paintTerm(runs, cmd);
+    if(termTyped<cmd.length && !termTimer){
+      termTimer=setInterval(()=>{
+        const step=Math.max(1, Math.ceil(termCmd.length/45)); 
+        termTyped=Math.min(termCmd.length, termTyped+step);
+        paintTerm(termRuns, termCmd);
+        if(termTyped>=termCmd.length){ clearInterval(termTimer); termTimer=0; }
+      }, 33);
+    }
+  }
+  function syncSearch(el, answer){
+    const answerAfter=!!(el && answer && (el.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const on=!!el && !answerAfter && !stage.classList.contains('browsing') && busy && !!(ELAPSED || RUNNING_TASK);
+    stage.classList.toggle('searching', on);
+    if(!on) return;
+    const tu=el._tu, q=String(tu.label||'');
+    const sig=q+'|'+(tu.done?1:0)+'|'+(tu.result||'').length;
+    if(sig===srchSig) return;
+    srchSig=sig;
+    if(srchQ.textContent!==q) srchQ.textContent=q;
+    const fresh=tu.done && !srchSeen.has(el); if(tu.done) srchSeen.add(el);
+    const frag=document.createDocumentFragment();
+    if(!tu.done){
+      for(let i=0;i<3;i++){ const sk=$('div','jst-srch-sk', frag); $('i','',sk); $('i','',sk); $('i','',sk); }
+    } else {
+      const items=parseSearch(tu.result);
+      if(!items.length){ const n=$('div','jst-srch-none', frag); n.textContent=t('jean.stage_no_results'); }
+      items.slice(0,6).forEach((it,i)=>{
+        const row=$('div','jst-srch-item'+(fresh?' in':''), frag); row.style.setProperty('--i', i);
+        const src=$('div','jst-srch-src', row);
+        const ic=$('span','jst-srch-ic', src); ic.textContent=(it.host[0]||'?').toUpperCase();
+        $('span','', src).textContent=it.host;
+        $('div','jst-srch-t', row).textContent=it.title;
+        if(it.snip) $('div','jst-srch-s', row).textContent=it.snip;
+      });
+    }
+    srchList.replaceChildren(frag);
+    srchList.scrollTop=0;
+  }
+  function parseSearch(txt){
+    const out=[]; const lines=String(txt||'').split('\n');
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(/^\d+\.\s+(.+)$/); if(!m) continue;
+      const url=(lines[i+1]||'').trim(), snip=(lines[i+2]||'').trim();
+      let host=''; try{ host=new URL(url).hostname.replace(/^www\./,''); }catch(_){ continue; }
+      out.push({title:m[1].trim(), host, snip: /^\d+\.\s/.test(snip) ? '' : snip});
+    }
+    return out;
+  }
+  function tail(s, n){ const l=String(s||'').replace(/\s+$/,'').split('\n'); return l.slice(-n).join('\n'); }
+  function paintTerm(runs, cmd){
+    const sig=termTyped+'|'+runs.map(el=>{ const tu=el._tu; return (tu.label||'').length+':'+(tu.done?1:0)+':'+(tu.result||'').length; }).join(',');
+    if(sig===termSig) return;
+    termSig=sig;
+    const frag=document.createDocumentFragment();
+    runs.forEach((el,i)=>{
+      const tu=el._tu, isLast=i===runs.length-1;
+      const line=document.createElement('div'); line.className='jt-cmd';
+      const ps=document.createElement('span'); ps.className='jt-ps'; ps.textContent='$ ';
+      line.appendChild(ps);
+      line.appendChild(document.createTextNode(isLast ? cmd.slice(0, termTyped) : String(tu.label||'')));
+      const typing=isLast && termTyped<cmd.length;
+      const waiting=isLast && !typing && !tu.done;
+      if(typing || waiting){ const c=document.createElement('span'); c.className='jt-caret'; line.appendChild(c); }
+      frag.appendChild(line);
+      if(tu.done && !(isLast && typing) && tu.result){
+        const fresh=!termSeen.has(el); termSeen.add(el);
+        const out=document.createElement('div'); out.className='jt-out'+(fresh?' in':'');
+        out.textContent=tail(tu.result, isLast ? 40 : 6);
+        frag.appendChild(out);
+      }
+    });
+    termView.replaceChildren(frag);
+    termView.scrollTop=termView.scrollHeight;
   }
   function adoptImages(keep){
     for(const img of [...bubbleBody.querySelectorAll('img')]){

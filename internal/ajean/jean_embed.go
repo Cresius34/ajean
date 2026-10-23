@@ -7,8 +7,10 @@ package ajean
 // on se souvient vaguement) : 43 % des souvenirs dans les 5 premiers résultats
 // par mots, 93 % par le sens avec une requête en phrase.
 //
-// Comment : un petit modèle d'embeddings (EmbeddingGemma 300M, ~320 Mo) tourne
-// dans un llama-server à part, SUR LE PROCESSEUR (aucune carte : elles sont au
+// Comment : le modèle d'embeddings est EMBD EmbeddingGemma 2 Q8_0 (~310 Mo), le
+// même que celui de la mémoire sémantique — un seul modèle pour les deux
+// recherches, un seul téléchargement, un seul espace vectoriel. Il tourne dans
+// un llama-server à part, SUR LE PROCESSEUR (aucune carte : elles sont au
 // modèle de chat). Chaque entrée du journal reçoit un vecteur, rangé à côté de
 // son mois (embed-AAAA-MM.txt, chiffré comme la mémoire), quantifié en int8.
 // La recherche compare la requête aux vecteurs ; la recherche par mots ne sert
@@ -41,12 +43,26 @@ import (
 )
 
 const (
-	jeanEmbedModelFile = "embeddinggemma-300M-Q8_0.gguf"
-	jeanEmbedModelURL  = "https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/" + jeanEmbedModelFile
-	jeanEmbedModelSize = 333590944
+	// C'est EMBD, le modèle de la mémoire sémantique : un seul modèle
+	// d'embeddings pour tout l'appareil (journal de Jean + mémoire), donc un
+	// seul téléchargement et un seul espace vectoriel. Le nom, la taille et
+	// l'empreinte viennent de la fiche officielle ggml-org/embeddinggemma-2-GGUF
+	// à la révision pinée ; ils correspondent au fichier que pose la mémoire
+	// (data/models/embeddinggemma-2-Q8_0.gguf).
+	jeanEmbedModelFile = "embeddinggemma-2-Q8_0.gguf"
+	jeanEmbedModelURL  = "https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/" +
+		"bfcd298762cc34d0357ece5ebdd31791a3a374d8/" + jeanEmbedModelFile
+	jeanEmbedModelSize = 309855456
+	jeanEmbedModelSHA  = "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135"
 	// jeanEmbedTag identifie l'espace des vecteurs : en changer (autre modèle,
-	// autre préfixe) invalide l'index, reconstruit tout seul.
-	jeanEmbedTag      = "egemma300-q8-v1"
+	// autre préfixe) invalide l'index, reconstruit tout seul. Le passage de
+	// EmbeddingGemma 300M à EmbeddingGemma 2 change l'espace : cet identifiant
+	// change avec, l'ancien index est abandonné et refait.
+	jeanEmbedTag = "egemma2-q8-v1"
+	// jeanEmbedDims : la largeur d'un vecteur d'EMBD. Vérifiée à chaque réponse
+	// du moteur (voir jeanEmbedVecs) : c'est ce qui empêche un autre modèle de
+	// remplir silencieusement l'index avec des vecteurs d'un autre espace.
+	jeanEmbedDims     = 768
 	jeanEmbedDocChars = 1200 // une entrée au-delà est tronquée (le début porte le sujet)
 	jeanEmbedBatch    = 8
 	jeanEmbedStartMB  = 1500             // RAM disponible requise pour démarrer le moteur
@@ -55,7 +71,18 @@ const (
 	jeanEmbedPrefix   = "embed-"
 )
 
-func jeanEmbedModelPath() string { return filepath.Join(modelsDir(), jeanEmbedModelFile) }
+// jeanEmbedModelPath : là où est EMBD. D'abord le chemin que la mémoire
+// sémantique a configuré (ainsi, un EG2 placé ailleurs sert aux deux), puis
+// l'endroit habituel. Jean ne choisit jamais un autre modèle : le nom du
+// fichier est fixé, seul le dossier suit la configuration.
+func jeanEmbedModelPath() string {
+	if p := strings.TrimSpace(readEmbeddingConfig().Model); filepath.Base(p) == jeanEmbedModelFile {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && fi.Size() == jeanEmbedModelSize {
+			return p
+		}
+	}
+	return filepath.Join(modelsDir(), jeanEmbedModelFile)
+}
 
 // jeanEmbedEnabled : réglage de l'appareil (bucket état), ACTIF par défaut : la
 // recherche par le sens retrouve deux fois plus de souvenirs que par mots, et
@@ -100,12 +127,23 @@ var jeanEmbedEngine jeanEmbedProc
 // jeanEmbedTestPort : tests seulement, un faux moteur d'embeddings déjà prêt.
 var jeanEmbedTestPort int
 
-// jeanEmbedBin : un llama-server récent sait servir EmbeddingGemma. On prend le
-// plus récent des précompilés, sinon celui de la config.
+// jeanEmbedBin : le llama-server de l'ENCODEUR de la mémoire sémantique, en
+// priorité : même programme, même version, donc les mêmes vecteurs pour le
+// journal et pour la mémoire. Vient ensuite un précompilé, puis le BIN de la
+// config. Un llama.cpp récent sait servir EmbeddingGemma.
 func jeanEmbedBin() string {
 	exe := "llama-server"
 	if runtime.GOOS == "windows" {
 		exe += ".exe"
+	}
+	// 1) celui que la mémoire sémantique a choisi (data/state.json, bucket
+	// memory_embeddings, ou MEMORY_EMBED_BIN du preset).
+	if b := strings.TrimSpace(readEmbeddingConfig().Bin); isFile(b) && strings.EqualFold(filepath.Base(b), exe) {
+		return b
+	}
+	// 2) un précompilé : dossier par version, ou fichiers posés à la racine.
+	if isFile(filepath.Join(prebuiltDir(), exe)) {
+		return filepath.Join(prebuiltDir(), exe)
 	}
 	if ents, err := os.ReadDir(prebuiltDir()); err == nil {
 		var dirs []string
@@ -187,7 +225,12 @@ func (p *jeanEmbedProc) ensure() (int, error) {
 		return fail(err.Error(), time.Minute)
 	}
 	threads := max(1, min(4, runtime.NumCPU()/4))
-	cmd := exec.Command(bin, "-m", jeanEmbedModelPath(), "--embedding", "-ngl", "0",
+	// Les mêmes réglages de fond que l'encodeur de la mémoire (embeddingArgs) :
+	// même modèle, même mise en pooled. "--pooling mean" est lu dans le fichier
+	// du modèle (gemma-embedding2.pooling_type = 1) mais il est dit ici aussi,
+	// pour qu'un llama.cpp qui ne le lirait pas ne change pas silencieusement
+	// l'espace vectoriel.
+	cmd := exec.Command(bin, "-m", jeanEmbedModelPath(), "--embedding", "--pooling", "mean", "-ngl", "0",
 		"-c", "2048", "-b", "2048", "-ub", "2048", "-np", "1", "-t", strconv.Itoa(threads),
 		"--host", "127.0.0.1", "--port", strconv.Itoa(port))
 	cmd.Dir = filepath.Dir(bin)
@@ -305,6 +348,18 @@ func jeanEmbed(ctx context.Context, texts []string) ([][]float32, error) {
 	}
 	vs := make([][]float32, len(out.Data))
 	for i, d := range out.Data {
+		// Même garde-fou que l'encodeur de la mémoire : EMBD fait 768 dimensions.
+		// Un autre modèle répondrait avec un nombre de dimensions différent, ou
+		// des valeurs non finies, et l'index se remplirait de vecteurs faux sans
+		// une seule erreur visible.
+		if len(d.Embedding) != jeanEmbedDims {
+			return nil, fmt.Errorf("embeddings : %d dimensions pour le souvenir %d (768 attendues avec EMBD)", len(d.Embedding), i+1)
+		}
+		for _, x := range d.Embedding {
+			if math.IsNaN(x) || math.IsInf(x, 0) {
+				return nil, fmt.Errorf("embeddings : vecteur non fini pour le souvenir %d", i+1)
+			}
+		}
 		vs[i] = normVec(d.Embedding)
 	}
 	return vs, nil
@@ -538,8 +593,9 @@ func jeanEmbedKick() {
 		return
 	}
 	// Actif par défaut : le modèle se télécharge tout seul, mais seulement quand
-	// Jean a déjà un journal (on ne prend pas 330 Mo à qui ne s'en sert pas), et
-	// pas plus d'une tentative par heure après un échec.
+	// Jean a déjà un journal (on ne prend pas 310 Mo à qui ne s'en sert pas — et
+	// rien du tout si la mémoire sémantique l'a déjà installé), et pas plus d'une
+	// tentative par heure après un échec.
 	if !isFile(jeanEmbedModelPath()) {
 		jeanEmbedDL.Lock()
 		retry := jeanEmbedDL.err == "" || time.Since(jeanEmbedDL.tried) > time.Hour
@@ -675,7 +731,10 @@ func jeanEmbedState() jeanEmbedStatus {
 	return st
 }
 
-// jeanEmbedDownload télécharge le modèle (une fois), puis lance l'indexation.
+// jeanEmbedDownload : amener EMBD là où Jean le lit (une fois), puis lancer
+// l'indexation. Jean ne télécharge rien si le fichier existe déjà : ni quand la
+// mémoire sémantique l'a déjà installé (c'est le même), ni quand son propre
+// téléchargement est en place.
 func jeanEmbedDownload() {
 	jeanEmbedDL.Lock()
 	if jeanEmbedDL.running {
@@ -691,7 +750,7 @@ func jeanEmbedDownload() {
 			jeanEmbedDL.Unlock()
 		}()
 		dst := jeanEmbedModelPath()
-		if fi, err := os.Stat(dst); err == nil && fi.Size() == jeanEmbedModelSize {
+		if jeanEmbedModelReady(dst) {
 			jeanEmbedKick()
 			return
 		}
@@ -701,6 +760,16 @@ func jeanEmbedDownload() {
 		if err == nil {
 			if fi, e := os.Stat(tmp); e != nil || fi.Size() != jeanEmbedModelSize {
 				err = fmt.Errorf("téléchargement incomplet")
+			}
+		}
+		if err == nil {
+			// Le fichier vient de Hugging Face sans garantie d'intégrité : on
+			// vérifie l'empreinte publiée avant de le mettre en place, sinon un
+			// modèle tronqué ou différent ferait des vecteurs faux et silencieux.
+			if sum, e := sha256File(tmp); e != nil {
+				err = fmt.Errorf("vérification du modèle : %w", e)
+			} else if !strings.EqualFold(sum, jeanEmbedModelSHA) {
+				err = fmt.Errorf("empreinte du modèle inattendue")
 			}
 		}
 		if err == nil {
@@ -715,6 +784,17 @@ func jeanEmbedDownload() {
 		}
 		jeanEmbedKick()
 	}()
+}
+
+// jeanEmbedModelReady : le fichier est-il présent au bon endroit et de la taille
+// annoncée ? La taille suffit pour ACCEPTER un modèle déjà installé (c'est le
+// fichier que lit la mémoire sémantique : elle a fait sa propre vérification à
+// l'installation). Le SHA n'est exigé que du fichier que Jean télécharge
+// lui-même, dans jeanEmbedDownload : sans lui, un téléchargement tronqué ou
+// détourné produirait des vecteurs faux et silencieux.
+func jeanEmbedModelReady(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && !fi.IsDir() && fi.Size() == jeanEmbedModelSize
 }
 
 // handleJeanEmbed : GET → état ; POST {on} → active (télécharge au besoin) ou coupe.

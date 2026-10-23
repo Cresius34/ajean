@@ -23,7 +23,9 @@ func fakeEmbedServer(t *testing.T) int {
 	}
 	vec := func(s string) []float64 {
 		s = strings.ToLower(s)
-		v := make([]float64, len(themes)+1)
+		// EMBD fait jeanEmbedDims dimensions : le faux moteur doit en faire
+		// autant, sinon jeanEmbedVecs rejette la réponse (et c'est voulu).
+		v := make([]float64, jeanEmbedDims)
 		v[len(themes)] = 0.1
 		for i, ws := range themes {
 			for _, w := range ws {

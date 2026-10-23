@@ -169,14 +169,18 @@
     // le dit et patiente (yeux qui tournent, points autour de lui).
     const modelLoading=STATUS_SEEN && !MODEL_READY;
     const loading=modelLoading || !settled;
-    const working=settled && !loading && busy && !!(ELAPSED || RUNNING_TASK);
+    // Message envoyé mais pas encore confirmé par le serveur (PENDS) : il travaille
+    // déjà. Après un rafraîchissement, la confirmation met 2 à 3 s à arriver et
+    // l'invite « Clique sur moi pour me parler » revenait entre-temps.
+    const sent=PENDS.length>0;
+    const working=settled && !loading && (busy && !!(ELAPSED || RUNNING_TASK) || sent);
     const hint=settled && !loading && !working && !html;
     // Sommeil : Jean range sa mémoire (consolidation). Endormi, « z » qui montent.
     const asleep=(JEAN_SLEEPING || Date.now()<JEAN_SLEEP_HOLD) && !working && !loading && !inputOpen;
     stage.classList.toggle('sleeping', asleep);
     JeanAvatar&&JeanAvatar.sleeping&&JeanAvatar.sleeping(asleep);
     if(Date.now()<JEAN_SLEEP_HOLD) setTimeout(schedule, 1000);
-    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || '') : asleep ? t('jean.sleep_caption') : (hint ? t('jean.stage_hint') : '');
+    const txt=loading ? t(modelLoading ? 'jean.stage_loading' : 'chat.loading_conversation') : working ? ((act && act.textContent) || (sent ? t('jean.act_read') : '')) : asleep ? t('jean.sleep_caption') : (hint ? t('jean.stage_hint') : '');
     stage.classList.toggle('loading', loading);
     stage.classList.toggle('idle-hint', hint);
     JeanAvatar&&JeanAvatar.loading(loading);

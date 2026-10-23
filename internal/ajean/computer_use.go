@@ -17,7 +17,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,9 +34,9 @@ const cuMaxOutput = 8000
 
 func capCUOutput(s string) string {
 	if r := []rune(s); len(r) > cuMaxOutput {
-		return string(r[:cuMaxOutput]) + "\n…[tronqué]"
+		s = string(r[:cuMaxOutput]) + "\n…[tronqué]"
 	}
-	return s
+	return cuGuard(s) // après la coupe : les rappels ne doivent pas être tronqués
 }
 
 // ─── schémas d'outils (annoncés au modèle) ───────────────────────────────────
@@ -100,10 +103,10 @@ func cuKeyTool() Tool {
 func cuFindTool() Tool {
 	return Tool{Type: "function", Function: ToolFunction{
 		Name:        "browser_find",
-		Description: "Find elements anywhere on the page whose label contains the text, and scroll the first into view: the way to reach an off-screen link or button.",
+		Description: "Find, anywhere on the page, the elements whose label contains the text AND the plain text passages that contain it (a delivery date, a price, an error message), then scroll the first into view: the way to reach an off-screen button or to read a piece of information.",
 		Parameters: map[string]any{
 			"type":       "object",
-			"properties": map[string]any{"text": map[string]any{"type": "string", "description": "Text to look for in element labels"}},
+			"properties": map[string]any{"text": map[string]any{"type": "string", "description": "Text to look for"}},
 			"required":   []string{"text"},
 		},
 	}}
@@ -230,11 +233,15 @@ func toolCUClick(args map[string]any) string {
 	if err != nil {
 		return "[erreur] " + err.Error()
 	}
-	if err := s.clickRef(ref); err != nil {
+	note, err := s.clickRef(ref)
+	if err == errCUDisabled {
+		return cuRepeat(s, fmt.Sprintf("click %d", ref), "[refusé] ["+strconv.Itoa(ref)+"] "+err.Error())
+	}
+	if err != nil {
 		return "[erreur] " + err.Error() + s.refMissingHint()
 	}
 	snap, _ := s.snapshotDedup()
-	return fmt.Sprintf("[ok] cliqué [%d]\n\n%s", ref, snap)
+	return cuRepeat(s, fmt.Sprintf("click %d", ref), fmt.Sprintf("[ok] cliqué [%d]%s\n\n%s", ref, note, snap))
 }
 
 func toolCUType(args map[string]any) string {
@@ -281,7 +288,7 @@ func toolCUClickXY(args map[string]any) string {
 		return "[erreur] " + err.Error()
 	}
 	snap, _ := s.snapshotDedup()
-	return fmt.Sprintf("[ok] clic en (%.0f, %.0f)\n\n%s", x, y, snap)
+	return cuRepeat(s, fmt.Sprintf("xy %.0f %.0f", x, y), fmt.Sprintf("[ok] clic en (%.0f, %.0f)\n\n%s", x, y, snap))
 }
 
 func toolCUScroll(args map[string]any) string {
@@ -432,4 +439,64 @@ func cmdComputer(args []string) error {
 		return fmt.Errorf("usage: ajean computer [on|off|status]")
 	}
 	return nil
+}
+
+// cuRepeat : garde-fou anti-boucle. Une même action qui ne change rien, trois fois
+// de suite, reçoit un avertissement clair (vu : plus de 60 actions sur un bouton
+// grisé, « page inchangée » à chaque fois).
+func cuRepeat(s *cdpSession, key, out string) string {
+	noEffect := strings.Contains(out, "page inchangée") || strings.HasPrefix(out, "[refusé]")
+	if !noEffect {
+		s.repeatKey, s.repeatN = "", 0
+		return out
+	}
+	if key == s.repeatKey {
+		s.repeatN++
+	} else {
+		s.repeatKey, s.repeatN = key, 1
+	}
+	if s.repeatN >= 2 {
+		out += fmt.Sprintf("\n\n⚠ Même action sans effet %d fois de suite : tu tournes en rond. Change d'approche (une option obligatoire non cochée ? browser_find sur les choix ; un autre bouton ; ou dis à l'utilisateur ce qui bloque).", s.repeatN)
+	}
+	return out
+}
+
+// ─── garde-fous de fin de tâche ─────────────────────────────────────────────
+//
+// Vu sur une boutique qui refuse les navigateurs automatiques : le modèle
+// configurait tout correctement, tombait sur une page d'erreur au moment de
+// commander, puis recommençait tout le parcours et tentait des adresses
+// devinées, sans jamais répondre. Deux signaux l'aident à conclure.
+
+// cuErrorTitle : titre d'une page d'erreur ou de blocage.
+var cuErrorTitle = regexp.MustCompile(`(?i)^# .*(not found|page introuvable|introuvable|404|403|access denied|accès refusé|forbidden|robot|captcha|are you human|unusual traffic|blocked|bloqué)`)
+
+const cuActionBudget = 25 // actions navigateur avant le rappel de conclure
+
+var cuBudget struct {
+	sync.Mutex
+	n    int
+	last time.Time
+}
+
+// cuGuard ajoute au résultat d'un outil navigateur les rappels utiles.
+func cuGuard(out string) string {
+	cuBudget.Lock()
+	if time.Since(cuBudget.last) > 3*time.Minute {
+		cuBudget.n = 0 // nouvelle tâche
+	}
+	cuBudget.n++
+	cuBudget.last = time.Now()
+	n := cuBudget.n
+	cuBudget.Unlock()
+	for _, l := range strings.SplitN(out, "\n", 6) {
+		if cuErrorTitle.MatchString(strings.TrimSpace(l)) {
+			out += "\n\n⚠ Le site a répondu par une page d'erreur ou de blocage. Après une action normale, cela veut souvent dire qu'il refuse les navigateurs automatiques. Ne refais pas le même parcours : une seule autre piste simple au plus, sinon réponds à l'utilisateur avec ce que tu as vu et ce qui bloque."
+			break
+		}
+	}
+	if n >= cuActionBudget {
+		out += fmt.Sprintf("\n\n⏱ %d actions dans le navigateur pour cette tâche. Si tu n'approches pas clairement du but, arrête et réponds avec ce que tu sais (ce que tu as vérifié, ce qui bloque).", n)
+	}
+	return out
 }

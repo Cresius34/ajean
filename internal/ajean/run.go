@@ -70,6 +70,8 @@ func Main() {
 		mustExit(cmdChat(args))
 	case "export":
 		mustExit(cmdExport(args))
+	case "cu-probe": // banc d'essai des outils du navigateur, sans modèle
+		mustExit(cmdCUProbe(args))
 	case "jean-sleep-test": // banc d'essai du sommeil, sur une copie de la mémoire
 		mustExit(cmdJeanSleepTest(args))
 	case "web":

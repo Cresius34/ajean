@@ -191,6 +191,12 @@ func prewarmPrefix(caps Caps) (system string, tools []Tool, ok bool) {
 	// tant que le fil n'a pas été compacté (c'est le cas d'une conversation
 	// neuve, celle qu'on pré-chauffe).
 	tools = withRecallTools(EnabledTools(caps), nil)
+	// Mode Jean : runChat ajoute à chaque outil le champ « description »
+	// (chat_tool_desc.go). Sans lui, les schémas chauffés diffèrent de ceux du
+	// vrai tour et le cache ne se raccorde pas au-delà du bloc système.
+	if caps.Jean {
+		tools, _ = withToolDesc(tools)
+	}
 	return system, tools, system != "" || len(tools) > 0
 }
 

@@ -129,7 +129,7 @@
     inputBox.style.setProperty('--gx', dx+'px'); inputBox.style.setProperty('--gy', dy+'px');
     inputBox.classList.add('gulp');
     setTimeout(()=>{ JeanAvatar&&JeanAvatar.gulp(); }, 260);
-    setTimeout(()=>{ inputOpen=false; stage.classList.remove('typing'); inputBox.classList.remove('gulp'); }, 420);
+    setTimeout(()=>{ inputOpen=false; stage.classList.remove('typing'); inputBox.classList.remove('gulp'); ta.blur(); }, 420);
     send();
   }
 

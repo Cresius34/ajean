@@ -681,7 +681,7 @@ func handleAgent(w http.ResponseWriter, r *http.Request) {
 	if out == nil {
 		out = []map[string]any{}
 	}
-	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "compact_max": compactMaxTokens(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
+	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "compact_max": compactMaxTokens(), "prewarm": prewarmEnabled(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
 }
 
 // memScope exécute fn dans le contexte mémoire d'un projet donné (pour voir/éditer
@@ -760,6 +760,19 @@ func handleCompactToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "compact": compactEnabled(), "compact_max": compactMaxTokens()})
+}
+
+// handlePrewarmToggle : interrupteur « pré-chauffage du prompt » (Paramètres).
+func handlePrewarmToggle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		On bool `json:"on"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := setPrewarmEnabled(req.On); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "prewarm": prewarmEnabled()})
 }
 
 func handleAgentToggle(w http.ResponseWriter, r *http.Request) {

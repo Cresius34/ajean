@@ -422,3 +422,33 @@ func TestLLMPrewarmWaitsForEmptyConversation(t *testing.T) {
 	LLMPrewarm(true)
 	spy.none(t, 300*time.Millisecond, "même préfixe déjà chauffé")
 }
+
+// Réglage coupé dans les Paramètres : aucune requête ne part, même avec une
+// conversation vide et un moteur sain. Réactivé : le pré-chauffage reprend.
+func TestLLMPrewarmDisabledSetting(t *testing.T) {
+	testHome(t)
+	if err := setAgentEnabled(true); err != nil {
+		t.Fatal(err)
+	}
+	spy := newEngineSpy(t)
+	resetWarmState(t)
+	rememberChatMode("project")
+	setConvEmpty(t, "")
+
+	if !prewarmEnabled() {
+		t.Fatal("le pré-chauffage doit être actif par défaut")
+	}
+	if err := setPrewarmEnabled(false); err != nil {
+		t.Fatal(err)
+	}
+	LLMPrewarm(true)
+	spy.none(t, 300*time.Millisecond, "réglage coupé")
+
+	if err := setPrewarmEnabled(true); err != nil {
+		t.Fatal(err)
+	}
+	LLMPrewarm(true)
+	if body := spy.next(t); body["max_tokens"] != float64(1) {
+		t.Fatalf("max_tokens = %v, attendu 1", body["max_tokens"])
+	}
+}

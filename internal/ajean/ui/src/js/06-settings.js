@@ -199,6 +199,7 @@ async function loadAgent(){
   const on = s.enabled;
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
+  const pw=document.getElementById('prewarm-toggle'); if(pw) pw.checked = (s.prewarm !== false);
   const cm = document.getElementById('compact-max');
   if(cm){
     const v = String(s.compact_max || 0);
@@ -439,6 +440,12 @@ async function enableAgent(){
   await jpost('/api/agent/toggle',{on:true});
   await loadAgent();
   return true;
+}
+// Pré-chauffage du prompt : réglage du serveur, commun à tous les appareils.
+async function togglePrewarm(){
+  const cb=document.getElementById('prewarm-toggle');
+  const r=await jpost('/api/agent/prewarm',{on:cb.checked});
+  if(!r || r.ok===false){ cb.checked=!cb.checked; toast((r&&r.error)||'erreur'); }
 }
 async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;

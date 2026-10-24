@@ -100,6 +100,36 @@ var llmWarm struct {
 	cancel    context.CancelFunc
 }
 
+// prewarmStateKey : réglage « pré-chauffage du prompt » (Paramètres). Rangé dans
+// le bucket state et non dans la config du preset, pour survivre aux bascules.
+const prewarmStateKey = "prewarm"
+
+// prewarmEnabled : actif par défaut, seul « off » le coupe.
+func prewarmEnabled() bool { return getStr(bkState, prewarmStateKey) != "off" }
+
+// setPrewarmEnabled enregistre le réglage. À la coupure, un pré-chauffage en
+// cours est arrêté tout de suite.
+func setPrewarmEnabled(on bool) error {
+	v := ""
+	if !on {
+		v = "off"
+	}
+	if err := putStr(bkState, prewarmStateKey, v); err != nil {
+		return err
+	}
+	if !on {
+		llmWarm.mu.Lock()
+		cancel := llmWarm.cancel
+		llmWarm.cancel = nil
+		llmWarm.sig, llmWarm.warmed, llmWarm.attempts = "", false, 0
+		llmWarm.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+	}
+	return nil
+}
+
 // prewarmModeValid : modes de chat que le serveur connaît (voir requestedMode).
 func prewarmModeValid(mode string) bool {
 	switch mode {
@@ -247,6 +277,10 @@ func prewarmPayload(ep chatEndpoint, system string, tools []Tool) map[string]any
 // healthy=false signale un moteur qui ne répond pas encore : au prochain
 // passage à true, le cache KV est forcément froid, on ré-arme.
 func LLMPrewarm(healthy bool) {
+	// Désactivé dans les Paramètres : on ne touche jamais au moteur.
+	if !prewarmEnabled() {
+		return
+	}
 	// La conversation est lue AVANT de prendre llmWarm.mu (ordre des verrous, voir
 	// llmWarm). Elle décide de tout : sans conversation active vide, on ne touche
 	// pas au créneau de cache — mais l'état de santé, lui, est suivi quand même

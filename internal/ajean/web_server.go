@@ -239,6 +239,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/agent", handleAgent)
 	api("/api/agent/toggle", handleAgentToggle)
 	api("/api/agent/compact", handleCompactToggle)
+	api("/api/agent/prewarm", handlePrewarmToggle)
 	api("/api/apikey", handleAPIKey)
 	api("/api/oai/public", handleOAIPublic)
 	api("/api/link/status", handleLinkStatus)         // état de l'accès distant (ajean.link)

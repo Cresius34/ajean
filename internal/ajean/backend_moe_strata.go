@@ -21,8 +21,14 @@ import (
 	"time"
 )
 
-const strataVersion = "0.1.44.1"
-const strataSourceCommit = "296b59d2f73c8f04a805df29c2fa97655adace78"
+// Two distinct versions live here and must not be conflated: strataSourceVersion is
+// the Strata release we vendor (tag), strataVersion is the engine package version that
+// lands in engine/BUILD.json, and strataControlVersion is the control package shipped
+// beside it. The preflight check below compares BUILD.json against strataVersion only.
+const strataSourceVersion = "0.2.4"
+const strataVersion = "0.1.48" // moteur Qwen : inchangé dans 0.2.4 (paquets 0.1.48, octet pour octet)
+const strataControlVersion = "0.1.49.2"
+const strataSourceCommit = "96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59"
 const strataPathToken = "${AJEAN_HOME}/"
 
 //go:embed moe_portable_install.ps1
@@ -171,7 +177,7 @@ func moeStrataPreflight(c map[string]string) (string, map[string]any, error) {
 	}
 	if c["MOE_VISION"] == "1" {
 		vision, ok := base["vision"].(map[string]any)
-		if c["MOE_BACKEND"] == "hip" || !ok || !isFile(fmt.Sprint(vision["exe"])) || !isFile(fmt.Sprint(vision["mmproj"])) {
+		if !ok || !isFile(fmt.Sprint(vision["exe"])) || !isFile(fmt.Sprint(vision["mmproj"])) {
 			return "", nil, errors.New("encodeur vision absent ; préparer le modèle avec la vision avant de l’activer")
 		}
 	}
@@ -201,7 +207,7 @@ func moeStrataBuildConfig(base map[string]any, c map[string]string, key string) 
 			args = setArg(args, flag, s)
 		}
 	}
-	if c["MOE_VISION"] == "0" || c["MOE_BACKEND"] == "hip" {
+	if c["MOE_VISION"] != "1" {
 		delete(out, "vision")
 		args = dropFlag(args, "--vision")
 	}
@@ -282,9 +288,6 @@ func normalizeStrataInstall(r moeInstallReq) (moeInstallReq, error) {
 	}
 	if *r.VRAMReserve < 0 || *r.VRAMReserve > 65536 {
 		return r, errors.New("réserve VRAM hors limites")
-	}
-	if r.Backend == "hip" && r.Vision {
-		return r, errors.New("le paquet HIP Windows livré est texte ; son encodeur vision n’est pas fourni")
 	}
 	valid := false
 	for _, f := range moeFamilies {
@@ -421,7 +424,7 @@ func moeStrataDetails(c map[string]string) *moeDetails {
 	base, _ := strataReadConfig(strataPath(c["MOE_CONFIG"]))
 	_, visionAvailable := base["vision"].(map[string]any)
 	return &moeDetails{Version: "Strata " + strataVersion, Ctx: c["CTX"], KV: c["MOE_KV"], Spec: c["MOE_SPEC"], Backend: c["MOE_BACKEND"], VRAMReserve: n, Modern: true,
-		Vision: c["MOE_VISION"] == "1", VisionAvailable: visionAvailable && c["MOE_BACKEND"] != "hip", MainGPU: strings.ToUpper(c["MOE_BACKEND"]), Prefill: "auto", ShortRead: "auto", CacheRoot: "défaut du moteur"}
+		Vision: c["MOE_VISION"] == "1", VisionAvailable: visionAvailable, MainGPU: strings.ToUpper(c["MOE_BACKEND"]), Prefill: "auto", ShortRead: "auto", CacheRoot: "défaut du moteur"}
 }
 func moeStrataSettings(content string, r moeSettingsReq) (string, error) {
 	c := parseEnv(content)
@@ -436,9 +439,6 @@ func moeStrataSettings(content string, r moeSettingsReq) (string, error) {
 	}
 	if r.Helper || r.Split == "layers" {
 		return "", errors.New("ce prototype utilise une carte par modèle ; pas de mélange AMD/NVIDIA")
-	}
-	if r.Vision && c["MOE_BACKEND"] == "hip" {
-		return "", errors.New("encodeur vision absent du paquet HIP Windows")
 	}
 	if r.Vision && !moeStrataDetails(c).VisionAvailable {
 		return "", errors.New("la vision doit être choisie lors de la préparation initiale de ce modèle")

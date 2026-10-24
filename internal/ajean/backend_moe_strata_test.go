@@ -3,6 +3,7 @@ package ajean
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -58,7 +59,7 @@ func TestStrataInstallValidation(t *testing.T) {
 	if r, err = normalizeStrataInstall(base); err != nil || *r.VRAMReserve != 0 {
 		t.Fatal("explicit zero lost", err)
 	}
-	for _, change := range []func(*moeInstallReq){func(r *moeInstallReq) { r.Backend = "vulkan" }, func(r *moeInstallReq) { r.Toolkit = "14" }, func(r *moeInstallReq) { r.Context = 86000 }, func(r *moeInstallReq) { r.Context = 4096 }, func(r *moeInstallReq) { n := -1; r.VRAMReserve = &n }, func(r *moeInstallReq) { r.Vision = true }, func(r *moeInstallReq) { r.Quant = "Q8_0" }} {
+	for _, change := range []func(*moeInstallReq){func(r *moeInstallReq) { r.Backend = "vulkan" }, func(r *moeInstallReq) { r.Toolkit = "14" }, func(r *moeInstallReq) { r.Context = 86000 }, func(r *moeInstallReq) { r.Context = 4096 }, func(r *moeInstallReq) { n := -1; r.VRAMReserve = &n }, func(r *moeInstallReq) { r.Quant = "Q8_0" }} {
 		r = base
 		change(&r)
 		if _, err = normalizeStrataInstall(r); err == nil {
@@ -175,6 +176,57 @@ func TestStrataPresetSaveSettingsAndReload(t *testing.T) {
 	}
 	if _, err = moeStrataSettings(raw, moeSettingsReq{Ctx: 65536, KV: "int8", Spec: 3, Vision: true}); err == nil {
 		t.Fatal("HIP vision accepted")
+	}
+}
+
+// TestStrataHipVisionPackage : le paquet engine 0.1.48 de Strata 0.2.4 embarque le
+// lecteur d'images AMD (BUILD.json vision "cpu+hip", strata-vision-hip.exe a cote de
+// l'engine). La vision n'est donc plus refusee sur HIP quand le modele a ete prepare
+// avec elle ; elle reste refusee quand le paquet ne la porte pas.
+func TestStrataHipVisionPackage(t *testing.T) {
+	c := strataFixture(t, "hip")
+	if _, err := moeStrataSettings(formatEnv(c), moeSettingsReq{Ctx: 86016, KV: "int8", Spec: 3, Vision: true}); err == nil {
+		t.Fatal("vision acceptee alors que le fixture ne porte pas d'encodeur")
+	}
+	// prepare the same model with the AMD picture reader, as setup does with a 0.1.48 package
+	cfgPath := c["MOE_CONFIG"]
+	base, err := strataReadConfig(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base["vision"] = map[string]any{"exe": filepath.Join(strataSourceDir("hip", "13"), "engine", "strata-vision-hip.exe"), "mmproj": filepath.Join(moeDataDir(), "mmproj.gguf")}
+	base["args"] = append(base["args"].([]any), "--vision") // setup writes it beside the vision section
+	if err = strataWriteJSON(cfgPath, base); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{fmt.Sprint(base["vision"].(map[string]any)["exe"]), fmt.Sprint(base["vision"].(map[string]any)["mmproj"])} {
+		if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(p, []byte("fixture, never executed"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c["MOE_VISION"] = "1"
+	if _, _, err = moeStrataPreflight(c); err != nil {
+		t.Fatal("encodeur vision HIP refuse :", err)
+	}
+	if !moeStrataDetails(c).VisionAvailable {
+		t.Fatal("encodeur vision HIP non signale disponible")
+	}
+	out, err := moeStrataSettings(formatEnv(c), moeSettingsReq{Ctx: 86016, KV: "int8", Spec: 3, Vision: true})
+	if err != nil {
+		t.Fatal("vision HIP refusee a la reconfiguration :", err)
+	}
+	built, err := moeStrataBuildConfig(base, parseEnv(out), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := built["vision"]; !ok {
+		t.Fatal("section vision perdue pour un preset HIP")
+	}
+	if !hasArg(moeArgs(t, built), "--vision") {
+		t.Fatal("--vision absent des arguments HIP")
 	}
 }
 func TestStrataPreflightChecksPinnedRuntime(t *testing.T) {

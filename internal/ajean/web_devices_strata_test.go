@@ -228,7 +228,7 @@ func TestDevicesRouteOnMux(t *testing.T) {
 func TestStrataDeviceToolRealEngine(t *testing.T) {
 	bin := os.Getenv("AJEAN_TEST_STRATA_BIN")
 	if bin == "" {
-		bin = `C:\ProgramData\Ajean-Memoire-MoE-Test\data\moe\strata-0.1.44.1-hip\engine\strata.exe`
+		bin = `C:\ProgramData\Ajean-Memoire-MoE-Test\data\moe\strata-0.1.48-hip\engine\strata.exe`
 	}
 	if !isFile(bin) {
 		t.Skip("moteur MoE non installé ici :", bin)

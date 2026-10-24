@@ -32,6 +32,10 @@ func TestContextOverflow(t *testing.T) {
 
 // Le dernier recours ramène sous la fenêtre même quand tout est dans un seul tour.
 func TestShrinkToFit(t *testing.T) {
+	// shrinkToFit lit ctxWindow(), donc la config reelle de la machine : sans
+	// AJEAN_HOME isole, un preset a CTX=262144 rend la cible immense et la
+	// reduction n'a plus lieu d'etre (le test echouait sur ce poste).
+	testHome(t)
 	big := strings.Repeat("x", 200000)
 	msgs := []Message{
 		{Role: "system", Content: "ctx"},

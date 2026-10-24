@@ -22,7 +22,8 @@ def configure(upstream, manifest: dict, root: Path, data: Path):
     upstream.other_installs = lambda _settings: []
     # The upstream helper normally merges/moves data from other installations.
     # This proof owns one explicit folder, so there is nothing to discover/move.
-    upstream.data_folder = lambda _requested: (data, [])
+    # 0.2.4 calls it as data_folder(requested, move, yes, set_default).
+    upstream.data_folder = lambda requested, *_rest: (data, [])
     upstream.prebuilt_bases = lambda requested: [requested]
     upstream.hf_unpinned = lambda url: url
     # --yes upstream may choose two NVIDIA cards. This prototype offers one

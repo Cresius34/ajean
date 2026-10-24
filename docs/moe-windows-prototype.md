@@ -73,8 +73,8 @@ binaire officiel `cmd/ajean` : il respecte `AJEAN_HOME` et accepte un port.
 
 ## Intégration retenue
 
-[Strata 0.1.44.1](https://github.com/Niko1221/Strata/releases/tag/v0.1.44.1),
-sources `296b59d2f73c8f04a805df29c2fa97655adace78`. Les PR Ajean
+[Strata 0.2.4](https://github.com/Niko1221/Strata/releases/tag/v0.2.4),
+sources `96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59` (paquet moteur `0.1.48`, controle `0.1.49.2`). Les PR Ajean
 [#144](https://github.com/nathaninline/ajean/pull/144), #139 et #137 ont été
 examinées : pilotage natif, environnement Python cohérent, journaux et annulation
 accessibles depuis l’application Windows. La PR #57 a servi de référence pour
@@ -91,8 +91,8 @@ Tout le nécessaire est contenu sous `data/moe/` :
 
 | Élément | Emplacement |
 |---|---|
-| Sources, moteur, Python embarqué HIP | `strata-0.1.44.1-hip/` |
-| Sources, moteur, Python CUDA | `strata-0.1.44.1-cuda13/` ou `-cuda12/` |
+| Sources, moteur, Python embarqué HIP | `strata-0.1.48-hip/` |
+| Sources, moteur, Python CUDA | `strata-0.1.48-cuda13/` ou `-cuda12/` |
 | Poids et packs partagés par ces backends | `data/` |
 | Archives contrôlées et caches | `dl/`, `cache/` |
 | Journaux d’installation et de calcul | `logs/` |

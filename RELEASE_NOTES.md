@@ -100,8 +100,9 @@ Mode Jean : on voit ce qu'il fait, et son sommeil range vraiment la mémoire.
   largeur attendue (768), qui contient `NaN` ou `±Infini`, ou qui ne renvoie pas
   un vecteur par texte, est rejetée. Sans ces contrôles, l'index se remplit de
   vecteurs faux pendant que tous les autres voyants restent au vert.
-- **Moteur MoE Strata** : c'est `0.1.44.1` qui est installé (5,47 Go, SHA-256
-  vérifié). Voir [le point sur le moteur](#le-moteur-moe-où-en-sommes-nous).
+- **Moteur MoE Strata** : la release vendue est `0.2.4`, paquet moteur `0.1.48`,
+  contrôle `0.1.49.2` (SHA-256 vérifiés, une archive par carte). Voir
+  [le point sur le moteur](#le-moteur-moe-où-en-sommes-nous).
 - **Réglage de la fenêtre de contexte (`CtxMax`)** : la jauge et le compactage
   suivent la limite réellement appliquée par le moteur.
 - **Quantification clé/valeurs (`KvQuant`)** : quatre choix dans l'interface,
@@ -132,17 +133,45 @@ dans le même sens :
 
 ## Le moteur MoE, où en sommes-nous
 
-Le moteur embarqué est toujours **Strata `0.1.44.1`**, téléchargé et vérifié par
-le manifeste interne (`internal/ajean/moe_windows_manifest.json`).
+La bascule est **faite** dans ce build : la release vendue est **Strata `0.2.4`**
+(commit source `96ca438`), le **paquet moteur `0.1.48`** et le **paquet de
+contrôle `0.1.49.2`**. Ces trois numéros sont désormais déclarés séparément dans
+`internal/ajean/backend_moe_strata.go` et ne doivent pas être confondus : seul le
+numéro du paquet moteur est comparé au cachet `engine/BUILD.json` par le contrôle
+préalable.
 
-La bascule sur **Strata `0.2.2` / moteur `0.1.47`** est **préparée mais non
-encore greffée** dans ce build. Ce qui est acquis et mesuré : les versions
-`0.2` ne publient plus les archives plates attendues par notre manifeste, mais
-une archive par carte (`strata-engine-0.1.47-windows-x86_64-hip-rx9070.tar.gz`
-pour la carte de ce poste, `gfx1201`) ; `setup.py` accepte un moteur déjà en
-place si son cachet `BUILD.json` porte `source: prebuilt`. Le travail restant est
-borné (manifeste, script d'installation portable, constantes de version du
-moteur) et ne touche pas au reste de la ligne privée.
+Ce que `0.2.4` change pour nous, mesuré sur le poste :
+
+- **Les images sur AMD (HIP) sont disponibles.** Le paquet moteur `0.1.48`
+  embarque le lecteur d'images AMD : son cachet `BUILD.json` porte
+  `vision: "cpu+hip"`, avec `strata-vision-hip.exe` et un repli
+  `strata-vision.exe`. Les garde-fous qui refusaient la vision sur HIP sont donc
+  levés (contrôle préalable, réglages, fiche moteur). La section vision n'est
+  conservée que si le preset la demande (`MOE_VISION=1`) ; sinon elle est retirée,
+  comme avant. Un test garde ce comportement : `TestStrataHipVisionPackage`.
+- **Une archive par carte, plus d'archive plate.** Le manifeste interne
+  (`internal/ajean/moe_windows_manifest.json`) publie le contrôle `0.1.49.2` et
+  **cinq** paquets moteur `tar.gz` par carte — `hip-rdna2`, `hip-rdna3`,
+  `hip-rx9070` (la carte de ce poste, `gfx1201`), `cuda12`, `cuda13` — avec
+  SHA-256 et tailles relevés sur le flux en direct (séquence 112).
+- **Le script d'installation portable** (`moe_portable_install.ps1`) défait une
+  archive `tar.gz` au lieu d'un `zip`, estampille `engine/BUILD.json` avec
+  `source: prebuilt`, et choisit le paquet selon la carte. Il reste lisible en
+  PowerShell 5.
+- **Notre enveloppe `moe_portable_setup.py`** suit le nouvel appel de `data_folder`
+  en `0.2.4` (`request, move, yes, set_default`).
+
+Installation portée de bout en bout et vérifiée sur ce poste : moteur extrait,
+`llama.cpp 3cf0325` (commit épinglé par `0.2.4`), poids `IQ3_S`, `mmproj`, pack et
+MTP préparés ; moteur exécuté (`strata 0.1.48`, familles `qwen4exp` et
+`qwen35moe`) ; réponse réelle obtenue du moteur lancé par l'application.
+
+Un point d'installation à connaître, mesuré : l'emplacement du moteur est dérivé
+de la version épinglée (`data\moe\strata-<version>-<carte>`). Un `data` récupéré
+d'une installation plus ancienne garde donc l'ancien moteur sous l'ancien nom, et
+le contrôle préalable refuse de le charger — c'est le message
+« moteur MoE différent de la version figée ». Il faut installer le moteur depuis
+l'interface Moteur, ou promouvoir le paquet `0.1.48` à l'emplacement épinglé.
 
 ## Amont `v0.18.9` — menu latéral : Paramètres, Tâches, API, AJEAN LINK
 
@@ -215,7 +244,7 @@ livraison applique la même règle
 | Version affichée | `0.18.11.1 Cresius` |
 | Étiquette Git | `v0.18.11+rev1` |
 | Socle amont | `v0.18.11` |
-| Moteur MoE | Strata `0.1.44.1` (5,47 Go, SHA-256 vérifié) — `0.2.2` / `0.1.47` en préparation |
+| Moteur MoE | Strata `0.2.4` — paquet moteur `0.1.48`, contrôle `0.1.49.2`, cinq paquets par carte, SHA-256 vérifiés |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
 | Précédent | `0.18.9.1 Cresius`, étiquette `v0.18.9.1+rev11` |
 
@@ -329,7 +358,8 @@ Jean mode: you see what he does, and his sleep really tidies memory.
   containing `NaN` or `±Infinity`, or not returning one vector per text, is
   rejected. Without these checks the index fills with wrong vectors while every
   other indicator stays green.
-- **Strata MoE engine**: it installs `0.1.44.1` (5.47 GB, SHA-256 verified). See
+- **Strata MoE engine**: the vendored release is `0.2.4`, engine package `0.1.48`,
+  control `0.1.49.2` (SHA-256 verified, one archive per card). See
   [the engine status](#the-moe-engine-where-we-stand).
 - **Context window (`CtxMax`)**: the gauge and the compaction follow the limit
   actually applied by the engine.
@@ -359,17 +389,44 @@ These Cresius fixes were **abandoned** as moot — upstream made the same call:
 
 ## The MoE engine, where we stand
 
-The shipped engine is still **Strata `0.1.44.1`**, downloaded and verified by the
-internal manifest (`internal/ajean/moe_windows_manifest.json`).
+The move is **done** in this build: the vendored release is **Strata `0.2.4`**
+(source commit `96ca438`), the **engine package is `0.1.48`** and the **control
+package `0.1.49.2`**. Those three numbers are now declared separately in
+`internal/ajean/backend_moe_strata.go` and must not be conflated: only the engine
+package number is compared against the `engine/BUILD.json` stamp by the preflight
+check.
 
-The move to **Strata `0.2.2` / engine `0.1.47`** is **prepared but not yet
-grafted** into this build. What is measured and settled: the `0.2` releases no
-longer publish the flat archives our manifest expects, but one archive per card
-(`strata-engine-0.1.47-windows-x86_64-hip-rx9070.tar.gz` for this machine's card,
-`gfx1201`); `setup.py` accepts an engine already in place if its `BUILD.json`
-stamp carries `source: prebuilt`. The remaining work is bounded (manifest,
-portable install script, engine version constants) and does not touch the rest
-of the private line.
+What `0.2.4` changes for us, measured on this machine:
+
+- **Pictures on AMD (HIP) are available.** The `0.1.48` engine package ships the
+  AMD picture reader: its `BUILD.json` stamp carries `vision: "cpu+hip"`, with
+  `strata-vision-hip.exe` and a `strata-vision.exe` fallback. The guards that
+  refused vision on HIP are therefore lifted (preflight, settings, engine
+  details). The vision section is kept only when the preset asks for it
+  (`MOE_VISION=1`); otherwise it is dropped, as before. A test pins this
+  behaviour: `TestStrataHipVisionPackage`.
+- **One archive per card, no flat archive.** The internal manifest
+  (`internal/ajean/moe_windows_manifest.json`) publishes control `0.1.49.2` and
+  **five** engine `tar.gz` packages per card — `hip-rdna2`, `hip-rdna3`,
+  `hip-rx9070` (this machine's card, `gfx1201`), `cuda12`, `cuda13` — with
+  SHA-256 and sizes read from the live feed (sequence 112).
+- **The portable install script** (`moe_portable_install.ps1`) unpacks a `tar.gz`
+  instead of a `zip`, stamps `engine/BUILD.json` with `source: prebuilt`, and
+  picks the package matching the card. It stays readable on PowerShell 5.
+- **Our `moe_portable_setup.py` wrapper** follows the new `0.2.4` signature of
+  `data_folder` (`request, move, yes, set_default`).
+
+The install was carried end to end and verified on this machine: engine unpacked,
+`llama.cpp 3cf0325` (the commit pinned by `0.2.4`), `IQ3_S` weights, `mmproj`,
+pack and MTP prepared; engine executed (`strata 0.1.48`, families `qwen4exp` and
+`qwen35moe`); a real answer obtained from the engine started by the app.
+
+One install detail worth knowing, measured: the engine location is derived from
+the pinned version (`data\moe\strata-<version>-<card>`). A `data` folder carried
+over from an older install therefore keeps the old engine under the old name, and
+the preflight refuses to load it — that is the "engine differs from the pinned
+version" message. Install the engine from the Engine screen, or promote the
+`0.1.48` package to the pinned location.
 
 ## Upstream `v0.18.9` — sidebar: Settings, Tasks, API, AJEAN LINK
 
@@ -438,7 +495,7 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 | Version displayed | `0.18.11.1 Cresius` |
 | Git tag | `v0.18.11+rev1` |
 | Upstream base | `v0.18.11` |
-| MoE engine | Strata `0.1.44.1` (5.47 GB, SHA-256 verified) — `0.2.2` / `0.1.47` in preparation |
+| MoE engine | Strata `0.2.4` — engine package `0.1.48`, control `0.1.49.2`, five packages per card, SHA-256 verified |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
 | Previous | `0.18.9.1 Cresius`, tag `v0.18.9.1+rev11` |
 

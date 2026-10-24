@@ -6,14 +6,27 @@ package ajean
 // le texte de l'utilisateur : préambule système, briefing machine, prompt du
 // preset et surtout les schémas d'outils — plusieurs milliers de jetons. Sur un
 // modèle local, c'est l'essentiel du délai avant le premier jeton, et ce préfixe
-// est IDENTIQUE d'une conversation à l'autre (le contexte projet, lui, part dans
-// le premier message utilisateur, voir normalizeSystemMessages).
+// est IDENTIQUE d'une conversation à l'autre d'un même mode (le contexte projet,
+// lui, part dans le premier message utilisateur, voir normalizeSystemMessages).
 //
 // Dès que le moteur répond, on envoie donc une complétion minuscule
 // (max_tokens=1) avec EXACTEMENT ce préfixe. llama-server garde le cache KV du
 // créneau (--cache-ram / --cache-idle-slots sont actifs par défaut) : le premier
 // vrai message ne traite plus que son propre texte, et le premier jeton arrive
 // tout de suite. Rien n'est affiché : la requête est interne, sa réponse jetée.
+//
+// Deux règles tiennent ce pré-chauffage honnête :
+//
+//  1. Il ne part QUE si la conversation active est vide. Avec un seul créneau de
+//     cache (-np 1, le cas courant), chauffer pendant qu'une conversation est en
+//     cours écraserait son cache KV : le message suivant repaierait tout
+//     l'historique. Une conversation commencée (ou en génération) n'est jamais
+//     touchée, quoi qu'il arrive au prompt, aux outils ou à l'interface.
+//  2. Le préfixe est celui du MODE qui recevra le premier message (Jean, Projet,
+//     Rapide, Modèle de base), construit par les mêmes capacités que le vrai envoi
+//     (capsFromBody), pas par les réglages globaux de la machine : sinon le
+//     préfixe chauffé ne correspond pas au vrai premier tour et le cache ne se
+//     raccorde pas. Voir prewarmTarget pour la façon dont le mode est connu.
 //
 // Le pré-chauffage est BÉNIN : jamais pendant une génération (le compteur
 // llmInFlight le dit), annulé dès qu'un tour utilisateur démarre (le tour
@@ -51,6 +64,9 @@ const (
 	// qu'il n'a pas changé (prompt du preset édité, outils activés…) — sans
 	// reconstruire le préfixe à chaque sondage de /api/status (toutes les 5 s).
 	llmPrewarmRecheck = 15 * time.Second
+	// Clé (bucket state) du dernier mode de chat réellement utilisé à l'envoi.
+	// Sert à deviner le mode d'une conversation encore vide (voir prewarmTarget).
+	lastChatModeKey = "last_chat_mode"
 )
 
 // llmInFlight compte les complétions réellement en cours vers le moteur (chat,
@@ -68,6 +84,10 @@ var llmTurnsActive atomic.Int32
 
 // llmPrewarmState : un seul pré-chauffage à la fois, et un souvenir de ce qui a
 // déjà été chauffé pour ne pas le refaire à chaque sondage.
+//
+// ⚠️ Ordre des verrous : conv.mu PUIS llmWarm.mu (StartTurn appelle
+// cancelLLMPrewarmForTurn en tenant conv.mu). Ne jamais lire la conversation
+// (prewarmTarget) en tenant llmWarm.mu.
 var llmWarm struct {
 	mu        sync.Mutex
 	healthy   bool // dernier état de santé observé (détecte un redémarrage moteur)
@@ -80,10 +100,76 @@ var llmWarm struct {
 	cancel    context.CancelFunc
 }
 
-// prewarmPrefix construit le préfixe commun à toute conversation : le bloc
-// système tel qu'InjectSkills + normalizeSystemMessages le produisent, et les
-// outils tels que runChat les annonce. Le contexte projet est volontairement
-// absent (il vit dans le premier message utilisateur).
+// prewarmModeValid : modes de chat que le serveur connaît (voir requestedMode).
+func prewarmModeValid(mode string) bool {
+	switch mode {
+	case "project", "fast", "base", "jean":
+		return true
+	}
+	return false
+}
+
+// rememberChatMode retient le mode du dernier message envoyé. Le navigateur ne
+// dit son mode au serveur qu'avec le premier message d'une conversation
+// (Conversation.lockMode) : tant qu'elle est vide, le dernier mode utilisé est la
+// meilleure information disponible — on ne change guère de mode d'un message à
+// l'autre. N'écrit que si la valeur change.
+func rememberChatMode(mode string) {
+	if prewarmModeValid(mode) && getStr(bkState, lastChatModeKey) != mode {
+		_ = putStr(bkState, lastChatModeKey, mode)
+	}
+}
+
+// prewarmCaps : capacités du mode, construites comme pour un vrai envoi
+// (handleChatSend → applyChatMode + capsFromBody). Ce sont elles — et non
+// globalCaps() — qui décident du préambule, du briefing machine, du prompt du
+// preset et des outils du premier tour : Rapide n'a ni mémoire ni prompt de
+// preset, Jean a ses outils et son préambule, Modèle de base n'a rien.
+func prewarmCaps(mode string) Caps {
+	var b chatReq
+	applyChatMode(&b, mode)
+	return capsFromBody(b)
+}
+
+// prewarmTarget dit si le pré-chauffage a le droit de partir, et pour quel mode.
+//
+// ok=false (rien à faire) quand :
+//   - la conversation active n'est pas vide ou génère : son cache KV est à elle,
+//     et le créneau est unique avec -np 1 ;
+//   - le mode du prochain message est inconnu : on ne devine pas, un préfixe
+//     chauffé pour rien coûte un préfill et ne raccorde pas le vrai tour ;
+//   - le mode ne correspond pas à la conversation ouverte : Jean est une
+//     conversation unique et persistante (jeanConvID), les autres modes n'y
+//     écrivent jamais. Dans ce cas, le premier message ouvrira une AUTRE
+//     conversation (alignConvForMode) dont on ne sait pas si elle est vide.
+//
+// Le mode est celui de la conversation s'il est déjà fixé (Jean), sinon celui du
+// dernier message envoyé (rememberChatMode).
+func prewarmTarget() (mode string, ok bool) {
+	conv.mu.Lock()
+	id, cmode := conv.ID, conv.Mode
+	idle := len(conv.Messages) == 0 && !conv.Generating
+	conv.mu.Unlock()
+	if !idle {
+		return "", false
+	}
+	mode = cmode
+	if mode == "" {
+		mode = getStr(bkState, lastChatModeKey)
+	}
+	if !prewarmModeValid(mode) {
+		return "", false
+	}
+	if (mode == "jean") != (id == jeanConvID) {
+		return "", false
+	}
+	return mode, true
+}
+
+// prewarmPrefix construit le préfixe commun à toute conversation du mode décrit
+// par caps : le bloc système tel qu'InjectSkills + normalizeSystemMessages le
+// produisent, et les outils tels que runChat les annonce. Le contexte projet est
+// volontairement absent (il vit dans le premier message utilisateur).
 //
 // Renvoie ok=false quand il n'y a rien à chauffer (modèle brut, sans système ni
 // outil) : envoyer une requête ne gagnerait rien.
@@ -155,6 +241,12 @@ func prewarmPayload(ep chatEndpoint, system string, tools []Tool) map[string]any
 // healthy=false signale un moteur qui ne répond pas encore : au prochain
 // passage à true, le cache KV est forcément froid, on ré-arme.
 func LLMPrewarm(healthy bool) {
+	// La conversation est lue AVANT de prendre llmWarm.mu (ordre des verrous, voir
+	// llmWarm). Elle décide de tout : sans conversation active vide, on ne touche
+	// pas au créneau de cache — mais l'état de santé, lui, est suivi quand même
+	// (un redémarrage du moteur doit ré-armer, même pendant une conversation).
+	mode, canWarm := prewarmTarget()
+
 	// Phase 1 : état rapide, sans travail lourd sous le verrou.
 	llmWarm.mu.Lock()
 	if !healthy {
@@ -166,6 +258,10 @@ func LLMPrewarm(healthy bool) {
 		llmWarm.healthy = true
 		llmWarm.sig, llmWarm.warmed, llmWarm.attempts = "", false, 0
 		llmWarm.lastCheck = time.Time{}
+	}
+	if !canWarm {
+		llmWarm.mu.Unlock()
+		return
 	}
 	// Une génération réelle occupe le moteur : on ne se met pas devant elle.
 	// (Si le pré-chauffage est déjà parti, le tour le coupera — voir StartTurn.)
@@ -197,7 +293,7 @@ func LLMPrewarm(healthy bool) {
 	if ep.URL == "" {
 		return
 	}
-	system, tools, ok := prewarmPrefix(globalCaps())
+	system, tools, ok := prewarmPrefix(prewarmCaps(mode))
 	if !ok {
 		return
 	}
@@ -221,15 +317,29 @@ func LLMPrewarm(healthy bool) {
 
 	payload := prewarmPayload(ep, system, tools)
 	go func(sig string) {
-		err := sendLLMPrewarm(ctx, ep, payload)
+		// Dernier garde-fou, APRÈS l'enregistrement de cancel ci-dessus : la
+		// conversation a pu recevoir un message (ou un autre mode a pu s'ouvrir)
+		// depuis la lecture du début. StartTurn pose Generating sous conv.mu AVANT
+		// d'appeler cancelLLMPrewarmForTurn, donc deux cas seulement : soit le
+		// tour a démarré avant, on le voit ici et on n'envoie rien ; soit il
+		// démarre après, et son cancelLLMPrewarmForTurn coupe cette requête.
+		skipped := false
+		var err error
+		if m, ok := prewarmTarget(); !ok || m != mode {
+			skipped = true
+		} else {
+			err = sendLLMPrewarm(ctx, ep, payload)
+		}
 		cancel()
 		llmWarm.mu.Lock()
 		llmWarm.inflight = false
 		llmWarm.cancel = nil
 		// Un autre préfixe a pu prendre la main pendant l'envoi (changement de
 		// preset, de prompt système…) : son état ne doit pas être écrasé par le
-		// résultat de l'ancien.
-		if llmWarm.sig == sig {
+		// résultat de l'ancien. Une requête non envoyée (conversation devenue
+		// active) ne compte ni comme essai ni comme succès : on réessaiera quand
+		// une conversation vide sera de nouveau ouverte.
+		if llmWarm.sig == sig && !skipped {
 			if err != nil {
 				llmWarm.attempts++
 				// Recul : un moteur qui refuse ce corps n'a pas besoin d'être

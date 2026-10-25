@@ -1,12 +1,13 @@
-Le navigateur piloté par l'IA sait remplir les formulaires des sites modernes, et s'arrête quand un site le bloque.
+Le premier message d'une nouvelle conversation obtient sa réponse beaucoup plus vite, et un arrêt pendant une série d'outils ne bloque plus la conversation.
+
+## Nouveauté
+
+- **Pré-chauffage du prompt** : dès qu'une nouvelle conversation est ouverte, le moteur lit à l'avance les consignes et la description des outils. Le premier message ne paie plus cette lecture. Mesuré avec le moteur MoE : le premier mot arrive en 0,3 s au lieu de 4,3 s en mode Projet, et en 0,3 s au lieu de 5,9 s en mode Jean. Avec llama-server, le gain porte surtout sur le premier message après le démarrage du moteur. Le pré-chauffage ne part que si la conversation ouverte est vide : une conversation en cours garde son cache. Il est actif par défaut et se coupe dans Paramètres > Général (« pré-chauffage du prompt »). Contribution de youtsuhodev (#163).
 
 ## Corrections
 
-- **Choix impossibles à cocher sur certains sites** : sur une boutique en ligne, les options d'un produit (couleur, capacité…) n'apparaissaient pas dans la liste des éléments, et un clic dessus restait sans effet. Le bouton suivant restait grisé, et l'IA recommençait sans fin. Ces cases cachées derrière une étiquette sont maintenant listées et cliquées à travers l'étiquette, et le cochage est vérifié.
-- **États visibles** : la liste des éléments indique ce qui est coché, sélectionné ou désactivé. Un clic sur un bouton désactivé est refusé, avec l'explication qu'un choix obligatoire manque.
-- **Lecture du texte de la page** : la recherche dans la page trouve aussi le texte simple (une date de livraison, un prix, un message), et plus seulement les boutons et les liens.
-- **Fin de tâche plus nette** : quand un site répond par une page d'erreur ou de blocage après une action normale, l'IA en est avertie et passe à une autre piste au lieu d'insister. Une même action répétée sans effet est signalée, et un rappel de conclure arrive au bout de 25 actions.
-- **Mode Jean, juste après l'envoi d'un message** : après une mise à jour ou un rafraîchissement de la page, la scène affichait quelques secondes « Clique sur moi pour me parler » au lieu de « Lit le message… ».
+- **Conversation bloquée après un arrêt** : un arrêt pendant une série d'appels d'outils laissait dans l'historique des appels sans réponse. Le moteur refusait ensuite chaque nouveau message (erreur 400), et la conversation restait inutilisable. Les réponses manquantes sont maintenant complétées, y compris dans les conversations déjà bloquées par une version précédente. Une image affichée par l'IA au milieu d'une série d'outils est aussi replacée après la série. Contribution de oh-codes (#171).
+- **Mode Jean, saisie au clavier** : après une réponse, taper une lettre ne rouvrait plus la bulle de saisie. Les caractères partaient dans le champ caché. Contribution de oh-codes (#164).
 
 ## Mise à jour
 
@@ -14,4 +15,4 @@ Le navigateur piloté par l'IA sait remplir les formulaires des sites modernes, 
 ajean update
 ```
 
-Testé sur un serveur Linux avec un modèle local, sur une vraie boutique en ligne.
+Testé sur un serveur Linux avec le moteur MoE et avec llama-server (Qwen 3.8, MTP). Le pré-chauffage n'a pas été testé avec une API externe : il ne s'y applique pas.

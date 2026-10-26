@@ -11,7 +11,8 @@ les besoins d'une machine précise (moteur MoE **Strata** sur carte AMD : fenêt
 de contexte, quantification clé/valeurs, images sur AMD ; recherche par embeddings ; déduplication
 des appels). Elle est signalée par un suffixe à part,
 **`.1 Cresius`** : la version lue par le binaire est par exemple
-**`0.18.11.1 Cresius`**, pas `0.18.11`. Cette ligne n'est **pas** une version de
+**`0.18.15.1 Cresius`**, pas `0.18.15` (base amont `v0.18.15` + révision `1`).
+Cette ligne n'est **pas** une version de
 l'amont, n'est **pas** testée sur d'autres machines et n'est **pas** garantie
 transposable. Pour installer AJEAN, prenez les versions publiées sur
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
@@ -24,7 +25,7 @@ Windows sont téléchargés à l'installation du moteur.
 | --- | --- |
 | [nathaninline/ajean](https://github.com/nathaninline/ajean) | amont — projet original et versions publiées |
 | [Niko1221/Strata](https://github.com/Niko1221/Strata) | moteur MoE exécuté par le fork |
-| ce dépôt | ligne de correctifs privée `0.18.9.1 Cresius` |
+| ce dépôt | ligne de correctifs privée `0.18.15.1 Cresius` |
 
 ## Modèles
 

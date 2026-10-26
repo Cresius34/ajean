@@ -8,8 +8,9 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), created and maintained by
 > **nathaninline** — the upstream project, and the only source of published AJEAN releases.
 > Everything below describes AJEAN **in general**. This fork carries a **private patch line**
-> (**0.18.11.1 Cresius**) for one specific machine: the **Strata** MoE engine on AMD
-> (context size, KV quantization, AMD picture support), embedding search, call
+> (**0.18.15.1 Cresius**, built on upstream `v0.18.15`) for one specific machine: the
+> **Strata** MoE engine on AMD (context size, KV quantization, AMD picture support),
+> EmbeddingGemma 2 semantic memory, embedding search, call
 > de-duplication. Those additions
 > are **not** upstream releases, are
 > **not** tested elsewhere, and are **not** guaranteed to work anywhere else. To install

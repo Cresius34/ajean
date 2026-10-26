@@ -226,7 +226,11 @@ func newWebMux() *http.ServeMux {
 	api("/api/moe", handleMoe)                                           // moteur MoE : machine, catalogue figé, recommandation, modèles installés
 	api("/api/moe/install", handleMoeInstall)                            // job : paquet figé + installeur du moteur + preset (suivi par /api/llamacpp/job)
 	api("/api/moe/settings", handleMoeSettings)                          // réglages d'un modèle MoE installé (relance s'il est actif)
-	api("/api/moe/verify", handleMoeProbe)                                // test explicite réponse + appel d’outil du prototype
+	api("/api/moe/verify", handleMoeProbe)                               // test explicite réponse + appel d’outil du prototype
+	api("/api/exl3", handleExl3)                    // moteur ExLlama : machine, version installée (?check=1 : dernière version), modèles EXL3
+	api("/api/exl3/install", handleExl3Install)     // job : installation ({latest:false}, commit validé) ou mise à jour ({latest:true})
+	api("/api/exl3/uninstall", handleExl3Uninstall) // retire le moteur (garde les modèles)
+	api("/api/exl3/download", handleExl3Download)   // job : télécharge une branche d'un dépôt EXL3 Hugging Face dans models/exl3
 	api("/api/presets", handlePresets)
 	api("/api/presets/order", handlePresetsOrder)
 	api("/api/preset", handlePreset)
@@ -242,6 +246,7 @@ func newWebMux() *http.ServeMux {
 	api("/api/agent", handleAgent)
 	api("/api/agent/toggle", handleAgentToggle)
 	api("/api/agent/compact", handleCompactToggle)
+	api("/api/agent/prewarm", handlePrewarmToggle)
 	api("/api/apikey", handleAPIKey)
 	api("/api/oai/public", handleOAIPublic)
 	api("/api/link/status", handleLinkStatus)         // état de l'accès distant (ajean.link)
@@ -361,6 +366,26 @@ func newWebMux() *http.ServeMux {
 	api("/api/tasks/pause", handleTasksPause)
 	api("/api/tasks/run", handleTaskRun)
 	api("/api/tasks/stop", handleTaskStop)
+	// Pré-chauffe le préfixe dès que le moteur répond, sans attendre le premier
+	// sondage du navigateur (ui/link peut tourner sans page ouverte).
+	// • déjà lancé (redémarrage de l'UI seule) : tout de suite ;
+	// • en cours de chargement (démarrage de la machine) : dès qu'il répond,
+	//   pendant 10 min au plus. Un moteur volontairement arrêté ne coûte que
+	//   des connexions refusées, sans journal.
+	go func() {
+		if healthCheck() {
+			LLMPrewarm(true)
+			return
+		}
+		deadline := time.Now().Add(10 * time.Minute)
+		for time.Now().Before(deadline) {
+			time.Sleep(3 * time.Second)
+			if healthCheck() {
+				LLMPrewarm(true)
+				return
+			}
+		}
+	}()
 	StartTaskScheduler()
 	return mux
 }

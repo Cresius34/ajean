@@ -38,6 +38,11 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	health := false
 	if active {
 		health = healthCheck()
+		// Moteur prêt : on pré-chauffe le préfixe (système + outils) pour que le
+		// premier message d'une conversation ne paie plus son préfill. Détaché :
+		// la construction du préfixe peut sonder MCP/Crawl4AI, elle n'a rien à
+		// faire dans le temps de réponse de /api/status.
+		go LLMPrewarm(health)
 	}
 	// Preset externe : pas de service llama-server local, mais le chat est prêt
 	// (il tape vers l'API distante). On l'annonce « actif/prêt » pour que l'UI
@@ -525,6 +530,12 @@ func handlePresets(w http.ResponseWriter, r *http.Request) {
 				if cfg["MOE_VISION"] != "0" {
 					item["vision"] = true
 				}
+			} else if cfg := parseEnv(content); isExl3Config(cfg) {
+				item["engine"] = "exl3"
+				item["quant"] = exl3QuantLabel(cfg)
+				if cfg["EXL3_VISION"] == "1" {
+					item["vision"] = true
+				}
 			} else if cfg := parseEnv(content); isCloudConfig(cfg) {
 				item["cloud"] = cloudGPU(cfg)
 				if strings.TrimSpace(cfg[cloudKeyMM]) != "" {
@@ -532,7 +543,7 @@ func handlePresets(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			ext := isExternalConfig(parseEnv(content))
-			if q := detectQuant(content); q != "" && !ext {
+			if q := detectQuant(content); q != "" && !ext && item["engine"] == nil {
 				item["quant"] = q
 			}
 			if c := presetCtx(content); c != "" && !ext {
@@ -620,6 +631,18 @@ func handlePresetSave(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	// Preset actif modifié : la config vivante tourne encore l'ancienne version.
+	// On le signale pour que l'UI propose de l'appliquer (#176).
+	wasActive := false
+	if req.ID != "" {
+		if list, err := ListPresets(); err == nil {
+			for _, p := range list {
+				if p.ID == req.ID && p.Active {
+					wasActive = true
+				}
+			}
+		}
+	}
 	newID, err := SavePreset(req.ID, req.Name, req.Content)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
@@ -627,7 +650,17 @@ func handlePresetSave(w http.ResponseWriter, r *http.Request) {
 	}
 	// Prompt système propre au preset (stocké en base, sous l'id retourné).
 	_ = setPresetSysPrompt(newID, req.SysPrompt)
-	sendJSON(w, 200, map[string]any{"ok": true, "id": newID, "name": req.Name})
+	reload := false
+	if wasActive {
+		if list, err := ListPresets(); err == nil {
+			for _, p := range list {
+				if p.ID == newID && !p.Active {
+					reload = true
+				}
+			}
+		}
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "id": newID, "name": req.Name, "reload": reload})
 }
 
 func handlePresetDelete(w http.ResponseWriter, r *http.Request) {
@@ -679,7 +712,7 @@ func handleAgent(w http.ResponseWriter, r *http.Request) {
 	if out == nil {
 		out = []map[string]any{}
 	}
-	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "compact_max": compactMaxTokens(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
+	sendJSON(w, 200, map[string]any{"enabled": agentEnabled(), "compact": compactEnabled(), "compact_max": compactMaxTokens(), "prewarm": prewarmEnabled(), "mem_mode": mode, "computer": computerUseEnabled(), "pages": out, "skills": out})
 }
 
 // memScope exécute fn dans le contexte mémoire d'un projet donné (pour voir/éditer
@@ -758,6 +791,19 @@ func handleCompactToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, 200, map[string]any{"ok": true, "compact": compactEnabled(), "compact_max": compactMaxTokens()})
+}
+
+// handlePrewarmToggle : interrupteur « pré-chauffage du prompt » (Paramètres).
+func handlePrewarmToggle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		On bool `json:"on"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := setPrewarmEnabled(req.On); err != nil {
+		sendJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "prewarm": prewarmEnabled()})
 }
 
 func handleAgentToggle(w http.ResponseWriter, r *http.Request) {

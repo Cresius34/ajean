@@ -25,9 +25,9 @@ const parallelMemoryRevision = 7
 
 // buildFlavorSuffix est l'identité publique de ce build : la base amont
 // (Version, reprise telle quelle du tag nathaninline fusionné) suivie du
-// millésime Cresius. Version = "0.18.11" + ".1 Cresius" donne donc
-// « 0.18.11.1 Cresius », c'est-à-dire la base 0.18.11 et notre révision 1
-// (tag git v0.18.11+rev1). Doit rester identique à
+// millésime Cresius. Version = "0.18.15" + ".1 Cresius" donne donc
+// « 0.18.15.1 Cresius », c'est-à-dire la base 0.18.15 et notre révision 1
+// (tag git v0.18.15+rev1). Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
 const buildFlavorSuffix = ".1 Cresius"

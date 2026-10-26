@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.11.1 Cresius` / étiquette `v0.18.11+rev1`
+# Notes de version — AJEAN `0.18.15.1 Cresius` / étiquette `v0.18.15+rev1`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -8,19 +8,92 @@ validés sur d'autres machines, ni garantis transposables. Pour installer AJEAN,
 prenez les versions publiées sur
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-Cette version **absorbe l'amont `v0.18.11`** — donc aussi
-[`v0.18.10`](#amont-v01810--mode-jean-actions-décrites-terminal-sommeil-v2) —
-dans la ligne privée `Cresius`, qui s'arrêtait à `0.18.9.1+rev11`. Le socle est
-celui de l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
+Cette version **absorbe l'amont `v0.18.15`** — donc aussi
+[`v0.18.12`](#amont-v01812--pré-chauffage-du-prompt-paires-doutils-incomplètes),
+[`v0.18.13`](#amont-v01813--moteur-exllama-exl3-en-un-clic) et
+[`v0.18.14`](#amont-v01814--cartes-exllama-qui-déportaient-llamacpp) — dans la
+ligne privée `Cresius`, qui s'arrêtait à `0.18.11.1+rev1`. Le socle est celui de
+l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
 
 ## En-tête
 
-Le navigateur piloté sait remplir les formulaires des sites modernes et s'arrête
-quand un site le bloque (amont `v0.18.11`) ; en mode Jean, chaque action est
-décrite et le sommeil range vraiment la mémoire (amont `v0.18.10`). Côté ligne
-privée : le **journal de Jean** et la **mémoire sémantique** partagent désormais
-un **seul encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul moteur, un seul
-espace vectoriel sur le poste.
+Quatre versions d'amont d'un coup : le **moteur ExLlama (EXL3)** s'installe en un
+clic à côté de llama.cpp (amont `v0.18.13`), le **pré-chauffage du prompt** rend
+le premier message d'une conversation presque instantané (amont `v0.18.12`), et
+deux corrections de stabilité touchent le mode Jean et les presets (amont
+`v0.18.15`). Côté ligne privée : le **journal de Jean** et la **mémoire
+sémantique** partagent toujours un **seul encodeur**, EmbeddingGemma 2 — un seul
+GGUF, un seul moteur, un seul espace vectoriel sur le poste — et le **moteur MoE
+Strata** reste proposé par carte, y compris sur AMD (HIP).
+
+## Amont `v0.18.15` — conversation de Jean, preset modifié, ExLlama
+
+Corrections de stabilité : conversation du mode Jean, presets modifiés et moteur
+ExLlama.
+
+- **Mode Jean : conversation remplacée par une version vieille de plusieurs
+  jours.** Si la conversation enregistrée ne pouvait pas être lue au démarrage
+  (par exemple juste après une mise à jour, quand l'ancien processus tient encore
+  la base), AJEAN repartait d'une conversation vide sans le signaler, puis
+  rouvrait une ancienne copie du fil Jean et l'écrivait par-dessus la
+  conversation à jour. Le fil Jean enregistré est maintenant toujours préféré à
+  cette ancienne copie. Une conversation illisible est mise de côté (copie de
+  secours) avant toute réécriture, et la lecture au démarrage est retentée plus
+  longtemps. Merci pour le rapport détaillé (#175).
+- **Modifier le preset actif restait sans effet.** Après l'enregistrement, le
+  moteur continuait à tourner avec l'ancienne configuration, même après un
+  redémarrage, jusqu'à passer par un autre preset. Enregistrer une modification
+  du preset actif propose maintenant de l'appliquer tout de suite (#176).
+- **ExLlama : « chargement… » affiché pendant une réponse.** Pendant la lecture
+  d'un long prompt, le moteur ExLlama tarde à répondre aux vérifications d'état,
+  et l'interface concluait à tort que le modèle était en cours de chargement. Un
+  moteur qui a répondu récemment est maintenant considéré comme occupé, pas en
+  chargement.
+- **Conseil ExLlama** : une répartition manuelle des cartes trop serrée (champ
+  « répartition GPU » du preset) peut remplir une carte à quelques Mo près et
+  faire échouer la lecture des longues conversations par manque de mémoire. La
+  répartition automatique, avec une réserve de 512 Mo par carte, est plus sûre.
+
+## Amont `v0.18.14` — cartes ExLlama qui déportaient llama.cpp
+
+- **Modèle llama.cpp qui ne démarre plus après un modèle ExLlama** : un preset
+  ExLlama enregistrait ses cartes dans le réglage de cartes de la machine,
+  conservé d'un modèle à l'autre. En revenant sur un modèle llama.cpp réglé pour
+  un autre ordre de cartes, la répartition était inversée et le chargement
+  échouait par manque de mémoire. Les cartes d'un preset ExLlama sont rangées à
+  part, et le réglage de la machine n'est plus modifié. Un preset ExLlama
+  enregistré avec la 0.18.13 est corrigé automatiquement à la bascule. Une
+  machine déjà touchée remet son ordre avec `ajean gpu <ordre>`.
+
+## Amont `v0.18.13` — moteur ExLlama (EXL3) en un clic
+
+AJEAN fait tourner les modèles EXL3 avec ExLlamaV3 à côté de llama.cpp :
+installation en un clic, mise à jour, réglages dans l'éditeur de modèle.
+
+- **Installation sans prérequis** : une ligne « ExLlama » dans la section Moteur
+  installe TabbyAPI et ExLlamaV3 avec leurs dépendances précompilées (PyTorch,
+  CUDA 12 ou 13 selon le pilote). Python est téléchargé et géré par AJEAN.
+  Environ 4 Go à télécharger, 10 Go sur le disque ; l'installation par défaut
+  prend une version validée, dépendances figées.
+- **Mise à jour et désinstallation** depuis la même fenêtre (versions installées
+  affichées, version en place utilisable jusqu'à la fin de l'installation,
+  modèle ExLlama actif relancé). La désinstallation conserve les modèles.
+- **Téléchargement de modèles EXL3** par le lien d'une branche Hugging Face ; les
+  fichiers arrivent dans `models/exl3`.
+- **Choix du moteur par modèle** : l'éditeur propose « ExLlama » à côté des
+  moteurs llama.cpp, avec ses réglages propres (contexte, cache, utilisateurs
+  simultanés, décodage spéculatif MTP/n-gram/brouillon, cartes utilisées,
+  répartition en Go par carte, vision).
+- Le moteur sert sur le même port et avec la même clé que llama-server : chat,
+  vision, bench, accès distant et endpoint OpenAI fonctionnent sans autre
+  réglage. Ligne de commande : `ajean exl3 install|update|download|status|uninstall`.
+
+> **Sur ce poste (RX 9070 XT / RX 6900 XT)** : ExLlama est annoncé pour les
+> cartes **NVIDIA** sous Linux et Windows. Le contrôle préalable (`exl3Env`)
+> refuse l'installation si `nvidia-smi` est absent ou si le pilote est antérieur
+> à 570 — sur une carte AMD, la ligne « ExLlama » reste donc affichée mais
+> indiquera « ExLlama demande une carte NVIDIA ». Nos moteurs à nous restent
+> llama.cpp et Strata (HIP). Amont non testé sur ce poste.
 
 ## Amont `v0.18.11` — navigateur piloté, scène de Jean après l'envoi
 
@@ -82,7 +155,24 @@ Mode Jean : on voit ce qu'il fait, et son sommeil range vraiment la mémoire.
 - **Images cassées dans les réponses** : une image citée par son seul nom alors
   qu'elle est rangée dans un sous-dossier est retrouvée.
 
-## Ce que cette version ajoute à l'amont `v0.18.11`
+## Ce que cette version ajoute à l'amont `v0.18.15`
+
+- **Fusion sur quatre versions d'amont** : `v0.18.12` → `v0.18.15` absorbées
+  d'un coup (17 commits, 37 fichiers). Les deux correctifs d'interface touchés
+  par l'amont ont été **fusionnés et non remplacés** : la ligne `allSettled` de
+  `loadAll()` garde notre `loadMemoryPreferences()` **et** le `loadExl3()`
+  amont ; `saveItem()` garde notre garde-fou de session (`seq === openSeq`,
+  timeout 15 min pour un preset) **et** la proposition d'appliquer le preset
+  actif modifié (#176). `index.html` n'a pas été résolu à la main : il est
+  **régénéré** par `go generate ./internal/ajean` (outil `tools/assemble-ui`)
+  depuis les sources `ui/src/`, ce qui efface les 33 zones de conflit du fichier
+  généré.
+- **Nos deux normalisations de preset cohabitent** avec le correctif `v0.18.14` :
+  dans `applyPresetFile`, le bloc amont (`isExl3Config` →
+  `CUDA_VISIBLE_DEVICES` → `EXL3_GPUS`) est appliqué **d'abord**, puis notre
+  normalisation portable (`prepareParallelPreset`) avec son empreinte `before`.
+  Cet ordre est délibéré : remonter `before` ferait réécrire le fichier preset
+  d'un ExLlama externe et exposerait une erreur sur `parallelWritablePath`.
 
 - **Un seul encodeur pour l'appareil** : le journal de Jean demandait son propre
   modèle d'embeddings (l'ancien 300 M, 512 dimensions) pendant que la mémoire
@@ -241,16 +331,16 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.11.1 Cresius` |
-| Étiquette Git | `v0.18.11+rev1` |
-| Socle amont | `v0.18.11` |
+| Version affichée | `0.18.15.1 Cresius` |
+| Étiquette Git | `v0.18.15+rev1` |
+| Socle amont | `v0.18.15` |
 | Moteur MoE | Strata `0.2.4` — paquet moteur `0.1.48`, contrôle `0.1.49.2`, cinq paquets par carte, SHA-256 vérifiés |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
-| Précédent | `0.18.9.1 Cresius`, étiquette `v0.18.9.1+rev11` |
+| Précédent | `0.18.11.1 Cresius`, étiquette `v0.18.11+rev1` |
 
 La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
-de notre numéro de révision**. `0.18.11` + révision `1` → `0.18.11.1 Cresius`,
-étiquette `v0.18.11+rev1`. Les deux désignent le même build.
+de notre numéro de révision**. `0.18.15` + révision `1` → `0.18.15.1 Cresius`,
+étiquette `v0.18.15+rev1`. Les deux désignent le même build.
 
 ## Installation
 
@@ -261,14 +351,14 @@ ajean update
 ou, depuis le dépôt :
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.11+rev1`
+2. `git checkout v0.18.15+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`
 
 ---
 
 # English
 
-# Release notes — AJEAN `0.18.11.1 Cresius` / tag `v0.18.11+rev1`
+# Release notes — AJEAN `0.18.15.1 Cresius` / tag `v0.18.15+rev1`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -278,18 +368,101 @@ machines and are not guaranteed transposable. To install AJEAN, use the
 releases published at
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-This build **absorbs upstream `v0.18.11`** — and therefore
-[`v0.18.10`](#upstream-v01810--jean-mode-described-actions-terminal-sleep-v2) —
-into the `Cresius` patch line, which stopped at `0.18.9.1+rev11`. The base is
-upstream's; the private line is reduced to what it still adds.
+This build **absorbs upstream `v0.18.15`** — and therefore
+[`v0.18.12`](#upstream-v01812--prompt-prewarm-incomplete-tool-pairs),
+[`v0.18.13`](#upstream-v01813--exllama-engine-exl3-in-one-click) and
+[`v0.18.14`](#upstream-v01814--exllama-cards-that-broke-llamacpp) — into the
+`Cresius` patch line, which stopped at `0.18.11.1+rev1`. The base is upstream's;
+the private line is reduced to what it still adds.
 
 ## Headline
 
-The controlled browser can fill modern web forms and stops when a site blocks it
-(upstream `v0.18.11`); in Jean mode every action is described and Jean's sleep
-really tidies memory (upstream `v0.18.10`). On the private side: **Jean's
-journal** and **semantic memory** now share a **single encoder**, EmbeddingGemma
-2 — one GGUF, one engine, one vector space on the machine.
+Four upstream releases at once: the **ExLlama (EXL3) engine** installs in one
+click next to llama.cpp (upstream `v0.18.13`), **prompt prewarm** makes the first
+message of a conversation nearly instant (upstream `v0.18.12`), and two
+stability fixes touch Jean mode and presets (upstream `v0.18.15`). On the private
+side: **Jean's journal** and **semantic memory** still share a **single
+encoder**, EmbeddingGemma 2 — one GGUF, one engine, one vector space on the
+machine — and the **Strata MoE engine** is still offered per card, AMD (HIP)
+included.
+
+## Upstream `v0.18.15` — Jean conversation, modified preset, ExLlama
+
+Stability fixes: Jean mode conversation, modified presets and the ExLlama engine.
+
+- **Jean mode: conversation replaced by a days-old copy.** If the stored
+  conversation could not be read at startup (for instance right after an update,
+  while the old process still holds the database), AJEAN started from an empty
+  conversation without saying so, then reopened an old copy of the Jean thread
+  and wrote it over the up-to-date one. The stored Jean thread is now always
+  preferred to that old copy. An unreadable conversation is set aside (backup
+  copy) before anything is rewritten, and the startup read is retried for longer.
+  Thanks for the detailed report (#175).
+- **Editing the active preset had no effect.** After saving, the engine kept
+  running the previous configuration, even across a restart, until another preset
+  was selected. Saving a change to the active preset now offers to apply it
+  right away (#176).
+- **ExLlama: "loading…" shown while answering.** While reading a long prompt,
+  the ExLlama engine is slow to answer health checks, and the interface wrongly
+  concluded the model was still loading. An engine that answered recently is now
+  treated as busy, not loading.
+- **ExLlama advice**: a too-tight manual card split (the preset's "GPU split"
+  field) can fill a card to within a few MB and make long conversations fail to
+  load for lack of memory. The automatic split, with a 512 MB reserve per card,
+  is safer.
+
+## Upstream `v0.18.14` — ExLlama cards that broke llama.cpp
+
+- **A llama.cpp model that would no longer start after an ExLlama model**: an
+  ExLlama preset stored its cards in the machine-level card setting, which is
+  carried from one model to the next. Going back to a llama.cpp model tuned for a
+  different card order inverted the split and the load failed for lack of memory.
+  An ExLlama preset's cards are now kept apart and the machine setting is no
+  longer modified. An ExLlama preset saved with 0.18.13 is fixed automatically on
+  switch. A machine already affected restores its order with `ajean gpu <order>`.
+
+## Upstream `v0.18.13` — ExLlama engine (EXL3) in one click
+
+AJEAN can now run EXL3 models with ExLlamaV3 alongside llama.cpp: one-click
+install, update, and settings inside the model editor.
+
+- **No prerequisites**: an "ExLlama" row in the Engine section installs TabbyAPI
+  and ExLlamaV3 with precompiled dependencies (PyTorch, CUDA 12 or 13 depending
+  on the driver). Python is downloaded and managed by AJEAN. About 4 GB to
+  download, 10 GB on disk; the default install takes a validated version with
+  pinned dependencies.
+- **Update and uninstall** from the same window (installed versions shown, the
+  running version stays usable until the install finishes, an active ExLlama
+  model is restarted). Uninstalling keeps the models.
+- **EXL3 model downloads** from a Hugging Face branch link; files land in
+  `models/exl3`.
+- **Engine chosen per model**: the editor offers "ExLlama" next to the llama.cpp
+  engines, with its own settings (context, cache, simultaneous users, speculative
+  decoding MTP/n-gram/draft, cards used, per-card GB split, vision).
+- The engine serves on the same port and key as llama-server: chat, vision,
+  bench, remote access and the OpenAI endpoint work with no extra setting.
+  Command line: `ajean exl3 install|update|download|status|uninstall`.
+
+> **On this machine (RX 9070 XT / RX 6900 XT)**: ExLlama is advertised for
+> **NVIDIA** cards on Linux and Windows. The preflight check (`exl3Env`) refuses
+> the install when `nvidia-smi` is missing or the driver predates 570 — on an AMD
+> card the "ExLlama" row stays visible but reports "ExLlama requires an NVIDIA
+> card". Our own engines remain llama.cpp and Strata (HIP). Upstream code, not
+> tested on this machine.
+
+## Upstream `v0.18.12` — prompt prewarm, incomplete tool pairs
+
+- **Prompt prewarm**: as soon as a new conversation is opened, the engine reads
+  the instructions and the tool descriptions in advance, so the first message no
+  longer pays for that read. Measured with the MoE engine: first token in 0.3 s
+  instead of 4.3 s in Project mode, 0.3 s instead of 5.9 s in Jean mode. Prewarm
+  only starts when the open conversation is empty, and it is on by default
+  (Settings ▸ General). Contribution by youtsuhodev (#163).
+- **Conversation blocked after a stop**: stopping during a run of tool calls left
+  unanswered calls in the history, and the engine then rejected every new message
+  (error 400). Missing answers are now completed, including in conversations
+  already blocked by an earlier version. Contributions by oh-codes (#171, #164).
+
 
 ## Upstream `v0.18.11` — controlled browser, Jean scene after sending
 
@@ -341,7 +514,23 @@ Jean mode: you see what he does, and his sleep really tidies memory.
 - **Broken images in answers**: an image cited by name only while stored in a
   subfolder is now found.
 
-## What this build adds on top of upstream `v0.18.11`
+## What this build adds on top of upstream `v0.18.15`
+
+- **Fusion over four upstream releases**: `v0.18.12` → `v0.18.15` absorbed at
+  once (17 commits, 37 files). The two interface files touched upstream were
+  **merged, not replaced**: `loadAll()`'s `allSettled` line keeps our
+  `loadMemoryPreferences()` **and** upstream's `loadExl3()`; `saveItem()` keeps
+  our session guard (`seq === openSeq`, 15-minute timeout for a preset) **and**
+  the offer to apply a modified active preset (#176). `index.html` was not
+  resolved by hand: it is **regenerated** with `go generate ./internal/ajean`
+  (the `tools/assemble-ui` tool) from the `ui/src/` sources, which clears the 33
+  conflict regions of the generated file.
+- **Our two preset normalizations coexist** with the `v0.18.14` fix: in
+  `applyPresetFile`, upstream's block (`isExl3Config` →
+  `CUDA_VISIBLE_DEVICES` → `EXL3_GPUS`) runs **first**, then our portable
+  normalization (`prepareParallelPreset`) with its `before` fingerprint. That
+  order is deliberate — hoisting `before` would rewrite an external ExLlama
+  preset's file and expose a `parallelWritablePath` error.
 
 - **One encoder for the whole machine**: Jean's journal asked for its own
   embedding model (the old 300 M, 512 dimensions) while semantic memory and
@@ -492,16 +681,16 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.11.1 Cresius` |
-| Git tag | `v0.18.11+rev1` |
-| Upstream base | `v0.18.11` |
+| Version displayed | `0.18.15.1 Cresius` |
+| Git tag | `v0.18.15+rev1` |
+| Upstream base | `v0.18.15` |
 | MoE engine | Strata `0.2.4` — engine package `0.1.48`, control `0.1.49.2`, five packages per card, SHA-256 verified |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
-| Previous | `0.18.9.1 Cresius`, tag `v0.18.9.1+rev11` |
+| Previous | `0.18.11.1 Cresius`, tag `v0.18.11+rev1` |
 
 The private line's naming rule: **upstream's number, as is, followed by our
-revision number**. `0.18.11` + revision `1` → `0.18.11.1 Cresius`, tag
-`v0.18.11+rev1`. Both names denote the same build.
+revision number**. `0.18.15` + revision `1` → `0.18.15.1 Cresius`, tag
+`v0.18.15+rev1`. Both names denote the same build.
 
 ## Installation
 
@@ -512,5 +701,5 @@ ajean update
 or, from the repository:
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.11+rev1`
+2. `git checkout v0.18.15+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`

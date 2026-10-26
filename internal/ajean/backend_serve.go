@@ -240,6 +240,9 @@ func cmdServe(args []string) error {
 	if isMoeConfig(cfg) {
 		return serveMoe(cfg)
 	}
+	if isExl3Config(cfg) {
+		return serveExl3(cfg)
+	}
 	bin := cfg["BIN"]
 	if bin == "" {
 		return fmt.Errorf("BIN non défini — lance « ajean edit »")

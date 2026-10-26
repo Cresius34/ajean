@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -1095,7 +1096,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			// Les images/vidéos de l'historique y sont rangées par référence
 			// (chat_images.go / chat_video.go) : on remet leurs octets juste avant
 			// l'envoi.
-			"messages":    expandVideoRefs(expandImageRefs(normalizeSystemMessages(messages))),
+			"messages":    expandVideoRefs(expandImageRefs(normalizeSystemMessages(repairToolPairs(messages)))),
 			"stream":      true,
 			"temperature": temperature,
 			// include_usage → chunk final avec `usage.prompt_tokens` = taille TOTALE
@@ -1657,7 +1658,10 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// garde, un stop pendant une série d'appels laissait défiler toute
 				// la série avant de reprendre la main.
 				if ctx.Err() != nil {
-					return extra, nil
+					// L'assistant ci-dessus porte TOUS les appels : sans compléter le
+					// bloc, la vue persistée gardait une demi-paire que le moteur
+					// refuse ensuite à chaque tour (voir chat_tool_pairs.go).
+					return repairToolPairs(extra), nil
 				}
 				var args map[string]any
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
@@ -2099,16 +2103,29 @@ func healthCheck() bool {
 	// sans latence — la vraie joignabilité de l'API distante se révèle à l'appel
 	// de complétion, avec un message d'erreur clair si elle échoue. Sans ce
 	// court-circuit, StartTurn refuserait tout tour (aucun /health local).
-	if cfg := ReadConfig(); isCloudConfig(cfg) {
+	cfg := ReadConfig()
+	if isCloudConfig(cfg) {
 		return cloudReady(cfg)
 	} else if isExternalConfig(cfg) {
 		return true
 	}
 	resp, err := healthClient.Get(fmt.Sprintf("http://localhost:%d/health", LLMPort()))
 	if err != nil {
+		// ExLlama (TabbyAPI) ne répond plus à /health pendant une longue lecture
+		// de prompt : ce n'est pas un chargement. Un succès récent fait foi.
+		if isExl3Config(cfg) && time.Since(time.Unix(0, healthLastOK.Load())) < 2*time.Minute {
+			return true
+		}
 		return false
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode == 200
+	if resp.StatusCode == 200 {
+		healthLastOK.Store(time.Now().UnixNano())
+		return true
+	}
+	return false
 }
+
+// healthLastOK : instant (UnixNano) du dernier /health local réussi.
+var healthLastOK atomic.Int64

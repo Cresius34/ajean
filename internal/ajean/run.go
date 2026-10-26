@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.18.11"
+const Version = "0.18.15"
 
 // Main est le vrai main() du binaire (cmd/ajean ne fait que l'appeler).
 func Main() {
@@ -115,6 +115,8 @@ func Main() {
 		mustExit(cmdBench(args))
 	case "llamacpp":
 		mustExit(cmdLlamacpp(args))
+	case "exl3":
+		mustExit(cmdExl3(args))
 	case "update":
 		mustExit(cmdUpdate(args))
 	case "where":
@@ -189,6 +191,12 @@ Backend llama.cpp :
   llamacpp update               git pull + recompile le backend existant
   llamacpp uninstall <cible>    supprime un moteur (compiled | prebuilt | custom <nom>) ; --force si actif
   llamacpp status               commit courant, backend détecté, retard sur origin
+
+Moteur ExLlama (modèles EXL3, NVIDIA) :
+  exl3 install                  installe TabbyAPI + ExLlamaV3 (version validée, sans prérequis)
+  exl3 update                   installe la dernière version de TabbyAPI et d'ExLlamaV3
+  exl3 download <lien HF>       télécharge une branche d'un dépôt EXL3 dans models/exl3
+  exl3 status | uninstall       version installée, modèles / retirer le moteur (garde les modèles)
 
 Installation:
   where                         affiche l'emplacement du binaire, de la base et des dossiers

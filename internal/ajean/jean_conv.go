@@ -10,6 +10,7 @@ package ajean
 // tourne.
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,6 +39,14 @@ func (c *Conversation) OpenJean() error {
 	}
 	// Une tâche de Jean tourne déjà : on l'affiche dans le fil qu'on ouvre.
 	defer c.jeanTaskReplay()
+	// Le fil vivant enregistré est déjà celui de Jean (la RAM l'a perdu, par
+	// exemple après une lecture ratée au démarrage) : il fait foi. L'archive de
+	// Jean n'est presque jamais réécrite et peut dater de plusieurs jours ; la
+	// rouvrir écrasait le fil vivant (#175).
+	if live := liveConvOnDisk(); live != nil && live.ID == jeanConvID {
+		c.restoreLive(live)
+		return nil
+	}
 	if _, ok := loadArchive(jeanConvID); ok {
 		return c.OpenSession(jeanConvID)
 	}
@@ -284,4 +293,42 @@ func (c *Conversation) alignConvForMode(want string) error {
 	}
 	c.NewSession()
 	return nil
+}
+
+// liveConvOnDisk relit la conversation active enregistrée, ou nil si elle est
+// absente ou illisible.
+func liveConvOnDisk() *Conversation {
+	b, err := getStoreBytesErr(bkChat, "conversation")
+	if err != nil || len(b) == 0 {
+		return nil
+	}
+	var live Conversation
+	if json.Unmarshal(b, &live) != nil || live.ID == "" {
+		return nil
+	}
+	return &live
+}
+
+// restoreLive recharge en RAM le fil vivant enregistré, sans le réécrire.
+func (c *Conversation) restoreLive(live *Conversation) {
+	c.upsertSession()
+	c.Stop()
+	c.mu.Lock()
+	c.ID = live.ID
+	c.Project = activeProjectSlug()
+	c.Messages = live.Messages
+	c.Log = live.Log
+	c.Seq = live.Seq
+	c.CtxUsed = live.CtxUsed
+	c.CompactCount = live.CompactCount
+	c.ActiveTitle = live.ActiveTitle
+	c.ActiveFav = live.ActiveFav
+	c.Mode = "jean"
+	c.epoch++
+	c.pendingReplay = true
+	c.Generating = false
+	c.cancel = nil
+	c.cond.Broadcast()
+	c.mu.Unlock()
+	convLoadSuspect.Store(false) // fil retrouvé : rien à mettre de côté
 }

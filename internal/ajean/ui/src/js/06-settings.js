@@ -199,6 +199,7 @@ async function loadAgent(){
   const on = s.enabled;
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
+  const pw=document.getElementById('prewarm-toggle'); if(pw) pw.checked = (s.prewarm !== false);
   const cm = document.getElementById('compact-max');
   if(cm){
     const v = String(s.compact_max || 0);
@@ -439,6 +440,12 @@ async function enableAgent(){
   await jpost('/api/agent/toggle',{on:true});
   await loadAgent();
   return true;
+}
+// Pré-chauffage du prompt : réglage du serveur, commun à tous les appareils.
+async function togglePrewarm(){
+  const cb=document.getElementById('prewarm-toggle');
+  const r=await jpost('/api/agent/prewarm',{on:cb.checked});
+  if(!r || r.ok===false){ cb.checked=!cb.checked; toast((r&&r.error)||'erreur'); }
 }
 async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;
@@ -702,7 +709,7 @@ async function loadAll(){
   // allSettled et pas all : un seul chargement en échec (accès distant coupé,
   // clé API absente…) ne doit pas empêcher la suite — et surtout pas laisser les
   // hauteurs réservées en place pour toujours.
-  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadMemoryPreferences(),loadLlamacpp(),loadMoe(),loadRemote(),loadTasks()]);
+  await Promise.allSettled([loadStatus(),loadTelemetry(),loadCfg(),loadPresets(),loadAgent(),loadInternet(),loadComputer(),loadMCP(),loadApiKey(),loadNetwork(),loadPrefs(),loadOpen(),loadMemoryPreferences(),loadLlamacpp(),loadMoe(),loadExl3(),loadRemote(),loadTasks()]);
   releaseHeights(); // tout est en place : on rend la main et on mesure pour la prochaine fois
 }
 // Démarrer / arrêter / redémarrer le moteur. On REMONTE l'erreur si le serveur répond

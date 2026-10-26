@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -2017,16 +2018,29 @@ func healthCheck() bool {
 	// sans latence — la vraie joignabilité de l'API distante se révèle à l'appel
 	// de complétion, avec un message d'erreur clair si elle échoue. Sans ce
 	// court-circuit, StartTurn refuserait tout tour (aucun /health local).
-	if cfg := ReadConfig(); isCloudConfig(cfg) {
+	cfg := ReadConfig()
+	if isCloudConfig(cfg) {
 		return cloudReady(cfg)
 	} else if isExternalConfig(cfg) {
 		return true
 	}
 	resp, err := healthClient.Get(fmt.Sprintf("http://localhost:%d/health", LLMPort()))
 	if err != nil {
+		// ExLlama (TabbyAPI) ne répond plus à /health pendant une longue lecture
+		// de prompt : ce n'est pas un chargement. Un succès récent fait foi.
+		if isExl3Config(cfg) && time.Since(time.Unix(0, healthLastOK.Load())) < 2*time.Minute {
+			return true
+		}
 		return false
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode == 200
+	if resp.StatusCode == 200 {
+		healthLastOK.Store(time.Now().UnixNano())
+		return true
+	}
+	return false
 }
+
+// healthLastOK : instant (UnixNano) du dernier /health local réussi.
+var healthLastOK atomic.Int64

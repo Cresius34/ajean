@@ -1118,10 +1118,12 @@ func serveExl3(cfg map[string]string) error {
 		_ = os.Remove(tokens)
 	}
 	_ = os.Setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
-	// Les cartes du preset font foi (vide = toutes) : une valeur héritée de
-	// l'unité systemd (Environment=CUDA_VISIBLE_DEVICES=0) masquait la seconde
-	// carte et le parallélisme de tenseurs saturait la première.
-	if v := strings.TrimSpace(cfg["CUDA_VISIBLE_DEVICES"]); v != "" {
+	// Les cartes du preset (EXL3_GPUS, vide = toutes) font foi. Ni la clé machine
+	// CUDA_VISIBLE_DEVICES (réglée pour llama.cpp, souvent « 1,0 ») ni la valeur de
+	// l'unité systemd ne s'appliquent : elles inversaient ou masquaient les cartes.
+	// Une clé à part, car CUDA_VISIBLE_DEVICES est reportée d'un preset à l'autre
+	// (softPreservedKeys) : l'écrire ici cassait ensuite les presets llama.cpp.
+	if v := strings.TrimSpace(cfg["EXL3_GPUS"]); v != "" {
 		_ = os.Setenv("CUDA_VISIBLE_DEVICES", v)
 	} else {
 		_ = os.Unsetenv("CUDA_VISIBLE_DEVICES")

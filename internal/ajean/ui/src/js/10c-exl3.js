@@ -177,18 +177,23 @@ function exl3Model(){
   return ((exl3State && exl3State.models) || []).find(m => m.path === cur || m.name === cur) || null;
 }
 
-// Un preset ExLlama nomme toujours ses cartes (ordre PCI, celui de nvidia-smi) :
-// sans la clé, celle de la machine s'appliquerait (voir softPreservedKeys).
+// Cartes d'un preset ExLlama : clé EXL3_GPUS (ordre PCI, celui de nvidia-smi ;
+// vide = toutes), jamais CUDA_VISIBLE_DEVICES, réglage machine de llama.cpp
+// reporté d'un preset à l'autre. Un preset écrit par la 0.18.13 y avait mis ses
+// cartes : on les déplace.
 function exl3FixGpus(){
-  const all = ((exl3State && exl3State.env) || {}).gpus || [];
-  if(all.length && !cfgReadKey('CUDA_VISIBLE_DEVICES')) cfgWriteKey('CUDA_VISIBLE_DEVICES', all.map(g => g.index).join(','));
+  const old = cfgReadKey('CUDA_VISIBLE_DEVICES');
+  if(old){
+    if(!cfgReadKey('EXL3_GPUS')) cfgWriteKey('EXL3_GPUS', old);
+    cfgWriteKey('CUDA_VISIBLE_DEVICES', '');
+  }
 }
 
-// Les cartes que voit le moteur (CUDA_VISIBLE_DEVICES, vide = toutes), dans
+// Les cartes que voit le moteur (EXL3_GPUS, vide = toutes), dans
 // l'ordre CUDA : c'est cet ordre que suivent la répartition et cuda:N.
 function exl3VisibleGpus(){
   const all = ((exl3State && exl3State.env) || {}).gpus || [];
-  const sel = cfgReadKey('CUDA_VISIBLE_DEVICES').split(',').map(x=>x.trim()).filter(Boolean);
+  const sel = cfgReadKey('EXL3_GPUS').split(',').map(x=>x.trim()).filter(Boolean);
   if(!sel.length) return all;
   return sel.map(i => all.find(g => String(g.index) === i)).filter(Boolean);
 }
@@ -289,9 +294,7 @@ function onExl3Use(){
   const all = ((exl3State && exl3State.env) || {}).gpus || [];
   const used = [...document.querySelectorAll('.exl3-use')].filter(c => c.checked).map(c => c.dataset.gpu);
   if(!used.length){ toast(t('preset.exl3_need_gpu')); renderExl3Gpus(); return; }
-  // toujours explicite : vide, la valeur de la machine (`ajean gpu`, souvent
-  // héritée d'un preset llama.cpp, ex. « 1,0 ») reprendrait la main à la bascule
-  cfgWriteKey('CUDA_VISIBLE_DEVICES', used.join(','));
+  cfgWriteKey('EXL3_GPUS', used.length === all.length ? '' : used.join(','));
   // l'ordre a changé : la répartition et la carte de la vision ne correspondent plus
   cfgWriteKey('EXL3_GPU_SPLIT', '');
   cfgWriteKey('EXL3_VISION_DEVICE', '');

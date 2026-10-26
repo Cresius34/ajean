@@ -1,0 +1,595 @@
+package ajean
+
+// parallel_bridge.go — le pont Ajean↔Ajean (niveau 0).
+//
+// But : deux machines, chacune sous Ajean, se parlent. Celle qui prête son
+// cerveau expose une surface OpenAI sur le réseau local ; l'autre la déclare en
+// preset « externe » et discute avec elle. L'amont sait déjà faire les deux
+// morceaux — oaiHandler proxifie /v1/* vers le moteur (llm_oai.go:46), le preset
+// externe consomme n'importe quelle API OpenAI-compatible (backend_external.go)
+// — mais sur notre build parallèle le front n'était atteignable QUE par le
+// tunnel ajean.link, lui-même coupé (parallel_profile.go:125 et
+// parallelCommandAllowed). D'où ce listener dédié, indépendant de l'interface.
+//
+// Choix de sécurité, dans cet ordre :
+//   - le pont est ÉTEINT par défaut : ouvrir un port sur le réseau local est un
+//     exposé réel, cela se décide, jamais cela ne s'impose ;
+//   - il ne sert QUE /v1/* : ni /api/* (pilotage, mémoire, fichiers, agent), ni
+//     les pages. Toute l'interface reste en boucle locale ;
+//   - la clé API de la machine est exigée sans exception. antKeyOK admet la
+//     boucle locale sans clé (c'est le contrat de /v1/messages) ; ici une
+//     requête venant d'ailleurs est refusée, et sans clé configurée le pont
+//     refuse de démarrer — fail-closed ;
+//   - derrière, le moteur valide la même clé (--api-key,
+//     backend_moe_strata.go:225) : deux contrôles indépendants, pas un seul
+//     qu'on oublie.
+//
+// Ce que le pont ne fait PAS : il ne partage ni la mémoire, ni les outils, ni le
+// fil de conversation. B répond avec son moteur, pas avec son agent. C'est le
+// niveau 0 de l'étude (mémoire r19-faisabilite-ajean-a-ajean) ; la conversation
+// agent↔agent (/api/chat/send) et le partage d'outils (serveur MCP, inexistant)
+// viendraient après.
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+)
+
+const (
+	parallelBridgeFlagKey    = "parallel_bridge"      // "1" = pont demandé
+	parallelBridgePortKey    = "parallel_bridge_port" // écoute du pont, défaut 18190
+	parallelBridgePortDef    = "18190"
+	parallelBridgeHostEnvKey = "AJEAN_BRIDGE_HOST" // épingler une interface
+)
+
+var (
+	parallelBridgeMu sync.Mutex
+	parallelBridgeLn net.Listener
+)
+
+func parallelBridgeRequested() bool { return getBool(bkState, parallelBridgeFlagKey) }
+
+func setParallelBridgeRequested(on bool) error { return putBool(bkState, parallelBridgeFlagKey, on) }
+
+// parallelBridgeEnvForced : un lanceur peut allumer le pont sans toucher à la
+// base (AJEAN_BRIDGE=1). C'est ce qui permet de tester un pont sans repasser par
+// l'interface, et surtout sans que l'installation d'à côté hérite du réglage.
+func parallelBridgeEnvForced() bool {
+	v := strings.TrimSpace(os.Getenv("AJEAN_BRIDGE"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "on")
+}
+
+func parallelBridgeEnabled() bool { return parallelBridgeRequested() || parallelBridgeEnvForced() }
+
+// parallelBridgePort : port d'écoute du pont. Volant, comme l'interface et le
+// moteur, pour que deux instances de la même machine puissent chacune avoir le
+// leur (c'était le blocage principal de l'étude : tout était en dur).
+func parallelBridgePort() string {
+	p := strings.TrimSpace(getStr(bkState, parallelBridgePortKey))
+	if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+		return strconv.Itoa(n)
+	}
+	if p = strings.TrimSpace(os.Getenv("AJEAN_BRIDGE_PORT")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+			return strconv.Itoa(n)
+		}
+	}
+	return parallelBridgePortDef
+}
+
+// parallelBridgeHost : 0.0.0.0 par défaut (le pont sert le réseau local),
+// réductible à une interface précise quand la machine en a plusieurs.
+func parallelBridgeHost() string {
+	h := strings.TrimSpace(os.Getenv(parallelBridgeHostEnvKey))
+	if h == "" {
+		return hostAllInterfaces
+	}
+	if net.ParseIP(h) == nil {
+		return hostAllInterfaces
+	}
+	return h
+}
+
+// parallelBridgeRunning : le pont écoute-t-il à l'instant dans CE process.
+func parallelBridgeRunning() bool {
+	parallelBridgeMu.Lock()
+	defer parallelBridgeMu.Unlock()
+	return parallelBridgeLn != nil
+}
+
+// parallelBridgeListening : y a-t-il quelqu'un sur le port du pont, quel que
+// soit le process ? C'est ce que voit une commande lancée à côté de l'instance
+// en cours : la variable du listener ne vit que dans le process qui l'a ouverte.
+func parallelBridgeListening() bool {
+	if parallelBridgeRunning() {
+		return true
+	}
+	c, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", parallelBridgePort()), 400*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
+
+// parallelBridgeHandler : la surface OpenAI, bornée à /v1/* et verrouillée par
+// la clé de la machine. oaiHandler sait déjà traduire Anthropic et proxifier
+// vers le moteur avec le streaming SSE ; on ne réécrit rien, on borne.
+func parallelBridgeHandler() http.Handler {
+	oai := oaiHandler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/v1/") {
+			sendJSON(w, http.StatusNotFound, map[string]any{
+				"ok": false, "error": "pont Ajean : surface OpenAI uniquement (/v1/*)",
+			})
+			return
+		}
+		if readAPIKey() == "" {
+			sendJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":    false,
+				"error": "aucune clé API sur cette machine : le pont refuserait n'importe quel client. Définir une clé (page Réglages, section clé API) puis réessayer.",
+			})
+			return
+		}
+		if !antKeyOK(r) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="ajean-pont"`)
+			sendJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "clé API invalide"})
+			return
+		}
+		oai.ServeHTTP(w, r)
+	})
+}
+
+// startParallelBridge ouvre le listener et sert le front. Non bloquant : le
+// serveur HTTP tourne dans sa goroutine. Un port déjà pris échoue sans rien
+// arrêter d'autre — règle du build parallèle : on ne tue pas un port.
+func startParallelBridge() error {
+	parallelBridgeMu.Lock()
+	defer parallelBridgeMu.Unlock()
+	if parallelBridgeLn != nil {
+		return nil
+	}
+	if !parallelBridgeEnabled() {
+		return errors.New("pont désactivé")
+	}
+	if readAPIKey() == "" {
+		return errors.New("le pont exige une clé API machine (page Réglages, section clé API)")
+	}
+	port := parallelBridgePort()
+	if err := checkParallelPortFree(port); err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", net.JoinHostPort(parallelBridgeHost(), port))
+	if err != nil {
+		return fmt.Errorf("port du pont %s occupé ; aucun processus arrêté : %w", port, err)
+	}
+	srv := &http.Server{
+		Handler:           parallelBridgeHandler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		// Complétions longues et streaming SSE : aucun WriteTimeout.
+	}
+	parallelBridgeLn = ln
+	go func() {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Fprintf(os.Stderr, "[pont ajean] %v\n", err)
+		}
+	}()
+	n, _ := strconv.Atoi(port)
+	fw := "inconnu"
+	if !firewallInert {
+		// Le pont écoute sur le réseau local : sans règle, Windows laisse rien
+		// passer. Échec attendu sans droits administrateur — on le dit, on ne
+		// fait pas semblant d'avoir ouvert.
+		if err := firewallOpen(n); err != nil {
+			fw = "ferme"
+			fmt.Printf("[pont ajean] %s\n", firewallManualHint(n))
+		} else {
+			fw = "ouvert"
+		}
+	}
+	fmt.Printf("[pont ajean] surface OpenAI sur http://%s/v1 (pare-feu : %s)\n", net.JoinHostPort(parallelBridgeHost(), port), fw)
+	return nil
+}
+
+func stopParallelBridge() error {
+	parallelBridgeMu.Lock()
+	defer parallelBridgeMu.Unlock()
+	if parallelBridgeLn == nil {
+		return nil
+	}
+	err := parallelBridgeLn.Close()
+	parallelBridgeLn = nil
+	if !firewallInert {
+		if n, conv := strconv.Atoi(parallelBridgePort()); conv == nil {
+			_ = firewallClose(n)
+		}
+	}
+	return err
+}
+
+// parallelBridgeReconcile aligne l'écoute réelle sur le réglage enregistré. Un
+// seul endroit pour cette règle, appelée par la veille et par rien d'autre : ce
+// qui demande doit écouter, ce qui n'est plus demandé doit se taire.
+func parallelBridgeReconcile() {
+	if parallelBridgeEnabled() {
+		if !parallelBridgeRunning() {
+			if err := startParallelBridge(); err != nil {
+				fmt.Fprintf(os.Stderr, "[pont ajean] réveil refusé : %v\n", err)
+			}
+		}
+		return
+	}
+	if parallelBridgeRunning() {
+		_ = stopParallelBridge()
+	}
+}
+
+// parallelBridgeWatch rattache l'état écouté au réglage enregistré. Sans lui,
+// `ajean bridge on` lancé à côté de l'instance en cours écrirait une demande
+// que personne n'exécuterait avant le prochain redémarrage : bbolt est ouvert à
+// chaque opération, donc la commande voisine écrit bien, mais seule l'instance
+// qui tient l'interface peut ouvrir le port. Cette boucle la réveille.
+//
+// Le rythme est volontairement lent et sans E/S quand l'état colle : un
+// booléen en cache et, si ça bouge, un appel mémoire.
+func parallelBridgeWatch(stop <-chan struct{}) {
+	t := time.NewTicker(4 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			parallelBridgeReconcile()
+		}
+	}
+}
+
+// checkParallelPortFree refuse un port déjà tenu, par cette instance ou par un
+// tiers, sans jamais arrêter le tiers (parallèleBuild = on ne tue rien).
+func checkParallelPortFree(port string) error {
+	used := map[string]string{
+		parallelUIPort():     "l'interface de cette instance",
+		parallelEnginePort(): "le réglage moteur de cette instance",
+		// Le port réellement servi par le moteur peut différer du réglage (un
+		// preset importé impose PORT dans la config, et c'est lui que le proxy du
+		// pont va frapper). Les deux comptent comme pris.
+		parallelLocalEnginePort(): "le moteur de cette instance",
+		strconv.Itoa(readEmbeddingDefaults().Port): "l'encodeur de mémoire de cette instance",
+	}
+	if who, dup := used[port]; dup {
+		return fmt.Errorf("port %s déjà pris par %s", port, who)
+	}
+	if err := waitPortFree("127.0.0.1", port, 0); err != nil {
+		return fmt.Errorf("port %s occupé ; aucun processus arrêté : %w", port, err)
+	}
+	return nil
+}
+
+// parallelBridgeLanURLs : ce qu'il faut coller chez l'autre machine. On
+// n'invente aucune adresse : on reprend l'IP détectée par le panneau réseau.
+func parallelBridgeLanURLs() []string {
+	port := parallelBridgePort()
+	out := []string{"http://127.0.0.1:" + port + "/v1"}
+	if ip := strings.TrimSpace(localIP()); ip != "" && ip != "localhost" && ip != "127.0.0.1" {
+		out = append(out, "http://"+ip+":"+port+"/v1")
+	}
+	return out
+}
+
+// discoverEngineModel demande /v1/models au moteur de CETTE instance. Le nom du
+// modèle vient de lui : un preset externe qui l'invente reçoit une erreur du
+// moteur, pas une réponse vide.
+func discoverEngineModel() string {
+	base := "http://127.0.0.1:" + parallelLocalEnginePort()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/models", nil)
+	if err != nil {
+		return ""
+	}
+	if k := readAPIKey(); k != "" {
+		req.Header.Set("Authorization", "Bearer "+k)
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return ""
+	}
+	for _, m := range out.Data {
+		if id := strings.TrimSpace(m.ID); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func parallelBridgeStatus() map[string]any {
+	running := parallelBridgeRunning()
+	model := ""
+	if running {
+		model = discoverEngineModel()
+	}
+	return map[string]any{
+		"ok":          true,
+		"requested":   parallelBridgeRequested(),
+		"env_forced":  parallelBridgeEnvForced(),
+		"enabled":     parallelBridgeEnabled(),
+		"running":     running,
+		"listening":   parallelBridgeListening(),
+		"port":        parallelBridgePort(),
+		"host":        parallelBridgeHost(),
+		"has_key":     readAPIKey() != "",
+		"model":       model,
+		"urls":        parallelBridgeLanURLs(),
+		// engine_port : le port du RÉGLAGE d'instance ; engine_serving : le port
+		// que la config impose au moteur et que le pont proxifie. Les deux peuvent
+		// différer (preset importé) — les montrer évite de chercher midi à quatorze
+		// heures quand le pont répond mais ne trouve personne.
+		"engine_port":     parallelEnginePort(),
+		"engine_serving":  parallelLocalEnginePort(),
+	}
+}
+
+// handleParallelBridge : /api/bridge. GET = état ; POST {enabled, port} =
+// allumer/couper et/ou déplacer le port, à chaud.
+func handleParallelBridge(w http.ResponseWriter, r *http.Request) {
+	if !parallelBuild() {
+		sendJSON(w, http.StatusForbidden, map[string]any{
+			"ok": false, "error": "pont réservé à la version portable de Cresius",
+		})
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		sendJSON(w, http.StatusOK, parallelBridgeStatus())
+		return
+	case http.MethodPost:
+		var req struct {
+			Enabled *bool  `json:"enabled"`
+			Port    string `json:"port"`
+			Apply   bool   `json:"apply"`
+		}
+		if r.Body == nil {
+			sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "JSON attendu"})
+			return
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
+			sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "JSON invalide"})
+			return
+		}
+		if req.Port != "" {
+			n, err := strconv.Atoi(strings.TrimSpace(req.Port))
+			if err != nil || n < 1025 || n > 65534 {
+				sendJSON(w, http.StatusBadRequest, map[string]any{
+					"ok": false, "error": "port du pont invalide : " + req.Port + " (choisir entre 1025 et 65534)",
+				})
+				return
+			}
+			p := strconv.Itoa(n)
+			if err := stopParallelBridge(); err != nil {
+				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			if err := checkParallelPortFree(p); err != nil {
+				sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			if err := putStr(bkState, parallelBridgePortKey, p); err != nil {
+				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+		}
+		if req.Enabled != nil {
+			if err := setParallelBridgeRequested(*req.Enabled); err != nil {
+				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+			if err := stopParallelBridge(); err != nil {
+				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+		}
+		// Rien n'est écouté « à la demande » : soit le pont tourne, soit il est
+		// éteint. On ne le rallume que si on le peut, et on le dit.
+		if parallelBridgeEnabled() && !parallelBridgeRunning() {
+			if err := startParallelBridge(); err != nil {
+				st := parallelBridgeStatus()
+				st["ok"] = false
+				st["error"] = err.Error()
+				sendJSON(w, http.StatusOK, st)
+				return
+			}
+		}
+		sendJSON(w, http.StatusOK, parallelBridgeStatus())
+		return
+	default:
+		sendJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "GET ou POST"})
+	}
+}
+
+// cmdParallelBridge : `ajean bridge status|on|off [port]|serve [port]`. Le
+// drapeau est écrit dans la base : l'instance en cours le prend à chaud par
+// /api/bridge, ou au prochain démarrage. Une seconde instance, elle, ne peut pas
+// hériter du réglage de l'autre — chaque dossier a sa base.
+//
+// `serve` tient le pont au premier plan, sans interface ni tray : c'est la
+// manière de prêter un cerveau depuis un terminal, ou un autre binaire.
+func cmdParallelBridge(args []string) error {
+	sub := "status"
+	if len(args) > 0 {
+		sub = strings.ToLower(strings.TrimSpace(args[0]))
+		args = args[1:]
+	}
+	port := ""
+	if len(args) > 0 {
+		port = strings.TrimSpace(args[0])
+	}
+	switch sub {
+	case "status", "etat":
+		st := parallelBridgeStatus()
+		fmt.Printf("pont Ajean   : demandé=%v  actif=%v  à l'écoute=%v (ici=%v)\n", st["requested"], st["enabled"], st["listening"], st["running"])
+		fmt.Printf("écoute       : http://%s/v1\n", net.JoinHostPort(parallelBridgeHost(), parallelBridgePort()))
+		if ep, ok := st["engine_serving"].(string); ok {
+			fmt.Printf("moteur prêté : 127.0.0.1:%s\n", ep)
+		}
+		if !st["has_key"].(bool) {
+			fmt.Printf("%s aucune clé API machine : le pont refuserait tout client, il ne démarrera pas\n", yellow("[!]"))
+			fmt.Printf("             → ajean set-api-key <une-longue-cle>\n")
+		}
+		// Le pare-feu est la cause n°1 d'un pont « ouvert » que la machine
+		// d'à côté n'atteint pas. Le dire ici évite une heure de diagnostics.
+		if n, conv := strconv.Atoi(parallelBridgePort()); conv == nil {
+			switch fw := firewallState(n); fw {
+			case "ouvert":
+				fmt.Printf("pare-feu     : %s\n", green("port autorisé"))
+			case "ferme":
+				fmt.Printf("pare-feu     : %s\n", yellow("aucune règle pour ce port — invisible depuis une autre machine"))
+				fmt.Printf("             %s\n", firewallManualHint(n))
+			}
+		}
+		for _, u := range parallelBridgeLanURLs() {
+			fmt.Printf("coller chez l'autre Ajean : %s\n", u)
+		}
+		if m := discoverEngineModel(); m != "" {
+			fmt.Printf("modèle       : %s\n", m)
+		} else {
+			fmt.Printf("%s aucun moteur ne répond sur ce port : le pont n'a rien à prêter\n", yellow("[!]"))
+		}
+		return nil
+	case "on", "activer":
+		if port != "" {
+			n, err := strconv.Atoi(port)
+			if err != nil || n < 1025 || n > 65534 {
+				return fmt.Errorf("port du pont invalide : %s (choisir entre 1025 et 65534)", port)
+			}
+			if err := putStr(bkState, parallelBridgePortKey, strconv.Itoa(n)); err != nil {
+				return err
+			}
+		}
+		if err := setParallelBridgeRequested(true); err != nil {
+			return err
+		}
+		if readAPIKey() == "" {
+			fmt.Printf("%s sans clé API machine il ne démarrera pas : ajean set-api-key\n", yellow("[!]"))
+		}
+		// Cette commande écrit la demande ; elle ne tient pas l'écoute. Un
+		// process CLI qui ouvrirait le port mourrait avec lui, et la machine
+		// croirait à un pont ouvert. C'est donc l'instance en cours qui ouvre
+		// (la veille le fait en quelques secondes), ou `bridge serve` si aucune
+		// instance ne tourne.
+		fmt.Printf("%s demande enregistrée : port %s\n", green("[ok]"), parallelBridgePort())
+		if parallelBridgeListening() {
+			fmt.Printf("       l'instance en cours l'appliquera d'elle-même en quelques secondes.\n")
+		} else {
+			fmt.Printf("       aucune instance de ce dossier n'est en cours : tiens le pont toi-même avec\n")
+			fmt.Printf("       %s\n", bold("ajean bridge serve"))
+		}
+		return nil
+	case "off", "couper":
+		if err := setParallelBridgeRequested(false); err != nil {
+			return err
+		}
+		if err := stopParallelBridge(); err != nil {
+			return err
+		}
+		if parallelBridgeListening() {
+			fmt.Printf("%s demande coupée ; un pont écoute encore sur %s : l'instance en cours doit le couper, ou un autre programme tient ce port.\n", yellow("[!]"), parallelBridgePort())
+			return nil
+		}
+		fmt.Printf("%s pont coupé (plus aucune écoute sur le réseau local)\n", green("[ok]"))
+		return nil
+	case "serve", "ecouter", "écoute":
+		return parallelBridgeServe()
+	default:
+		return fmt.Errorf("usage : ajean bridge [status|on [port]|off|serve [port]]")
+	}
+}
+
+// parallelBridgeServe tient le pont au premier plan : pas d'interface, pas de
+// tray, rien d'exposé d'autre que /v1/*. Le moteur local est démarré s'il
+// manque — un pont qui prête un cerveau sans cerveau ne sert à rien.
+func parallelBridgeServe() error {
+	fmt.Printf("données : %s\n", AjeanHome())
+	if readAPIKey() == "" {
+		return errors.New("le pont exige une clé API machine : ajean set-api-key <clé>")
+	}
+	if err := setParallelBridgeRequested(true); err != nil {
+		return err
+	}
+	if err := ensureParallelEnginePort(); err != nil {
+		return err
+	}
+	// Le moteur est-il déjà là ? Un moteur lancé à la main (ou par l'instance en
+	// cours) répond à /v1/models : on ne va pas en lancer un second sur le même
+	// port, et on n'exige pas que le preset soit « actif » dans ce process-ci.
+	if m := discoverEngineModel(); m != "" {
+		fmt.Printf("[pont ajean] moteur déjà en service sur 127.0.0.1:%s (%s)\n", parallelLocalEnginePort(), m)
+	} else {
+		fmt.Printf("[pont ajean] moteur absent : démarrage sur 127.0.0.1:%s …\n", parallelLocalEnginePort())
+		if err := parallelServiceAction("start"); err != nil {
+			return fmt.Errorf("moteur introuvable : %w", err)
+		}
+		if err := waitEngineReady(120 * time.Second); err != nil {
+			return err
+		}
+	}
+	if err := startParallelBridge(); err != nil {
+		return err
+	}
+	fmt.Printf("[pont ajean] à l'écoute. Coller chez l'autre Ajean (preset externe) :\n")
+	for _, u := range parallelBridgeLanURLs() {
+		fmt.Printf("    %s\n", u)
+	}
+	if m := discoverEngineModel(); m != "" {
+		fmt.Printf("  modèle : %s\n", m)
+	}
+	fmt.Printf("Ctrl-C pour couper.\n")
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	<-signals
+	signal.Stop(signals)
+	_ = stopParallelBridge()
+	_ = setParallelBridgeRequested(false)
+	_ = parallelServiceAction("stop")
+	fmt.Printf("\n[pont ajean] coupé.\n")
+	return nil
+}
+
+// waitEngineReady attend que le moteur réponde à /v1/models — la preuve qu'il
+// peut servir, pas seulement qu'un process existe.
+func waitEngineReady(max time.Duration) error {
+	deadline := time.Now().Add(max)
+	for time.Now().Before(deadline) {
+		if discoverEngineModel() != "" {
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("moteur prêt nulle part sur 127.0.0.1:%s après %s", parallelLocalEnginePort(), max)
+}

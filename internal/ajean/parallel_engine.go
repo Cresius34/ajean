@@ -75,11 +75,19 @@ func parallelServiceAction(action string) error {
 	if _, err := normalizeParallelConfig(ReadConfig()); err != nil {
 		return err
 	}
+	// La config doit porter le port que le moteur va réellement écouter. Sans
+	// ça, un dossier sans preset importé a PORT vide : le moteur est lancé avec
+	// --port 18080 mais LLMPort() répond 8080, et tout ce qui parle au moteur en
+	// local (sonde, pont, page Moteur) frappe une porte vide.
+	if err := ensureParallelEnginePort(); err != nil {
+		return err
+	}
 	if err := preflightEngine(); err != nil {
 		return err
 	}
-	if err := waitPortFree("127.0.0.1", parallelChatPort, 0); err != nil {
-		return fmt.Errorf("port 18080 occupé : aucun processus arrêté ; %w", err)
+	port := parallelLocalEnginePort()
+	if err := waitPortFree("127.0.0.1", port, 0); err != nil {
+		return fmt.Errorf("port moteur %s occupé : aucun processus arrêté ; %w", port, err)
 	}
 	self, err := os.Executable()
 	if err != nil {
@@ -139,5 +147,5 @@ func stopParallelEngine() error {
 		parallelEngine.p = nil
 	}
 	parallelEngine.Unlock()
-	return waitPortFree("127.0.0.1", parallelChatPort, 15*time.Second)
+	return waitPortFree("127.0.0.1", parallelLocalEnginePort(), 15*time.Second)
 }

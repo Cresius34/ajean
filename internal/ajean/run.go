@@ -99,6 +99,8 @@ func Main() {
 		mustExit(cmdUI(args))
 	case "oai":
 		mustExit(cmdOAI(args))
+	case "bridge":
+		mustExit(cmdParallelBridge(args))
 	case "agent":
 		mustExit(cmdAgent(args))
 	case "internet":

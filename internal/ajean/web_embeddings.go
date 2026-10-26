@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -194,8 +195,13 @@ func connectParallelChat(ctx context.Context, base, key string) error {
 	default:
 		return errors.New("utiliser une adresse de boucle locale")
 	}
-	if u.Port() == "18090" || u.Port() == "18081" {
-		return errors.New("utiliser le port de Swift, normalement 8080")
+	// Se brancher sur soi-même est une boucle, pas une connexion. Les ports
+	// comparés sont ceux de CETTE instance (plus des nombres figés) : une copie
+	// décalée sur 18094 doit être protégée exactement comme l'installation type.
+	enc := readEmbeddingDefaults().Port
+	switch u.Port() {
+	case parallelUIPort(), parallelEnginePort(), parallelBridgePort(), strconv.Itoa(enc):
+		return errors.New("utiliser l'URL d'un autre Ajean ou d'un autre moteur, pas celle de celui-ci")
 	}
 	u.RawQuery, u.Fragment = "", ""
 	if !strings.HasSuffix(u.Path, "/v1") {

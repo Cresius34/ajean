@@ -24,7 +24,7 @@ func runTray(url string) {
 		title, tip := "AJEAN", "AJEAN — votre IA locale"
 		if parallelBuild() {
 			title = "AJEAN Mémoire TEST"
-			tip = "AJEAN Mémoire TEST — port 18090"
+			tip = "AJEAN Mémoire TEST — port " + parallelUIPort()
 		}
 		systray.SetIcon(trayIcon())
 		systray.SetTitle(title)

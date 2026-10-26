@@ -417,7 +417,10 @@ func cmdServe(args []string) error {
 	// together so a path with spaces stays one argument.
 	llmArgs = append(llmArgs, splitArgs(cfg["EXTRA_ARGS"])...)
 	if parallelBuild() {
-		llmArgs = append(parallelNetworkArgs(llmArgs), "--host", "127.0.0.1", "--port", parallelChatPort)
+		// parallelLocalEnginePort : le port que LLMPort() annonce. Le moteur doit
+		// écouter exactement là où le proxy du pont et la sonde frappent ; sinon le
+		// pont répond et ne trouve personne.
+		llmArgs = append(parallelNetworkArgs(llmArgs), "--host", "127.0.0.1", "--port", parallelLocalEnginePort())
 	}
 
 	// Compat llama.cpp récent : --mlock / --no-mmap ont été REMPLACÉS par

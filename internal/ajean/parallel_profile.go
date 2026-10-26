@@ -103,7 +103,13 @@ func initParallelProfile() error {
 
 func parallelCommandAllowed(cmd string) bool {
 	switch cmd {
-	case "app", "web", "help", "-h", "--help", "version", "-v", "--version", "where", "serve", "import-presets":
+	case "app", "web", "help", "-h", "--help", "version", "-v", "--version", "where", "serve", "import-presets", "bridge":
+		return true
+	// La clé API machine se définit déjà depuis l'interface (/api/apikey n'est
+	// pas bloqué par parallelHTTPHandler). Sans elle, le pont Ajean↔Ajean ne
+	// peut tout simplement pas exister : antKeyOK n'admet personne. La CLI
+	// portable doit donc pouvoir la poser, comme l'UI le fait déjà.
+	case "set-api-key":
 		return true
 	}
 	return false
@@ -134,11 +140,16 @@ func parallelHTTPHandler(next http.Handler) http.Handler {
 }
 
 func cmdParallelApp() error {
-	const addr = "127.0.0.1:18090"
-	url := "http://127.0.0.1:18090/?memory-test=" + displayVersion()
+	// Le port de l'interface se lit, il ne s'impose plus : deux installations
+	// côte à côte (la vivante et une copie de réparation, ou les deux moitiés
+	// d'un pont Ajean↔Ajean sur la même machine) doivent pouvoir démarrer sans
+	// se voler 18090. AJEAN_UI_PORT ou la clé parallel_ui_port décalent.
+	port := parallelUIPort()
+	addr := "127.0.0.1:" + port
+	url := "http://" + addr + "/?memory-test=" + displayVersion()
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("port d’essai 18090 occupé ; aucun processus arrêté : %w", err)
+		return fmt.Errorf("port d’interface %s occupé ; aucun processus arrêté : %w (décaler avec AJEAN_UI_PORT=18094)", port, err)
 	}
 	defer ln.Close()
 	defer stopEmbeddingServer()
@@ -154,7 +165,25 @@ func cmdParallelApp() error {
 		root, _ := filepath.Abs(memoryDir())
 		queueEmbeddingIndex(root, c)
 	}
-	fmt.Printf("AJEAN mémoire — %s\n%s\nDonnées : %s\nMoteur local du TEST : 127.0.0.1:18080 ; API existante disponible par preset.\n", displayVersion(), url, AjeanHome())
+	// Le moteur doit annoncer le port qu'il écoute vraiment : la config porte
+	// PORT, et tout ce qui parle au moteur en local passe par LLMPort().
+	if err := ensureParallelEnginePort(); err != nil {
+		fmt.Printf("[moteur] port non aligné : %v\n", err)
+	}
+	// Le pont Ajean↔Ajean s'allume ici, dans le process qui tient déjà la base :
+	// la clé API est relue à chaque requête, donc une clé définie après le
+	// démarrage est valable immédiatement. Éteint par défaut : rien ne s'expose
+	// tout seul. La veille rattache l'écoute au réglage, pour qu'un
+	// « ajean bridge on » lancé à côté de cette instance prenne sans redémarrer.
+	bridgeStop := make(chan struct{})
+	defer close(bridgeStop)
+	if parallelBridgeEnabled() {
+		if err := startParallelBridge(); err != nil {
+			fmt.Printf("[pont ajean] non démarré : %v\n", err)
+		}
+	}
+	go parallelBridgeWatch(bridgeStop)
+	fmt.Printf("AJEAN — %s\n%s\nDonnées : %s\nMoteur local : 127.0.0.1:%s ; API existante disponible par preset.\n", displayVersion(), url, AjeanHome(), parallelLocalEnginePort())
 	_ = openBrowser(url) // normal browser tab: a separate profile is unnecessary
 	runTray(url)
 	return nil

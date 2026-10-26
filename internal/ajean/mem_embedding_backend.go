@@ -94,8 +94,14 @@ func saveEmbeddingConfig(c embeddingConfig) error {
 
 func validateEmbeddingConfig(c embeddingConfig) error {
 	c = normalizeEmbeddingConfig(c)
-	if c.Port < 1024 || c.Port > 65535 || c.Port == 8080 || c.Port == 8090 || c.Port == 18080 || c.Port == 18090 {
-		return errors.New("port encodeur invalide ou réservé (utiliser 18081)")
+	// Les ports défendus ici ne sont plus des nombres gravés : ce sont ceux que
+	//occupe déjà CETTE instance (interface, moteur, pont). 8080/8090 restent
+	// réservés parce que c'est l'empreinte d'une installation de production, et
+	// 18090/18080 demeurent les défauts — mais une copie décalée sur 18094/18084
+	// ne doit plus voir son encodeur refusé pour un chiffre obsolète.
+	if c.Port < 1024 || c.Port > 65535 || c.Port == 8080 || c.Port == 8090 ||
+		strconv.Itoa(c.Port) == parallelUIPort() || strconv.Itoa(c.Port) == parallelEnginePort() || strconv.Itoa(c.Port) == parallelBridgePort() {
+		return errors.New("port encodeur invalide ou déjà pris par cette instance (utiliser 18081)")
 	}
 	if c.Threads < 1 || c.Threads > 64 {
 		return errors.New("threads CPU : 1 à 64")

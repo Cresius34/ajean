@@ -219,7 +219,7 @@ func moeStrataBuildConfig(base map[string]any, c map[string]string, key string) 
 	out["host"] = "127.0.0.1"
 	port := firstNonEmpty(c["PORT"], "8080")
 	if parallelBuild() {
-		port = parallelChatPort
+		port = parallelEnginePort()
 	}
 	out["port"], _ = strconv.Atoi(port)
 	if key != "" {

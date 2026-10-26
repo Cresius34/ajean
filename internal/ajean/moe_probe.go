@@ -138,7 +138,7 @@ func handleMoeProbe(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
-	result := probeMoe(ctx, &http.Client{Timeout: 90 * time.Second}, "http://127.0.0.1:"+parallelChatPort, readAPIKey())
+	result := probeMoe(ctx, &http.Client{Timeout: 90 * time.Second}, "http://127.0.0.1:"+parallelLocalEnginePort(), readAPIKey())
 	result.Backend, result.Context = c["MOE_BACKEND"], c["CTX"]
 	path := filepath.Join(moeHome(), "proofs", "test-"+time.Now().UTC().Format("20060102-150405.000000000")+".json")
 	if err := parallelWritablePath(path); err == nil {

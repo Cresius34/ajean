@@ -4,10 +4,86 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
-const parallelChatPort = "18080"
+// parallelEnginePortDef : le port historique du moteur sur ce build. Il n'est
+// plus une constante gravée dans le marbre : deux installations côte à côte sur
+// la même machine doivent pouvoir avancer chacune de leur côté (l'étude du pont
+// Ajean↔Ajean butait là — tout était en dur, donc une seconde instance était
+// impossible). Le réglage se lit dans la base, la clé reste « PORT » comme
+// partout ailleurs.
+const parallelEnginePortDef = "18080"
+
+// parallelEnginePort : port du moteur MoE de CETTE instance. Relu à chaque appel
+// (le cache du store est invalidé par l'écriture d'un autre process), donc
+// modifiable sans recompiler.
+func parallelEnginePort() string {
+	if p := strings.TrimSpace(getStr(bkState, "parallel_engine_port")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+			return strconv.Itoa(n)
+		}
+	}
+	if p := strings.TrimSpace(os.Getenv("AJEAN_ENGINE_PORT")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+			return strconv.Itoa(n)
+		}
+	}
+	return parallelEnginePortDef
+}
+
+// parallelUIPort : port de l'interface. 18090 reste le défaut — c'est ce que
+// connaissent nos lanceurs — mais il devient réglable, par la base ou par
+// l'environnement (AJEAN_UI_PORT), pour qu'une seconde copie démarre sans
+// voler le port de la première.
+func parallelUIPort() string {
+	if p := strings.TrimSpace(os.Getenv("AJEAN_UI_PORT")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+			return strconv.Itoa(n)
+		}
+	}
+	if p := strings.TrimSpace(getStr(bkState, "parallel_ui_port")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1025 && n <= 65534 {
+			return strconv.Itoa(n)
+		}
+	}
+	return parallelUIPortDef
+}
+
+const parallelUIPortDef = "18090"
+
+// parallelLocalEnginePort : le port où le moteur de CETTE instance sert
+// réellement. La config porte un PORT (écrit à l'import d'un preset, ou par
+// ensureParallelEnginePort) ; c'est lui que lit LLMPort(), donc le proxy du pont
+// et le --port du lancement. parallelEnginePort() seul serait un réglage
+// d'instance qui peut ne pas coller à la config : le pont annoncerait alors un
+// port et en frapperait un autre.
+func parallelLocalEnginePort() string {
+	if p := strings.TrimSpace(ReadConfig()["PORT"]); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n > 0 {
+			return strconv.Itoa(n)
+		}
+	}
+	return parallelEnginePort()
+}
+
+// ensureParallelEnginePort aligne la config sur le réglage d'instance. Sans ça,
+// un dossier sans preset importé a PORT vide → LLMPort() retombe sur 8080, un
+// port que nos garde-fous interdisent et que personne n'écoute. Un seul écrit,
+// idempotent.
+func ensureParallelEnginePort() error {
+	want := parallelEnginePort()
+	if strings.TrimSpace(ReadConfig()["PORT"]) == want {
+		return nil
+	}
+	return SetConfigKey("PORT", want)
+}
+
+// parallelEnginePortFor n'existe pas : un preset n'a PAS son mot à dire sur le
+// port du moteur. normalizeParallelConfig l'écrase par celui de l'instance, ce
+// qui maintient la garantie d'origine (un preset importé de la production ne
+// renvoie jamais le moteur d'essai vers 8080, ni vers un port voisin).
 
 // Presets imported from production must never redirect the test engine to
 // port 8080, including a late override hidden in EXTRA_ARGS.
@@ -37,7 +113,7 @@ func normalizeParallelConfig(cfg map[string]string) (map[string]string, error) {
 	for k, v := range cfg {
 		next[k] = v
 	}
-	next["HOST"], next["PORT"] = "127.0.0.1", parallelChatPort
+	next["HOST"], next["PORT"] = "127.0.0.1", parallelEnginePort()
 	if isStrataMoe(next) {
 		for _, key := range []string{"MOE_CONFIG", "MOE_SOURCE", "MOE_PYTHON"} {
 			p := next[key]

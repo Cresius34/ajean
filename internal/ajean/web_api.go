@@ -530,6 +530,12 @@ func handlePresets(w http.ResponseWriter, r *http.Request) {
 				if cfg["MOE_VISION"] != "0" {
 					item["vision"] = true
 				}
+			} else if cfg := parseEnv(content); isExl3Config(cfg) {
+				item["engine"] = "exl3"
+				item["quant"] = exl3QuantLabel(cfg)
+				if cfg["EXL3_VISION"] == "1" {
+					item["vision"] = true
+				}
 			} else if cfg := parseEnv(content); isCloudConfig(cfg) {
 				item["cloud"] = cloudGPU(cfg)
 				if strings.TrimSpace(cfg[cloudKeyMM]) != "" {
@@ -537,7 +543,7 @@ func handlePresets(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			ext := isExternalConfig(parseEnv(content))
-			if q := detectQuant(content); q != "" && !ext {
+			if q := detectQuant(content); q != "" && !ext && item["engine"] == nil {
 				item["quant"] = q
 			}
 			if c := presetCtx(content); c != "" && !ext {

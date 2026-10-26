@@ -1,13 +1,15 @@
-Le premier message d'une nouvelle conversation obtient sa réponse beaucoup plus vite, et un arrêt pendant une série d'outils ne bloque plus la conversation.
+AJEAN peut désormais faire tourner les modèles EXL3 avec ExLlamaV3, à côté de llama.cpp, avec la même facilité : installation en un clic, mise à jour, et réglages dans l'éditeur de modèle.
 
-## Nouveauté
+## Nouveauté : moteur ExLlama
 
-- **Pré-chauffage du prompt** : dès qu'une nouvelle conversation est ouverte, le moteur lit à l'avance les consignes et la description des outils. Le premier message ne paie plus cette lecture. Mesuré avec le moteur MoE : le premier mot arrive en 0,3 s au lieu de 4,3 s en mode Projet, et en 0,3 s au lieu de 5,9 s en mode Jean. Avec llama-server, le gain porte surtout sur le premier message après le démarrage du moteur. Le pré-chauffage ne part que si la conversation ouverte est vide : une conversation en cours garde son cache. Il est actif par défaut et se coupe dans Paramètres > Général (« pré-chauffage du prompt »). Contribution de youtsuhodev (#163).
+- **Installation sans prérequis** : une nouvelle ligne « ExLlama » dans la section Moteur installe TabbyAPI et ExLlamaV3 avec leurs dépendances précompilées (PyTorch, CUDA 12 ou 13 selon le pilote). Python est téléchargé et géré par AJEAN : rien n'est à installer sur la machine. Environ 4 Go à télécharger, 10 Go sur le disque. L'installation par défaut prend une version validée, avec des dépendances figées.
+- **Mise à jour et désinstallation** depuis la même fenêtre, qui indique les versions installées (ExLlamaV3, TabbyAPI, PyTorch) et si une version plus récente existe. La mise à jour installe la dernière version de TabbyAPI et la version d'ExLlamaV3 qu'elle demande ; la version en place reste utilisable jusqu'à la fin de l'installation, et un modèle ExLlama actif est relancé. La désinstallation conserve les modèles.
+- **Téléchargement de modèles EXL3** : il suffit de coller le lien d'une branche d'un dépôt Hugging Face (par exemple `https://huggingface.co/<dépôt>/tree/4.0bpw`). Les fichiers arrivent dans `models/exl3`, le suivi et l'arrêt se font comme pour llama.cpp.
+- **Choix du moteur par modèle** : l'éditeur de modèle propose « ExLlama » à côté des moteurs llama.cpp. Les réglages propres à llama.cpp laissent alors place à ceux d'ExLlama : dossier du modèle, contexte, taille et précision du cache, utilisateurs simultanés, lecture du prompt par blocs, décodage spéculatif (MTP, n-gram ou modèle brouillon) avec MTP adaptatif en option, accélération des recopies, raisonnement et budget de réflexion, vision et carte de l'encodeur d'images, cartes utilisées, répartition en Go par carte, parallélisme de tenseurs.
+- Le moteur sert sur le même port et avec la même clé que llama-server : chat, vision, bench, accès distant et endpoint OpenAI fonctionnent sans autre réglage.
+- **Ligne de commande** : `ajean exl3 install`, `update`, `download <lien>`, `status`, `uninstall`.
 
-## Corrections
-
-- **Conversation bloquée après un arrêt** : un arrêt pendant une série d'appels d'outils laissait dans l'historique des appels sans réponse. Le moteur refusait ensuite chaque nouveau message (erreur 400), et la conversation restait inutilisable. Les réponses manquantes sont maintenant complétées, y compris dans les conversations déjà bloquées par une version précédente. Une image affichée par l'IA au milieu d'une série d'outils est aussi replacée après la série. Contribution de oh-codes (#171).
-- **Mode Jean, saisie au clavier** : après une réponse, taper une lettre ne rouvrait plus la bulle de saisie. Les caractères partaient dans le champ caché. Contribution de oh-codes (#164).
+Mesuré sur un serveur Linux à deux cartes NVIDIA, avec Qwen 3.8 27B en EXL3 4 bits : 54 jetons/s en génération, 88 en recopie de code, 740 en lecture du prompt, soit la même vitesse qu'un TabbyAPI installé et réglé à la main.
 
 ## Mise à jour
 
@@ -15,4 +17,4 @@ Le premier message d'une nouvelle conversation obtient sa réponse beaucoup plus
 ajean update
 ```
 
-Testé sur un serveur Linux avec le moteur MoE et avec llama-server (Qwen 3.8, MTP). Le pré-chauffage n'a pas été testé avec une API externe : il ne s'y applique pas.
+ExLlama est proposé sous Linux et Windows avec une carte NVIDIA (pilote 570 ou plus récent). Testé sous Linux uniquement : l'installation sous Windows n'a pas été essayée.

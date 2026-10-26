@@ -101,6 +101,8 @@ func Main() {
 		mustExit(cmdOAI(args))
 	case "bridge":
 		mustExit(cmdParallelBridge(args))
+	case "peer":
+		mustExit(cmdParallelPeer(args))
 	case "agent":
 		mustExit(cmdAgent(args))
 	case "internet":

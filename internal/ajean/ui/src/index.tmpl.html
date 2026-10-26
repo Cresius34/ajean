@@ -251,6 +251,20 @@
       <div class="subhead"><span>Recevoir un cerveau</span></div>
       <div class="rowbody"><p class="muted" style="margin:0">Pour que CETTE installation utilise le modèle d’un autre Ajean : Presets → <b>API Externe</b>, et y coller l’adresse du pont de l’autre machine avec la clé API de cette machine-là. L’adresse d’un pont allumé sur cette même machine est refusée — une instance ne se parle pas à elle-même.</p></div>
     </div>
+    <!-- Le canal, dans l’autre sens : ce n’est plus prêter ni emprunter un
+         cerveau, c’est parler à une autre IA. Chaque voisin garde SON modèle, SA
+         mémoire, ses réglages ; seul le texte traverse. Déclaré à la main, jamais
+         découvert. Cette partie n’apparaît que si /api/peers répond (build
+         portable de Cresius). -->
+    <div class="slist" id="peers-block" hidden>
+      <div class="subhead"><span>Parler à un autre Ajean</span></div>
+      <div class="rowbody"><p class="muted" style="margin:0">Un voisin garde son propre modèle et sa propre mémoire : l’outil <code>peer</code> lui envoie des messages et garde le souvenir de l’échange. Rien ne s’exécute de l’autre côté, et rien ici à sa demande.</p></div>
+      <div id="peers-list"></div>
+      <div class="api-line"><input id="peer-name" class="api-val" placeholder="nom (ex. poste-salon)" style="max-width:150px">
+        <input id="peer-url" class="api-val" placeholder="http://192.168.1.71:18190/v1">
+        <input id="peer-key" class="api-val" type="password" placeholder="clé API de l’autre machine" style="max-width:190px">
+        <button type="button" class="sw-action" onclick="peerAdd()">Ajouter</button></div>
+    </div>
   </details>
   <details id="lc-details"><summary><span class="stitle" data-i18n="engine.title">Engine</span></summary>
     <!-- Une seule carte : état, choix du mode et journal d'installation sont le

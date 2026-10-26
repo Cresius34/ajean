@@ -474,6 +474,13 @@ func EnabledTools(caps Caps) []Tool {
 		// agent — le compactage n'injecte les ids rappelables que là (voir
 		// compactSummaryUserMsg). Voir chat_recall.go.
 		tools = append(tools, recallTool(), recallSearchTool())
+		// Le canal Ajean↔Ajean : parler à UNE AUTRE IA du réseau local, par-dessus
+		// le pont. Annoncé seulement si l'installation est portable ET qu'au moins
+		// un voisin est déclaré — proposer un outil sans destinataire ferait croire
+		// au modèle qu'il a un interlocuteur qu'il n'a pas.
+		if parallelBuild() && peerConfigured() {
+			tools = append(tools, peerTool())
+		}
 		// Voir une image/vidéo du disque : seulement quand la vision est réellement
 		// active (projecteur MMPROJ). Sinon l'outil ne pourrait que renvoyer une
 		// erreur, et l'annoncer ferait croire au modèle qu'il a des yeux qu'il n'a pas.
@@ -1409,6 +1416,8 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 						key = "url"
 					case "task_create", "task_update", "tracker":
 						key = "name"
+					case "peer":
+						key = "peer"
 					case "task_delete", "recall":
 						key = "id"
 					case "app":
@@ -1714,6 +1723,13 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if label == "" {
 						label = "vue d'ensemble"
 					}
+				case "peer":
+					act, _ := args["action"].(string)
+					who, _ := args["peer"].(string)
+					label = strings.TrimSpace(act + " " + who)
+					if label == "" {
+						label = "voisins"
+					}
 				default:
 					// Outils MCP : libellé = un aperçu compact des arguments.
 					if isMCPTool(tc.Function.Name) {
@@ -1869,6 +1885,8 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					default: // view
 						result = trackerView(nm, wh)
 					}
+				case "peer":
+					result = runPeerTool(args)
 				case "write":
 					content, _ := args["content"].(string)
 					result = fileWriteIn(ctx, label, content)

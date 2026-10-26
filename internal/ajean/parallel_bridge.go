@@ -31,6 +31,7 @@ package ajean
 // viendraient après.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,6 +39,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -125,8 +127,14 @@ func parallelBridgeListening() bool {
 }
 
 // parallelBridgeHandler : la surface OpenAI, bornée à /v1/* et verrouillée par
-// la clé de la machine. oaiHandler sait déjà traduire Anthropic et proxifier
-// vers le moteur avec le streaming SSE ; on ne réécrit rien, on borne.
+// la clé de la machine.
+//
+// Le point important : le pont ne doit PAS être collé à un llama-server local.
+// Ce que la machine prête, c'est le preset ACTIF, exactement comme le chat local
+// le voit — resolveChatEndpoint() est le seul arbitre. Un pont branché sur le
+// seul port du moteur échouerait dès que la machine prête un modèle distant
+// (preset « API Externe », GPU cloud) ou un moteur qui n'écoute pas là où on
+// l'attend. Anthropic passe déjà par là (anthropicHandler → resolveChatEndpoint).
 func parallelBridgeHandler() http.Handler {
 	oai := oaiHandler()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,9 +156,173 @@ func parallelBridgeHandler() http.Handler {
 			sendJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "clé API invalide"})
 			return
 		}
+		if ep := resolveChatEndpoint(); (ep.External || ep.Cloud) && !isAnthropicPath(r.URL.Path) {
+			if bridgePointsToItself(ep) {
+				sendJSON(w, http.StatusConflict, map[string]any{
+					"ok": false,
+					"error": fmt.Sprintf("le preset prêté (%s) pointe sur ce pont-ci : boucle sans fin. Deux Ajean sur le même PC doivent prêter un moteur à l'autre, pas se prêter eux-mêmes.", ep.URL),
+				})
+				return
+			}
+			bridgeRemoteHandler(ep).ServeHTTP(w, r)
+			return
+		}
 		oai.ServeHTTP(w, r)
 	})
 }
+
+// bridgePointsToItself : le preset prêté est-ce ce pont ? Le piège est classique
+// quand on fait dialoguer deux Ajean sur le même PC : le preset « externe » colle
+// l'URL du pont local, et chaque appel se renvoie à lui-même jusqu'à saturer les
+// sockets. Mieux vaut un refus lisible qu'un 502 incompréhensible.
+func bridgePointsToItself(ep chatEndpoint) bool {
+	u, err := url.Parse(completionsURL(ep.URL))
+	if err != nil {
+		return false
+	}
+	port := u.Port()
+	if port == "" {
+		port = "80"
+	}
+	if port != parallelBridgePort() {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" || host == "localhost" || host == "::1" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+		return true
+	}
+	// Une des adresses de cette machine (celles que le pont annonce lui-même).
+	for _, raw := range parallelBridgeLanURLs() {
+		if lu, err := url.Parse(raw); err == nil && lu.Hostname() == host {
+			return true
+		}
+	}
+	return false
+}
+
+// bridgeRemoteHandler : le preset prêté est un endpoint distant. Le pont rejoue
+// alors ce que fait le chat local : il forwarding vers CETTE URL avec CETTE clé,
+// en imposant le modèle du preset. Le client du réseau local n'a donc pas à
+// connaître l'identifiant exact du modèle prêté — il envoie ce qu'il veut, la
+// machine qui prête décide qui répond.
+func bridgeRemoteHandler(ep chatEndpoint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/models":
+			bridgeRemoteModels(w, r, ep)
+			return
+		case "/v1/chat/completions", "/v1/completions", "/v1/embeddings", "/v1/rerank":
+			bridgeRemoteForward(w, r, ep)
+			return
+		default:
+			sendJSON(w, http.StatusNotFound, map[string]any{
+				"ok": false,
+				"error": "pont Ajean : le modèle prêté est une API distante, qui n'expose que /v1/models et /v1/chat/completions",
+			})
+			return
+		}
+	})
+}
+
+// bridgeRemoteBase : la racine OpenAI de l'endpoint prêté, depuis l'URL des
+// complétions (…/v1/chat/completions → …/v1).
+func bridgeRemoteBase(ep chatEndpoint) string {
+	u, err := url.Parse(completionsURL(ep.URL))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSuffix(u.Path, "/chat/completions")
+}
+
+func bridgeRemoteModels(w http.ResponseWriter, r *http.Request, ep chatEndpoint) {
+	base := bridgeRemoteBase(ep)
+	if base != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
+		if err == nil {
+			if ep.Key != "" {
+				req.Header.Set("Authorization", "Bearer "+ep.Key)
+			}
+			client := &http.Client{Timeout: 8 * time.Second}
+			if resp, err := client.Do(req); err == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.Copy(w, io.LimitReader(resp.Body, 1<<20))
+					return
+				}
+			}
+		}
+	}
+	// L'endpoint ne expose pas /v1/models (ou n'y répond pas) : on annonce quand
+	// même le modèle prêté, sinon l'autre Ajean croirait à un pont vide.
+	sendJSON(w, http.StatusOK, map[string]any{
+		"object": "list",
+		"data":   []map[string]string{{"id": ep.Model, "object": "model"}},
+	})
+}
+
+func bridgeRemoteForward(w http.ResponseWriter, r *http.Request, ep chatEndpoint) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<20))
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "corps illisible"})
+		return
+	}
+	// Le modèle du preset gagne toujours : c'est la machine qui prête qui choisit
+	// qui répond, et ça évite un « model not found » côté distant.
+	if ep.Model != "" {
+		var payload map[string]any
+		if json.Unmarshal(body, &payload) == nil {
+			payload["model"] = ep.Model
+			if b, err := json.Marshal(payload); err == nil {
+				body = b
+			}
+		}
+	}
+	target := completionsURL(ep.URL)
+	// /v1/completions et /v1/embeddings gardent leur bout de chemin.
+	if r.URL.Path != "/v1/chat/completions" {
+		if base := bridgeRemoteBase(ep); base != "" {
+			target = strings.TrimSuffix(base, "/v1") + r.URL.Path
+		}
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if accept := r.Header.Get("Accept"); accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+	if ep.Key != "" {
+		req.Header.Set("Authorization", "Bearer "+ep.Key)
+	}
+	resp, err := bridgeHTTPClient.Do(req)
+	if err != nil {
+		sendJSON(w, http.StatusBadGateway, map[string]any{
+			"ok": false, "error": "modèle prêté injoignable : " + err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+	for k, vs := range resp.Header {
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body) // streaming : io.Copy recopie au fil de l'eau
+}
+
+// bridgeHTTPClient : pas de timeout global — une complétion longue ou un flux
+// SSE doit vivre aussi longtemps que la réponse. Le contexte de la requête est
+// la seule échéance.
+var bridgeHTTPClient = &http.Client{}
 
 // startParallelBridge ouvre le listener et sert le front. Non bloquant : le
 // serveur HTTP tourne dans sa goroutine. Un port déjà pris échoue sans rien
@@ -292,7 +464,22 @@ func parallelBridgeLanURLs() []string {
 // discoverEngineModel demande /v1/models au moteur de CETTE instance. Le nom du
 // modèle vient de lui : un preset externe qui l'invente reçoit une erreur du
 // moteur, pas une réponse vide.
+// discoverEngineModel : le modèle que ce pont prêtera. On interroge d'abord le
+// moteur local (c'est le cas le plus fréquent), mais le vrai arbitre est le
+// preset actif : un preset « API Externe » ou un GPU cloud n'a rien sur le port
+// du moteur, et un pont qui prétendrait n'avoir aucun modèle serait faux.
 func discoverEngineModel() string {
+	if m := probeLocalEngineModel(); m != "" {
+		return m
+	}
+	if ep := resolveChatEndpoint(); ep.Model != "" {
+		return ep.Model
+	}
+	return ""
+}
+
+// probeLocalEngineModel : le /v1/models du moteur local, s'il répond.
+func probeLocalEngineModel() string {
 	base := "http://127.0.0.1:" + parallelLocalEnginePort()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -328,11 +515,26 @@ func discoverEngineModel() string {
 	return ""
 }
 
+// parallelBridgeStatus : ce que voient la carte UI, `ajean bridge status` et
+// l'API. `serving` dit d'OÙ vient le cerveau prêté — c'est ce qui permet de
+// annoncer honnêtement « modèle distant » au lieu d'un faux « aucun modèle ».
 func parallelBridgeStatus() map[string]any {
 	running := parallelBridgeRunning()
 	model := ""
 	if running {
 		model = discoverEngineModel()
+	} else if ep := resolveChatEndpoint(); ep.External || ep.Cloud {
+		// Pont éteint mais preset distant : le modèle prêté se lit dans la
+		// config, inutile d'aller sonder un moteur local qui n'existera jamais.
+		model = ep.Model
+	}
+	ep := resolveChatEndpoint()
+	serving := "moteur local 127.0.0.1:" + parallelLocalEnginePort()
+	switch {
+	case ep.External:
+		serving = "API distante " + ep.URL
+	case ep.Cloud:
+		serving = "GPU cloud"
 	}
 	return map[string]any{
 		"ok":          true,
@@ -350,8 +552,10 @@ func parallelBridgeStatus() map[string]any {
 		// que la config impose au moteur et que le pont proxifie. Les deux peuvent
 		// différer (preset importé) — les montrer évite de chercher midi à quatorze
 		// heures quand le pont répond mais ne trouve personne.
-		"engine_port":     parallelEnginePort(),
-		"engine_serving":  parallelLocalEnginePort(),
+		"engine_port":    parallelEnginePort(),
+		"engine_serving": parallelLocalEnginePort(),
+		"serving":        serving,
+		"preset":         strings.TrimSpace(ReadConfig()["NAME"]),
 	}
 }
 
@@ -545,10 +749,13 @@ func parallelBridgeServe() error {
 	if err := ensureParallelEnginePort(); err != nil {
 		return err
 	}
-	// Le moteur est-il déjà là ? Un moteur lancé à la main (ou par l'instance en
-	// cours) répond à /v1/models : on ne va pas en lancer un second sur le même
-	// port, et on n'exige pas que le preset soit « actif » dans ce process-ci.
-	if m := discoverEngineModel(); m != "" {
+	// D'où vient le cerveau ? Un preset « API Externe » ou un GPU cloud n'a rien
+	// à lancer en local : vouloir démarrer un moteur là dedans, c'est échouer pour
+	// rien (et parfois télécharger des dizaines de go).
+	if usesRemoteEndpoint(ReadConfig()) {
+		ep := resolveChatEndpoint()
+		fmt.Printf("[pont ajean] modèle prêté : preset distant (%s), modèle %s\n", ep.URL, ep.Model)
+	} else if m := probeLocalEngineModel(); m != "" {
 		fmt.Printf("[pont ajean] moteur déjà en service sur 127.0.0.1:%s (%s)\n", parallelLocalEnginePort(), m)
 	} else {
 		fmt.Printf("[pont ajean] moteur absent : démarrage sur 127.0.0.1:%s …\n", parallelLocalEnginePort())

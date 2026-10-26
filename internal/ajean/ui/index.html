@@ -2140,6 +2140,15 @@ button.th-head:hover{background:var(--t1)}
       <div class="subhead"><span>Recevoir un cerveau</span></div>
       <div class="rowbody"><p class="muted" style="margin:0">Pour que CETTE installation utilise le modèle d’un autre Ajean : Presets → <b>API Externe</b>, et y coller l’adresse du pont de l’autre machine avec la clé API de cette machine-là. L’adresse d’un pont allumé sur cette même machine est refusée — une instance ne se parle pas à elle-même.</p></div>
     </div>
+    <div class="slist" id="peers-block" hidden>
+      <div class="subhead"><span>Parler à un autre Ajean</span></div>
+      <div class="rowbody"><p class="muted" style="margin:0">Un voisin garde son propre modèle et sa propre mémoire : l’outil <code>peer</code> lui envoie des messages et garde le souvenir de l’échange. Rien ne s’exécute de l’autre côté, et rien ici à sa demande.</p></div>
+      <div id="peers-list"></div>
+      <div class="api-line"><input id="peer-name" class="api-val" placeholder="nom (ex. poste-salon)" style="max-width:150px">
+        <input id="peer-url" class="api-val" placeholder="http://192.168.1.71:18190/v1">
+        <input id="peer-key" class="api-val" type="password" placeholder="clé API de l’autre machine" style="max-width:190px">
+        <button type="button" class="sw-action" onclick="peerAdd()">Ajouter</button></div>
+    </div>
   </details>
   <details id="lc-details"><summary><span class="stitle" data-i18n="engine.title">Engine</span></summary>
     <div class="slist">
@@ -11714,16 +11723,17 @@ function renderBridge(d){
   if(url) url.value = (d.urls && d.urls.length && live) ? d.urls[0] : '';
   const mdl = document.getElementById('bridge-model');
   const note = document.getElementById('bridge-note');
+  const src = d.serving || ('moteur local 127.0.0.1:' + (d.engine_serving || d.engine_port));
   if(mdl && note){
     if(d.model){
       mdl.textContent = 'Modèle prêté : ' + d.model;
-      note.textContent = 'Écoute sur le port ' + d.port + ' ; moteur derrière sur 127.0.0.1:' + (d.engine_serving || d.engine_port) + '.';
+      note.textContent = 'Écoute sur le port ' + d.port + ' ; le cerveau vient de : ' + src + '.';
     } else if(live){
       mdl.textContent = 'Aucun modèle ne répond derrière ce pont';
-      note.textContent = 'Le pont écoute mais le moteur est muet : activer un preset MoE (page Modèles), sinon l’autre Ajean recevra une erreur.';
+      note.textContent = 'Le pont écoute mais rien ne répond derrière (' + src + ') : activer un preset — MoE local, API externe ou cloud — sinon l’autre Ajean recevra une erreur.';
     } else {
       mdl.textContent = 'Aucun modèle prêté';
-      note.textContent = 'Un pont ouvert sans moteur actif n’a rien à prêter : activer un preset MoE (page Modèles).';
+      note.textContent = 'Un pont ouvert sans preset actif n’a rien à prêter : activer un preset (page Modèles), MoE local, API externe ou cloud.';
     }
   }
 }
@@ -11734,6 +11744,66 @@ async function loadBridge(){
     const d = await r.json();
     renderBridge(d);
   }catch(e){   }
+  loadPeers();
+}
+let peersList = [];
+async function loadPeers(){
+  const block = document.getElementById('peers-block');
+  if(!block) return;
+  try{
+    const r = await jfetch('/api/peers');
+    if(r.status === 403 || r.status === 404){ return; }
+    const d = await r.json();
+    peersList = d.peers || [];
+    block.hidden = false;
+    renderPeers();
+  }catch(e){   }
+}
+function renderPeers(){
+  const box = document.getElementById('peers-list');
+  if(!box) return;
+  if(!peersList.length){
+    box.innerHTML = '<div class="rowbody"><p class="muted" style="margin:0">Aucun voisin déclaré. Un canal se déclare à la main, jamais par découverte automatique du réseau.</p></div>';
+    return;
+  }
+  box.innerHTML = peersList.map(function(p, i){
+    const cle = p.has_key ? 'clé posée' : '<b>sans clé</b> — il refusera la demande';
+    const can = p.thread ? ' · canal ' + p.thread + ' messages' : '';
+    return '<div class="switchrow"><span class="sw-txt"><span>' + escHtml(p.name) +
+      '</span><span class="sw-sub">' + escHtml(p.url) + ' · ' + cle + can + '</span></span>' +
+      '<button type="button" class="sw-action" onclick="peerForgetIdx(' + i + ')">Oublier</button>' +
+      '<button type="button" class="sw-action" onclick="peerRemoveIdx(' + i + ')">Retirer</button></div>';
+  }).join('');
+}
+function peerForgetIdx(i){ if(peersList[i]) peerForget(peersList[i].name); }
+function peerRemoveIdx(i){ if(peersList[i]) peerRemove(peersList[i].name); }
+async function peerAdd(){
+  const g = function(id){ const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  const name = g('peer-name'), url = g('peer-url'), key = g('peer-key');
+  if(!name || !url){ toast('Nom et adresse du voisin requis'); return; }
+  try{
+    const r = await jpost('/api/peers', { add: name, url: url, key: key });
+    if(!r.ok){ throw new Error(r.error || 'refusé'); }
+    ['peer-name','peer-url','peer-key'].forEach(function(id){ const e = document.getElementById(id); if(e) e.value=''; });
+    toast('Voisin ' + r.name + ' déclaré');
+    loadPeers();
+  }catch(e){ toast('Voisin : ' + e.message); }
+}
+async function peerRemove(name){
+  try{
+    const r = await jpost('/api/peers', { remove: name });
+    if(!r.ok){ throw new Error(r.error || 'refusé'); }
+    toast('Voisin ' + name + ' retiré');
+    loadPeers();
+  }catch(e){ toast('Voisin : ' + e.message); }
+}
+async function peerForget(name){
+  try{
+    const r = await jpost('/api/peers', { forget: name });
+    if(!r.ok){ throw new Error(r.error || 'refusé'); }
+    toast('Souvenir du canal effacé');
+    loadPeers();
+  }catch(e){ toast('Canal : ' + e.message); }
 }
 async function bridgeToggle(wanted){
   const box = document.getElementById('bridge-on');

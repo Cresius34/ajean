@@ -25,12 +25,13 @@ const parallelMemoryRevision = 7
 
 // buildFlavorSuffix est l'identité publique de ce build : la base amont
 // (Version, reprise telle quelle du tag nathaninline fusionné) suivie du
-// millésime Cresius. Version = "0.18.15" + ".1 Cresius" donne donc
-// « 0.18.15.1 Cresius », c'est-à-dire la base 0.18.15 et notre révision 1
-// (tag git v0.18.15+rev1). Doit rester identique à
+// millésime Cresius. Version = "0.18.15" + ".2 Cresius" donne donc
+// « 0.18.15.2 Cresius », c'est-à-dire la base 0.18.15 et notre révision 2
+// (tag git v0.18.15+rev2) : la révision 1 était le patch correctif, la 2
+// ajoute le canal Ajean↔Ajean (pont + outil peer). Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".1 Cresius"
+const buildFlavorSuffix = ".2 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.
@@ -103,7 +104,7 @@ func initParallelProfile() error {
 
 func parallelCommandAllowed(cmd string) bool {
 	switch cmd {
-	case "app", "web", "help", "-h", "--help", "version", "-v", "--version", "where", "serve", "import-presets", "bridge":
+	case "app", "web", "help", "-h", "--help", "version", "-v", "--version", "where", "serve", "import-presets", "bridge", "peer":
 		return true
 	// La clé API machine se définit déjà depuis l'interface (/api/apikey n'est
 	// pas bloqué par parallelHTTPHandler). Sans elle, le pont Ajean↔Ajean ne

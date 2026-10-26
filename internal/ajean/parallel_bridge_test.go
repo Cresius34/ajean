@@ -253,7 +253,8 @@ func TestParallelBridgeEndToEndTwoInstances(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = putStr(bkState, "parallel_engine_port", "") })
-	if err = WriteConfig(map[string]string{"MODEL": "cerveau-B.gguf"}); err != nil {
+	cfgB := map[string]string{"MODEL": "cerveau-B.gguf"}
+	if err = WriteConfig(cfgB); err != nil {
 		t.Fatal(err)
 	}
 	if ReadConfig()["PORT"] != enginePort {
@@ -284,6 +285,17 @@ func TestParallelBridgeEndToEndTwoInstances(t *testing.T) {
 	if !ep.External || ep.URL != "http://127.0.0.1:"+bridgePort+"/v1/chat/completions" {
 		t.Fatalf("endpoint A faux : %+v", ep)
 	}
+	// Ce test met A et B dans le MÊME processus, donc ils partageraient le même
+	// magasin de config. Ici, B doit être rendu à SON preset (le moteur local) au
+	// moment où il reçoit l'appel — sinon B prêterait le pont de A et se
+	// renverrait l'appel à lui-même. C'est exactement le garde-fou
+	// bridgePointsToItself, mais le test doit rester fidèle à deux vrais PC.
+	restoreB := func() {
+		if err := WriteConfig(cfgB); err != nil {
+			t.Fatal(err)
+		}
+	}
+	restoreB()
 	body, _ := json.Marshal(map[string]any{"model": ep.Model, "messages": []map[string]string{{"role": "user", "content": "bonjour"}}})
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ep.URL, strings.NewReader(string(body)))
 	if err != nil {
@@ -318,11 +330,19 @@ func TestParallelBridgeEndToEndTwoInstances(t *testing.T) {
 	}
 
 	// Streaming : les morceaux arrivent au fil de l'eau, pas en une seule fois.
-	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, ep.URL, strings.NewReader(`{"stream":true}`))
+	if err = WriteConfig(map[string]string{
+		extKeyFlag: "1", extKeyURL: "http://127.0.0.1:" + bridgePort + "/v1",
+		extKeyModel: "cerveau-de-B", extKeyToken: "sk-cle-de-B",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	epStream := resolveChatEndpoint()
+	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, epStream.URL, strings.NewReader(`{"stream":true}`))
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set("Accept", "text/event-stream")
-	req2.Header.Set("Authorization", "Bearer "+ep.Key)
-	resp2, err := doLLM(context.Background(), req2, []byte(`{"stream":true}`), ep)
+	req2.Header.Set("Authorization", "Bearer "+epStream.Key)
+	restoreB()
+	resp2, err := doLLM(context.Background(), req2, []byte(`{"stream":true}`), epStream)
 	if err != nil {
 		t.Fatalf("stream A → pont de B : %v", err)
 	}
@@ -337,6 +357,97 @@ func TestParallelBridgeEndToEndTwoInstances(t *testing.T) {
 	}
 	if len(morceaux) < 2 {
 		t.Fatalf("streaming non rendu morceau par morceau : %v", morceaux)
+	}
+}
+
+// « Peu importe le moteur/le modèle » : si le preset prêté est une API distante,
+// le pont ne doit pas faire semblant d'avoir un llama-server local. Il prête
+// l'endpoint du preset, et c'est la machine qui prête qui impose son modèle.
+func TestParallelBridgeLendsRemotePreset(t *testing.T) {
+	parallelTestHome(t)
+	t.Cleanup(func() { _ = stopParallelBridge() })
+	if err := writeAPIKey("sk-cle-de-la-machine-qui-prete"); err != nil {
+		t.Fatal(err)
+	}
+
+	dist := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			if r.Header.Get("Authorization") != "Bearer sk-cle-distante" {
+				http.Error(w, `{"error":{"message":"invalid api key"}}`, http.StatusUnauthorized)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"data": []map[string]string{{"id": "modele-lointain"}}})
+			return
+		}
+		if r.URL.Path != "/v1/chat/completions" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer sk-cle-distante" {
+			http.Error(w, `{"error":{"message":"invalid api key"}}`, http.StatusUnauthorized)
+			return
+		}
+		var in map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "réponse de " + fmt.Sprint(in["model"])}, "finish_reason": "stop"}},
+		})
+	}))
+	defer dist.Close()
+
+	if err := WriteConfig(map[string]string{
+		extKeyFlag: "1", extKeyURL: dist.URL + "/v1", extKeyModel: "modele-lointain", extKeyToken: "sk-cle-distante",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	h := parallelBridgeHandler()
+	call := func(path, body, auth string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "http://192.168.1.9"+path, strings.NewReader(body))
+		req.RemoteAddr = "192.168.1.42:51515"
+		if auth != "" {
+			req.Header.Set("Authorization", "Bearer "+auth)
+		}
+		h.ServeHTTP(w, req)
+		return w
+	}
+
+	// Modèle prêté annoncé alors qu'aucun moteur local n'existe nulle part.
+	if m := discoverEngineModel(); m != "modele-lointain" {
+		t.Fatalf("modèle prêté mal annoncé : %q", m)
+	}
+
+	w := call("/v1/chat/completions", `{"model":"importe-peu","messages":[]}`, "sk-cle-de-la-machine-qui-prete")
+	if w.Code != 200 {
+		t.Fatalf("presage distant : %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "réponse de modele-lointain") {
+		t.Fatalf("le modèle du preset n'a pas été imposé : %s", w.Body.String())
+	}
+
+	// Sans clé locale : refusé, même si le modèle prêté est distant.
+	if w = call("/v1/chat/completions", `{"model":"x"}`, ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("sans clé : %d", w.Code)
+	}
+
+	// /v1/models passe par l'endpoint distant et cache sa clé au demandeur.
+	w = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://192.168.1.9/v1/models", nil)
+	req.RemoteAddr = "192.168.1.42:51515"
+	req.Header.Set("Authorization", "Bearer sk-cle-de-la-machine-qui-prete")
+	h.ServeHTTP(w, req)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "modele-lointain") {
+		t.Fatalf("/v1/models distant : %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "sk-cle-distante") {
+		t.Fatal("la clé du modèle prêté fuite vers le demandeur")
+	}
+
+	// Ce que la carte UI doit afficher : un modèle distant, pas « aucun modèle ».
+	st := parallelBridgeStatus()
+	if st["model"] != "modele-lointain" || !strings.Contains(fmt.Sprint(st["serving"]), "API distante") {
+		t.Fatalf("état du pont faux pour un preset distant : %+v", st)
 	}
 }
 

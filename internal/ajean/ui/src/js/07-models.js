@@ -1358,7 +1358,10 @@ async function saveItem(){
   if(editingKind==='mem' && typeof MEM_VIEW_PROJECT!=='undefined' && MEM_VIEW_PROJECT) payload.project = MEM_VIEW_PROJECT;
   const r = await jpost(K.saveUrl, payload);
   if(!r.ok){ toast(t('common.error_prefix') + (r.error||'')); return; }
+  const applyNow = editingKind==='preset' && r.reload;
   toast(t('models.saved')); closeModal(); K.reload();
+  // Preset actif modifié : le moteur tourne encore l'ancienne version (#176).
+  if(applyNow) switchTo(0, name, r.id);
 }
 async function delItem(){
   if(!editingKey) return;

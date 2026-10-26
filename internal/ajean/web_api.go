@@ -628,6 +628,18 @@ func handlePresetSave(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	// Preset actif modifié : la config vivante tourne encore l'ancienne version.
+	// On le signale pour que l'UI propose de l'appliquer (#176).
+	wasActive := false
+	if req.ID != "" {
+		if list, err := ListPresets(); err == nil {
+			for _, p := range list {
+				if p.ID == req.ID && p.Active {
+					wasActive = true
+				}
+			}
+		}
+	}
 	newID, err := SavePreset(req.ID, req.Name, req.Content)
 	if err != nil {
 		sendJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
@@ -635,7 +647,17 @@ func handlePresetSave(w http.ResponseWriter, r *http.Request) {
 	}
 	// Prompt système propre au preset (stocké en base, sous l'id retourné).
 	_ = setPresetSysPrompt(newID, req.SysPrompt)
-	sendJSON(w, 200, map[string]any{"ok": true, "id": newID, "name": req.Name})
+	reload := false
+	if wasActive {
+		if list, err := ListPresets(); err == nil {
+			for _, p := range list {
+				if p.ID == newID && !p.Active {
+					reload = true
+				}
+			}
+		}
+	}
+	sendJSON(w, 200, map[string]any{"ok": true, "id": newID, "name": req.Name, "reload": reload})
 }
 
 func handlePresetDelete(w http.ResponseWriter, r *http.Request) {

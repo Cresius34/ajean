@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -156,7 +157,9 @@ var conv = func() *Conversation {
 func LoadConversation() {
 	var b []byte
 	var err error
-	for attempt := 0; attempt < 4; attempt++ {
+	// Jusqu'à 5 s : juste après une mise à jour, le process sortant peut encore
+	// tenir la base (#175).
+	for attempt := 0; attempt < 20; attempt++ {
 		b, err = getStoreBytesErr(bkChat, "conversation")
 		if err == nil {
 			break
@@ -168,17 +171,27 @@ func LoadConversation() {
 		// confondre en silence avec « rien à charger ») et on repart à vide quand
 		// même — un serveur qui refuse de démarrer serait pire, et l'ancienne
 		// conversation reste intacte dans l'historique, restaurable à la main.
-		fmt.Fprintf(os.Stderr, "[conv] conversation active illisible au démarrage (%v) — repli sur une conversation vide ; l'historique, lui, est intact\n", err)
+		fmt.Fprintf(os.Stderr, "[conv] conversation active illisible au démarrage (%v), repli sur une conversation vide ; copie de secours avant toute réécriture\n", err)
+		convLoadSuspect.Store(true)
 		return
 	}
 	if len(b) == 0 {
 		// Absente, ou chiffrée et mémoire encore verrouillée : on repart d'une
 		// conversation vide. Elle sera rechargée au déverrouillage (reloadEncryptedStores).
+		// Présente mais indéchiffrable alors que la mémoire n'est pas verrouillée :
+		// contenu abîmé, on le garde de côté avant toute réécriture.
+		if !memLocked() && len(getBytes(bkChat, "conversation")) > 0 {
+			fmt.Fprintf(os.Stderr, "[conv] conversation active indéchiffrable au démarrage ; copie de secours avant toute réécriture\n")
+			convLoadSuspect.Store(true)
+		}
 		return
 	}
 	conv.mu.Lock()
 	defer conv.mu.Unlock()
-	_ = json.Unmarshal(b, conv)
+	if err := json.Unmarshal(b, conv); err != nil {
+		fmt.Fprintf(os.Stderr, "[conv] conversation active illisible (%v) ; copie de secours avant toute réécriture\n", err)
+		convLoadSuspect.Store(true)
+	}
 	// État d'avant l'id de session (migration) : on lui en attribue un pour qu'il
 	// devienne une session gérable comme les autres.
 	if conv.ID == "" {
@@ -192,6 +205,24 @@ func LoadConversation() {
 	// Une génération n'a pas pu survivre à l'arrêt du process : on repart propre.
 	conv.Generating = false
 	conv.cancel = nil
+}
+
+// convLoadSuspect : la conversation enregistrée n'a pas pu être lue au
+// démarrage (#175). La première écriture qui suit en garde d'abord une copie
+// brute : une lecture ratée ne doit jamais finir en écrasement silencieux.
+var convLoadSuspect atomic.Bool
+
+// backupConvBlob copie les octets bruts de la conversation enregistrée sous
+// conversation.secours.<horodatage>, dans le même bucket.
+func backupConvBlob() {
+	raw, err := getBytesErr(bkChat, "conversation")
+	if err != nil || len(raw) == 0 {
+		return
+	}
+	key := "conversation.secours." + time.Now().Format("20060102-150405")
+	if putBytes(bkChat, key, raw) == nil {
+		fmt.Fprintf(os.Stderr, "[conv] copie de secours de la conversation enregistrée : %s (%d octets)\n", key, len(raw))
+	}
 }
 
 // newSessionID génère un identifiant de session unique (nanosecondes), même
@@ -234,6 +265,9 @@ func (c *Conversation) persist() {
 	// Si le chiffrement est actif mais la mémoire verrouillée, putStoreBytes refuse
 	// d'écrire du clair : on garde la conversation en RAM et on ne touche pas au
 	// blob chiffré sur disque (il sera rafraîchi une fois déverrouillé).
+	if convLoadSuspect.Swap(false) {
+		backupConvBlob()
+	}
 	_ = putStoreBytes(bkChat, "conversation", b)
 	// La conversation active EST une session : on la reflète dans la liste des
 	// sessions pour qu'elle y apparaisse (marquée « en cours ») et reste à jour.

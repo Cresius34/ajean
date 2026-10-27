@@ -115,6 +115,13 @@ type Conversation struct {
 	// prochaine frontière d'étape (après un appel d'outil), soit — si le tour se
 	// termine avant — traités comme des tours suivants, dans l'ordre. Protégée par mu.
 	queued []queuedMsg
+
+	// canalTurnToken : jeton du tour déclenché par le canal Ajean↔Ajean, 0 quand le
+	// tour en cours n'est pas celui-là. Necessary pour pouvoir ANNULER ce tour précis
+	// quand l'appelant voisin raccroche : le gate de génération est exclusif, donc
+	// « un tour tourne » ne dit pas lequel — annuler sur cette seule condition aurait
+	// pu couper le tour de l'humain local qui aurait démarré entre-temps.
+	canalTurnToken int
 }
 
 // queuedMsg = un message mis en file pendant la génération. On mémorise ses caps et

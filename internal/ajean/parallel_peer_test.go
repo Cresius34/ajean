@@ -128,7 +128,7 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 	}
 
 	// Premier message.
-	reply, err := peerAsk(peerTestCtx(t), peerMustFind(t, "poste-salon"), "qui es-tu ?")
+	reply, err := peerAsk(peerTestCtx(t), peerMustFind(t, "poste-salon"), "qui es-tu ?", canalOrigineIA)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 
 	// Deuxième message : le souvenir doit suivre, sinon chaque tour est un premier
 	// message et le « canal » n'est qu'une série de questions isolées.
-	if _, err := peerAsk(peerTestCtx(t), peerMustFind(t, "poste-salon"), "et maintenant ?"); err != nil {
+	if _, err := peerAsk(peerTestCtx(t), peerMustFind(t, "poste-salon"), "et maintenant ?", canalOrigineIA); err != nil {
 		t.Fatal(err)
 	}
 	msgs, _ = reçu["messages"].([]any)
@@ -206,7 +206,7 @@ func TestPeerChannelRejectsWrongKey(t *testing.T) {
 	if _, err := peerAddDeclared("voisin", bridgeURL, "sk-mauvaise-cle", ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err := peerAsk(peerTestCtx(t), peerMustFind(t, "voisin"), "bonjour")
+	_, err := peerAsk(peerTestCtx(t), peerMustFind(t, "voisin"), "bonjour", canalOrigineIA)
 	if err == nil {
 		t.Fatal("une mauvaise clé a été acceptée par le pont")
 	}

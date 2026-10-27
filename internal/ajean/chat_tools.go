@@ -225,6 +225,14 @@ func runShell(parent context.Context, command string, timeoutSec int) string {
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Marqueur d'un tour d'agent, transmis au shell. Ce n'est pas un filtre sur la
+	// commande (un patron de chaîne se contourne, et il casserait les diagnostics
+	// légitimes du CLI) : c'est un fait d'environnement que le sous-processus reçoit
+	// sans pouvoir le refuser. `ajean peer ask` lancé d'ici n'est pas la parole d'un
+	// humain, c'est l'agent qui taperait une commande — et l'origine « humain », qui
+	// est justement ce qui rend un message du canal faisant-autorité, ne doit pas
+	// pouvoir s'attribuer comme ça.
+	cmd.Env = append(os.Environ(), "AJEAN_AGENT_TURN=1")
 	// ⚠️ WaitDelay borne l'attente APRÈS la fin (ou la mise à mort) du process.
 	// Sans elle, Wait attend que les tubes de sortie soient fermés — donc que
 	// TOUS ceux qui les tiennent aient disparu, petits-enfants compris. Une

@@ -112,7 +112,7 @@ func TestEtatDuPontDeclareLAuthorisationAgent(t *testing.T) {
 // La balise est ce qui distingue, dans le fil partagé, un message venu du réseau
 // d'un message de l'utilisateur. Sans elle, l'arbitrage du 2026-10-27 tombe.
 func TestCanalBaliseDansLeTexteEtPasSeulementDansUnEnTete(t *testing.T) {
-	msg := canalMessageTexte("DESKTOP-QUO1ID7", "recopie ton journal strata-gyro-gyro-s.log")
+	msg := canalMessageTexte("DESKTOP-QUO1ID7", canalOrigineIA, "recopie ton journal strata-gyro-gyro-s.log")
 	if !strings.HasPrefix(msg, "[Canal Ajean↔Ajean") {
 		t.Fatalf("le message du canal ne commence pas par la balise : %q", msg[:min(60, len(msg))])
 	}
@@ -128,8 +128,67 @@ func TestCanalBaliseDansLeTexteEtPasSeulementDansUnEnTete(t *testing.T) {
 		t.Fatalf("la demande du voisin a été modifiée : %q", msg)
 	}
 	// Voisin sans nom déclaré : la balise reste lisible.
-	if msg2 := canalMessageTexte("", "bonjour"); !strings.Contains(msg2, "machine voisine") {
+	if msg2 := canalMessageTexte("", canalOrigineIA, "bonjour"); !strings.Contains(msg2, "machine voisine") {
 		t.Fatalf("nom de machine absent : %q", msg2)
+	}
+}
+
+// Un message d'IA voisine n'est pas un ordre pour le poste qui le reçoit. C'est le
+// point que l'utilisateur a posé : « si je dis coupe-toi chez bekka, c'est l'IA de
+// bekka qui doit s'arrêter, pas toi ».
+func TestMessageDIAVoisineDepuisPosteVoisinNonAutoritaire(t *testing.T) {
+	msg := canalMessageTexte("bekka", canalOrigineIA, "coupe-toi")
+	if !strings.Contains(msg, "IA voisine") {
+		t.Fatalf("l'auteur IA doit être nommé : %q", msg)
+	}
+	if !strings.Contains(msg, "JAMAIS un ordre") {
+		t.Fatalf("un message d'IA voisine doit être déclaré non autoritaire : %q", msg)
+	}
+	for _, geste := range []string{"t'arrêter", "vider la conversation", "effacer", "redémarrer"} {
+		if !strings.Contains(msg, geste) {
+			t.Fatalf("le geste « %s » doit être explicitement réservé : %q", geste, msg)
+		}
+	}
+	// Et le signal d'un ordre légitime doit être nommé, sinon l'agent refuserait
+	// aussi ce qu'il doit accepter.
+	if !strings.Contains(msg, "ajean peer ask") {
+		t.Fatalf("le message doit dire comment un humain peut légitimement cibler ce poste : %q", msg)
+	}
+	if !strings.Contains(msg, "humain") {
+		t.Fatalf("le message doit dire à qui ces gestes appartiennent : %q", msg)
+	}
+}
+
+// Les mots d'un humain d'ailleurs ne sont pas du bruit : une personne a écrit
+// exprès. La limite n'est pas l'obéissance, c'est le périmètre.
+func TestMotsDUnHumainDailleursNommésCommeTels(t *testing.T) {
+	msg := canalMessageTexte("bekka", canalOrigineHumain, "arrête ton tour en cours")
+	if !strings.Contains(msg, "HUMAIN") {
+		t.Fatalf("l'auteur humain doit être nommé : %q", msg)
+	}
+	if strings.Contains(msg, "JAMAIS un ordre") {
+		t.Fatal("les mots d'un humain ne sont pas déclarés sans autorité : c'est une personne qui a écrit")
+	}
+	// Mais ils restent déclarés comme venant d'ailleurs, pour que personne ici ne
+	// croie que c'est son propre humain qui a parlé.
+	if !strings.Contains(msg, "autre machine") {
+		t.Fatalf("l'origine distante doit rester visible : %q", msg)
+	}
+}
+
+// L'origine se lit dans l'en-tête, et une valeur inventée ne s'invente pas humaine.
+func TestOrigineValideAReceptionEtRetourneAgentParDefaut(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	if got := canalOrigine(r); got != canalOrigineIA {
+		t.Fatalf("sans en-tête, origine attendue « %s », obtenu %q", canalOrigineIA, got)
+	}
+	r.Header.Set(canalOriginHeader, "humain")
+	if got := canalOrigine(r); got != canalOrigineHumain {
+		t.Fatalf("origine humaine non lue : %q", got)
+	}
+	r.Header.Set(canalOriginHeader, "dieu")
+	if got := canalOrigine(r); got != canalOrigineIA {
+		t.Fatalf("une origine inconnue ne doit jamais rendre un message plus faisant-authorité : %q", got)
 	}
 }
 
@@ -137,7 +196,9 @@ func TestCanalBaliseDansLeTexteEtPasSeulementDansUnEnTete(t *testing.T) {
 // d'agent, la réponse du voisin ressemble trait pour trait à la mienne.
 func TestReponseDuVoisinBaliseChezLAppelant(t *testing.T) {
 	parallelTestHome(t)
+	var recu http.Header
 	bridge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recu = r.Header.Clone()
 		json.NewEncoder(w).Encode(map[string]any{
 			// model:"ajean-agent" est ce qu'annonce envoiOpenAI : c'est ainsi que
 			// l'appelant sait, sans protocole de plus, si le voisin a répondu par son
@@ -152,7 +213,7 @@ func TestReponseDuVoisinBaliseChezLAppelant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reply, err := peerAsk(peerTestCtx(t), p, "lit ton journal du moteur")
+	reply, err := peerAsk(peerTestCtx(t), p, "lit ton journal du moteur", canalOrigineIA)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +226,48 @@ func TestReponseDuVoisinBaliseChezLAppelant(t *testing.T) {
 	// Le souvenir repart au voisin à chaque tour : il doit rester nu.
 	if brut := getStr(bkState, peerThreadKey(p)); strings.Contains(brut, "Réponse du canal") {
 		t.Fatalf("la balise s'est glissée dans le souvenir rejoué : %s", brut)
+	}
+
+	// Les en-têtes partent réellement sur le réseau, et avec les bonnes valeurs.
+	// Sans cette vérification, tout le dispositif d'auteur pourrait ne jamais
+	// quitter la machine et le voisin recevrait du texte nu.
+	if recu.Get(canalHeader) == "" {
+		t.Fatal("l'en-tête du canal n'est pas envoyé : le voisin ne saura pas qu'un Ajean parle")
+	}
+	if recu.Get(canalFromHeader) == "" {
+		t.Fatal("la machine qui appelle n'est pas déclarée")
+	}
+	if got := recu.Get(canalOriginHeader); got != canalOrigineIA {
+		t.Fatalf("origine envoyée par l'outil peer : %q, attendu %q", got, canalOrigineIA)
+	}
+	if got := recu.Get(canalHopHeader); got != "1" {
+		t.Fatalf("profondeur de l'échange : %q", got)
+	}
+}
+
+// Un message envoyé par l'humain depuis son terminal doit porter l'origine humaine
+// sur le réseau — c'est ce qui le rend visé et donc faisant-autorité.
+func TestMessageDUnHumainPorteSonOrigineSurLeReseau(t *testing.T) {
+	parallelTestHome(t)
+	var recu http.Header
+	bridge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recu = r.Header.Clone()
+		json.NewEncoder(w).Encode(map[string]any{
+			"model":   "ajean-agent",
+			"choices": []map[string]any{{"message": map[string]string{"content": "c'est noté, je m'arrête"}, "finish_reason": "stop"}},
+		})
+	}))
+	defer bridge.Close()
+
+	p, err := peerAddDeclared("bekka", bridge.URL+"/v1", "sk-cle", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := peerAsk(peerTestCtx(t), p, "arrête ton tour en cours", canalOrigineHumain); err != nil {
+		t.Fatal(err)
+	}
+	if got := recu.Get(canalOriginHeader); got != canalOrigineHumain {
+		t.Fatalf("origine envoyée pour la parole d'un humain : %q, attendu %q", got, canalOrigineHumain)
 	}
 }
 
@@ -375,6 +478,76 @@ func TestEnvoiOpenAIRendLaFormeAttendueParLoutilPeer(t *testing.T) {
 	}
 }
 
+// L'origine humaine ne s'attribue pas au clavier. Le CLI est le chemin de l'humain,
+// mais runShell passe AJEAN_AGENT_TURN à tout ce qu'il lance : une commande tapée
+// pendant un tour d'agent vient de l'agent. Laisser l'agent se déclarer humain, c'est
+// lui donner l'autorité qu'on a justement réservée aux humains.
+func TestOrigineCLIRefuseePendantUnTourAgent(t *testing.T) {
+	t.Setenv("AJEAN_AGENT_TURN", "")
+	if got := peerOrigineCLI(); got != canalOrigineHumain {
+		t.Fatalf("un humain dans son terminal doit être reconnu humain, obtenu %q", got)
+	}
+	t.Setenv("AJEAN_AGENT_TURN", "1")
+	if got := peerOrigineCLI(); got != canalOrigineIA {
+		t.Fatalf("pendant un tour d'agent, l'origine reste celle de l'agent : %q", got)
+	}
+}
+// rien. Le couper est ce qui rend la coordination réelle — sinon le voisin arrêtait
+// son côté pendant que le nôtre continuait à consumer le moteur pour personne.
+//
+// Le jeton est la pièce qui rend ça sûr : le gate de génération est exclusif, donc
+// « un tour tourne » ne dit pas lequel. Sans jeton correspondant, on ne touche à rien.
+func TestTourDuCanalCoupeQuandLAppelantRaccroche(t *testing.T) {
+	c := newTestConv()
+	c.Generating = true
+	annule := false
+	c.cancel = func() { annule = true }
+
+	// Jeton 0 = tour qui n'a pas été déclenché par le canal : jamais coupé.
+	if c.stopCanalTurnIfMine(0) {
+		t.Fatal("un tour qui n'est pas du canal ne doit pas être coupé")
+	}
+	// Jeton qui ne correspond pas : tour d'un autre (ou tour de l'humain local).
+	c.canalTurnToken = 7
+	if c.stopCanalTurnIfMine(9) {
+		t.Fatal("un jeton qui ne correspond pas ne doit rien annuler")
+	}
+	if annule {
+		t.Fatal("une annulation a eu lieu sans jeton correspondant")
+	}
+
+	c.canalTurnToken = 9
+	if !c.stopCanalTurnIfMine(9) {
+		t.Fatal("le tour du canal devait être coupé")
+	}
+	if !annule {
+		t.Fatal("le contexte du tour n'a pas été annulé")
+	}
+
+	// Tour déjà terminé : rien à annuler, et surtout pas un cancel périmé.
+	c2 := newTestConv()
+	c2.canalTurnToken = 3
+	if c2.stopCanalTurnIfMine(3) {
+		t.Fatal("aucun tour en cours : rien à couper")
+	}
+}
+
+// Un tour du canal doit être identifiable par un jeton distinct, et ce jeton doit
+// être rendu à la fin : sinon un tour suivant hériterait d'un jeton et pourrait être
+// coupé à tort.
+func TestJetonDuCanalEstDistinctEtRendu(t *testing.T) {
+	a, b := canalJeton.Add(1), canalJeton.Add(1)
+	if a == b {
+		t.Fatal("deux tours du canal ont le même jeton")
+	}
+	c := newTestConv()
+	c.canalTurnToken = int(b)
+	c.Generating = true
+	c.cancel = func() {}
+	if c.stopCanalTurnIfMine(int(a)) {
+		t.Fatal("le jeton d'un tour antérieur ne doit pas couper le tour courant")
+	}
+}
 // L'outil peer coupé pendant un tour du canal : deux IA autonomes qui se relancent
 // la même question tourneraient sans fin.
 func TestOutilPeerCoupePendantUnTourDuCanal(t *testing.T) {

@@ -53,71 +53,90 @@ addEventListener('DOMContentLoaded', initComposerPad);
 addEventListener('load', initComposerPad);
 addEventListener('pageshow', initComposerPad); // iOS : rechargement depuis le bfcache
 
-// scrollMaybe est appelé À CHAQUE token (paintGenStatus) ET à chaque rendu Markdown
-// (renderBody) : en streaming, des dizaines de fois par seconde. Écrire scrollTop
-// aussi souvent avait deux effets pénibles sur iPhone (PWA) : un layout synchrone
-// forcé (lecture de scrollHeight) qui jankait le thread principal, et surtout un
-// défilement programmatique quasi permanent du #chat — pendant lequel iOS AVALE les
-// taps (il croit qu'un geste de défilement est en cours), d'où « le menu et stop ne
-// répondent pas toujours ». On COALESCE donc : au plus une écriture de scroll par
-// frame (rAF), et on n'écrit RIEN quand on est déjà en bas (write redondant =
-// défilement inutile qui vole quand même les taps).
-let _scrollRAF = 0, _lastScrollWrite = 0;
-// Écart MINIMAL entre deux écritures d'auto-scroll pendant le streaming. Le fil
-// grandit token par token : sans ce frein, scrollTop était réécrit à CHAQUE frame
-// (~60/s), un défilement programmatique continu pendant lequel iOS (PWA) AVALE les
-// taps — « je ne peux plus rien cliquer tant que l'IA répond ». En espaçant les
-// écritures, on laisse des fenêtres d'inactivité (~150 ms) où le tap est enregistré,
-// tout en suivant le bas d'assez près pour que ça reste fluide. `force` (jumpBottom,
-// fin de tour, caught_up) court-circuite le frein pour un recalage immédiat.
-const SCROLL_MIN_GAP = 150;
+// scrollMaybe est appelé à chaque token et à chaque rendu : il ne fait que lancer
+// (une fois) le suivi amorti du bas, voir followStep. Historique iPhone (PWA) : un
+// défilement programmatique pendant un tap faisait AVALER le tap (« le menu et
+// stop ne répondent pas ») ; d'où touchHold, qui fige le suivi dès que le doigt
+// touche l'écran et pendant TOUCH_GRACE après.
+let _scrollRAF = 0;
 // Doigt posé (ou tout juste levé) : AUCUNE écriture d'auto-scroll. Sur iOS, un tap
 // dure 100-200 ms ; si la position de défilement change pendant ce temps, Safari
 // l'annule. Avec une écriture toutes les 150 ms pendant la génération, presque
 // chaque tap tombait dessus : plus rien ne répondait (pas même stop) jusqu'à la
 // fin de la réponse. On suspend donc le suivi le temps du contact, et on rattrape
 // juste après (TOUCH_GRACE).
-let TOUCHING = false, _touchEnd = 0;
+let TOUCHING = false, _touchEnd = 0, _touchStart = 0;
 const TOUCH_GRACE = 350;
+// Doigt posé ou tout juste levé : aucune mise à jour du fil ne doit avoir lieu
+// (texte, nouvelles bulles, ligne d'état), pas seulement le défilement. Safari iOS
+// annule un tap quand du contenu change sous le doigt : pendant la génération, plus
+// aucun bouton ne répondait. Les événements reçus attendent la fin du contact
+// (liveDelta / flushRender). Plafond de 8 s : un touchend perdu ne
+// doit pas figer le fil.
+function touchHold(){
+  const now = performance.now();
+  if(TOUCHING) return now - _touchStart < 8000;
+  return now - _touchEnd < TOUCH_GRACE;
+}
 (function(){
-  const on = ()=>{ TOUCHING = true; };
+  const on = ()=>{ TOUCHING = true; _touchStart = performance.now(); };
   const off = ()=>{ TOUCHING = false; _touchEnd = performance.now(); if(stickyBottom) setTimeout(()=>scrollMaybe(), TOUCH_GRACE + 20); };
   document.addEventListener('touchstart', on, {passive:true, capture:true});
   document.addEventListener('touchend', off, {passive:true, capture:true});
   document.addEventListener('touchcancel', off, {passive:true, capture:true});
 })();
+// Suivi du bas AMORTI : au lieu d'écrire la position cible d'un coup (le texte
+// remontait d'une ligne par saccade à chaque nouvelle ligne), la vue parcourt à
+// chaque image une fraction de l'écart qui reste (constante FOLLOW_TAU) : un
+// glissement continu qui rattrape le texte en ~0,3 s. Doigt sur l'écran : on ne
+// bouge pas (Safari iOS annulerait le tap, voir touchHold) et on reprend après.
+// Un très grand écart (bloc collé d'un coup) est d'abord réduit à FOLLOW_MAX.
+const FOLLOW_TAU = 110, FOLLOW_MAX = 400;
+let _followLast = 0;
+function followStep(ts){
+  _scrollRAF = 0;
+  const c = chatEl(); if(!c) return;
+  const sb = document.getElementById('scrollbtn');
+  if(sb) sb.classList.toggle('show', !stickyBottom);
+  if(!stickyBottom){ _followLast = 0; return; }
+  if(touchHold()){ _followLast = 0; _scrollRAF = requestAnimationFrame(followStep); return; }
+  const target = c.scrollHeight - c.clientHeight;
+  let cur = c.scrollTop, diff = target - cur;
+  // Seuil : n'écris que si on n'y est pas déjà. Sinon on relance la machinerie de
+  // scroll d'iOS pour rien.
+  if(diff <= 1){ _followLast = 0; return; }
+  if(diff > FOLLOW_MAX){ cur = target - FOLLOW_MAX; diff = FOLLOW_MAX; }
+  const dt = _followLast ? Math.min(64, ts - _followLast) : 16; _followLast = ts;
+  const step = Math.max(1, diff * (1 - Math.exp(-dt / FOLLOW_TAU)));
+  c.scrollTop = Math.min(target, cur + step);
+  _scrollRAF = requestAnimationFrame(followStep);
+}
 function scrollMaybe(force){
   // Pendant le replay initial on NE force AUCUN reflow : lire scrollHeight à chaque
   // événement rejoué = un layout synchrone forcé sur un DOM qui grossit → coût
   // quadratique (20-30 s de rendu au refresh sur un long fil). Le scroll est fait
   // une seule fois à la fin du replay, via jumpBottom() au signal {caught_up}.
   if(REPLAYING && !force) return;
-  if(_scrollRAF) return;                 // déjà planifié pour cette frame
-  _scrollRAF = requestAnimationFrame(()=>{
-    _scrollRAF = 0;
-    const c = chatEl(); if(!c) return;
-    if(stickyBottom){
-      const now = (window.performance&&performance.now)?performance.now():Date.now();
-      // Frein temporel : hors recalage forcé, au plus une écriture toutes ~150 ms.
-      // C'est ce qui rend les taps de nouveau captés pendant la génération (voir plus haut).
-      // Contact en cours : on n'écrit pas (voir TOUCHING) ; le touchend relance.
-      const touchBusy = TOUCHING || now - _touchEnd < TOUCH_GRACE;
-      if(!touchBusy && (force || now - _lastScrollWrite >= SCROLL_MIN_GAP)){
-        const target = c.scrollHeight - c.clientHeight;
-        // Seuil : n'écris que si on n'y est pas déjà (à 1px près). Sinon on relance
-        // la machinerie de scroll d'iOS pour rien, et les taps continuent d'être volés.
-        if(Math.abs(c.scrollTop - target) > 1){ c.scrollTop = target; _lastScrollWrite = now; }
-      }
-    }
-    const sb = document.getElementById('scrollbtn');
-    if(sb) sb.classList.toggle('show', !stickyBottom);
-  });
+  if(_scrollRAF) return;                 // suivi déjà en cours
+  _scrollRAF = requestAnimationFrame(followStep);
 }
-function jumpBottom(){ stickyBottom = true; scrollMaybe(true); }
+// Saut IMMÉDIAT en bas (ouverture d'une conversation, fin de rejeu).
+function jumpBottom(){
+  stickyBottom = true;
+  if(_scrollRAF){ cancelAnimationFrame(_scrollRAF); _scrollRAF = 0; }
+  const c = chatEl(); if(c) c.scrollTop = c.scrollHeight - c.clientHeight;
+  const sb = document.getElementById('scrollbtn'); if(sb) sb.classList.remove('show');
+}
 document.addEventListener('DOMContentLoaded', ()=>{
   const c = chatEl();
+  // On ne lâche le bas que si l'utilisateur REMONTE (position qui diminue). Un
+  // contenu qui grandit d'un coup (un tableau entier, une bulle d'outil) entre une
+  // écriture d'auto-scroll et son événement faisait croire à un décrochage : le
+  // suivi s'arrêtait en pleine réponse.
+  let lastTop = c.scrollTop;
   c.addEventListener('scroll', ()=>{
-    stickyBottom = isNearBottom();
+    const up = c.scrollTop < lastTop - 2; lastTop = c.scrollTop;
+    if(isNearBottom()) stickyBottom = true; else if(up) stickyBottom = false;
     maybeLoadOlder(); // remontée du fil : lot d'échanges précédent près du haut
     document.getElementById('scrollbtn').classList.toggle('show', !stickyBottom);
   });
@@ -275,31 +294,216 @@ function setStats(el, text){
 }
 function bodyOf(el){ return el.querySelector('.body'); }
 // Render markdown into a message body in place; safe because md() escapes HTML.
-function renderBody(el, text, tail){ const b=bodyOf(el); b.innerHTML = md(encodeMdLinkSpaces(text)); markNotices(b); addCopyButtons(b); markFileLinks(b); markWorkspaceImages(b); if(tail) fadeTail(b, FADE_TAIL); scrollMaybe(); }
-// Apparition en fondu du texte de l'IA pendant qu'il s'écrit : les derniers
-// caractères révélés reçoivent une opacité croissante (0,2 au bout → 1). Comme ce
-// dégradé avance avec le texte, chaque mot semble apparaître en fondu, sans
-// animation CSS (le bloc est redessiné à chaque image : une animation se
-// relancerait et clignoterait). Le rendu final, lui, est posé sans dégradé.
-const FADE_TAIL = 16;
-function fadeTail(root, n){
-  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode:(t)=>t.parentElement.closest('button') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
-  const nodes = []; while(w.nextNode()) nodes.push(w.currentNode);
-  let k = 0; // caractères déjà traités depuis la fin
-  for(let i = nodes.length - 1; i >= 0 && k < n; i--){
-    const tn = nodes[i], chars = [...tn.data];
-    if(!k && !tn.data.trim()) continue;
-    const take = Math.min(n - k, chars.length);
-    const frag = document.createDocumentFragment();
-    if(chars.length > take) frag.appendChild(document.createTextNode(chars.slice(0, chars.length - take).join('')));
-    chars.slice(chars.length - take).forEach((ch, j)=>{
-      const fromEnd = k + (take - 1 - j);
-      const sp = document.createElement('span');
-      sp.style.opacity = (0.2 + 0.8 * fromEnd / n).toFixed(2);
-      sp.textContent = ch; frag.appendChild(sp);
+// Rendu INCRÉMENTAL : seuls les blocs de premier niveau qui ont changé depuis le
+// rendu précédent sont remplacés (en pratique le dernier, celui qui s'écrit). Les
+// paragraphes, tableaux, blocs de code et images déjà terminés gardent les MÊMES
+// nœuds : ils ne clignotent plus, et un bouton (copier, lien, image) n'est plus
+// recréé sous le doigt entre l'appui et le relâchement, ce qui annulait le tap
+// sur iPhone pendant la génération.
+// Markdown en cours d'écriture : on n'affiche pas une syntaxe incomplète, qui
+// change de forme à la lettre suivante et fait sauter l'affichage. Filmé dans
+// WebKit (format iPhone) : un tableau redessiné avec sa dernière ligne à moitié
+// reçue changeait la largeur de ses colonnes à chaque image (« Porté e »,
+// cellules qui sautent de colonne), et un « ### » ou un « - » s'affichait d'abord
+// comme du texte avant de devenir titre ou puce. Le rendu final, lui, est exact.
+const MD_SEP_ROW = /^\s*\|?\s*:?-{2,}/;
+function streamSafe(s){
+  // Dans un bloc de code ouvert, tout est du code : rien à retenir.
+  const fences = (s.match(/^\s*(```|~~~)/gm) || []).length;
+  if(fences % 2) return s;
+  const lines = s.split('\n');
+  let last = lines.pop();
+  // Tableau : sa dernière ligne n'apparaît qu'une fois complète (on attend le
+  // saut de ligne), et le tableau n'apparaît qu'avec sa ligne de séparation.
+  if(/^\s*\|/.test(last)) last = '';
+  let k = lines.length;
+  while(k > 0 && /^\s*\|/.test(lines[k-1])) k--;
+  if(k < lines.length && !lines.slice(k).some(l => MD_SEP_ROW.test(l))) lines.length = k;
+  const t = last.trimStart();
+  // Ligne qui n'est encore qu'un marqueur (titre, puce, numéro, citation).
+  if(/^(#{1,6}|[-*+]|\d+[.)]|>)\s*$/.test(t)) last = '';
+  else if(last){
+    // Marqueurs ouverts en fin de ligne : retirés s'ils n'entourent encore rien,
+    // refermés provisoirement sinon (le gras s'affiche gras tout de suite).
+    last = last.replace(/(\*{1,3}|_{1,2}|`)$/, m => {
+      const before = last.slice(0, -m.length);
+      return (before.split(m).length - 1) % 2 ? m : '';
     });
-    tn.replaceWith(frag); k += take;
+    // Seulement un marqueur collé à du texte (« 3 * 4 » n'ouvre pas d'italique).
+    // La fermeture se place AVANT les espaces de fin : « **mot ** » n'est pas du
+    // gras en Markdown (le mot partiel retenu laisse souvent un espace final).
+    const sp = /\s*$/.exec(last)[0]; last = last.slice(0, last.length - sp.length);
+    if(((last.match(/\*\*/g) || []).length) % 2 && /\*\*\S(?:(?!\*\*).)*$/.test(last)) last += '**';
+    const single = last.replace(/\*\*/g, '');
+    if(((single.match(/\*/g) || []).length) % 2 && /\*\S[^*]*$/.test(single)) last += '*';
+    if(((last.match(/`/g) || []).length) % 2) last += '`';
+    last += sp;
+    // Après retrait d'un marqueur vide (« - ** » → « - »), la ligne peut n'être
+    // plus qu'une puce : on la retient aussi.
+    if(/^(#{1,6}|[-*+]|\d+[.)]|>)\s*$/.test(last.trimStart())) last = '';
   }
+  lines.push(last);
+  return lines.join('\n');
+}
+// ---- Apparition du texte en direct -----------------------------------------
+// Chaque mot reçoit une HEURE D'APPARITION, fixée une fois pour toutes à son
+// arrivée ; une animation CSS (opacité 0 → 1, classe .wi) le fait apparaître à
+// cette heure, sur le processeur graphique. Le DOM n'est reconstruit qu'à
+// l'arrivée de texte, pas à chaque image, et à chaque reconstruction un mot
+// reprend son animation exactement où elle en était (délai négatif) : rien ne
+// redémarre, rien ne clignote.
+// Rythme adaptatif, façon lecteur audio en direct : on mesure le débit réel (en
+// mots par seconde) et chaque mot est programmé un pas après le précédent. Un mot
+// qui arrive seul s'affiche aussitôt ; une rafale (MTP, réseau) est étalée au
+// rythme du flux au lieu de surgir d'un bloc ; si du retard s'accumule, le pas
+// raccourcit pour le résorber, et il ne dépasse jamais REVEAL_MAX_LAG.
+const WORD_IN_MS = 450;       // durée de l'apparition d'un mot (= .wi dans styles.css) : assez
+                              // longue pour qu'on VOIE le mot arriver (180 ms faisait une apparition sèche)
+const REVEAL_MAX_LAG = 250;   // retard maximal entre l'arrivée d'un mot et son apparition
+// Longueur du texte affiché, sans le texte des boutons (copier…).
+function textLenNoBtn(node){
+  if(node.nodeType===3) return node.data.length;
+  if(node.nodeType!==1 || node.tagName==='BUTTON') return 0;
+  let L=0; const w=document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {acceptNode:(t)=>t.parentElement.closest('button') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  while(w.nextNode()) L+=w.currentNode.data.length;
+  return L;
+}
+// Position qui suit le dernier caractère visible du texte affiché.
+function visibleLen(root){
+  const w = textWalker(root); let pos = 0, L = 0;
+  while(w.nextNode()){ const d = w.currentNode.data, m = /\S\s*$/.exec(d); if(m) L = pos + m.index + 1; pos += d.length; }
+  return L;
+}
+function textWalker(root){
+  return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode:(t)=>t.parentElement.closest('button') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+}
+// Un mot en cours de réception attend d'être complet (il apparaît entier, pas
+// lettre par lettre). Les très longs mots (URL, code) s'affichent quand même.
+// minStart : un mot commencé avant cette position est déjà affiché (pause, voir
+// 'idle') ; le cacher de nouveau le ferait clignoter.
+function holdPartialWord(s, minStart){
+  const m = /\S+$/.exec(s);
+  return (!m || m[0].length > 40 || m.index < (minStart||0)) ? s : s.slice(0, m.index);
+}
+// État d'apparition d'un bloc : marks = [{from, t}] (le texte à partir de la
+// position `from` du texte affiché apparaît à l'heure t), len = longueur déjà
+// planifiée, nextT = heure du dernier mot programmé, mspw = débit mesuré (ms par
+// mot). Ce qui était affiché avant la création de l'état reste net.
+function revealState(b){
+  return b._rv || (b._rv = {marks:[], len:visibleLen(b), nextT:0, mspw:40, lastR:0});
+}
+// Heure d'apparition du caractère j (texte affiché), ou null s'il est déjà net.
+function revealAt(st, j){
+  let t = null;
+  for(const m of st.marks){ if(m.from<=j) t=m.t; else break; }
+  return t;
+}
+// Planifie les mots apparus dans [st.len, L).
+function planReveal(b, st, now){
+  // Mots qui commencent après la partie déjà planifiée. La longueur retenue
+  // s'arrête au dernier caractère VISIBLE : les retours à la ligne invisibles
+  // entre deux blocs faisaient prendre le premier mot suivant pour la suite d'un
+  // mot déjà affiché (il surgissait sans transition).
+  const starts = [];
+  const w = textWalker(b); let pos = 0, L = 0;
+  while(w.nextNode()){
+    const d = w.currentNode.data;
+    for(const m of d.matchAll(/\S+/g)){
+      const at = pos + m.index;
+      if(at >= st.len) starts.push(at);
+      L = at + m[0].length;
+    }
+    pos += d.length;
+  }
+  if(L < st.len){ st.marks = st.marks.filter(m => m.from < L); st.len = L; return; }
+  st.len = L;
+  if(!starts.length) return;
+  // Débit mesuré en millisecondes par mot (moyenne glissante, pauses écrêtées).
+  const dt = st.lastR ? Math.min(now - st.lastR, 400) : 0; st.lastR = now;
+  if(dt > 0) st.mspw = st.mspw*0.7 + (dt / starts.length)*0.3;
+  let t = st.nextT;
+  starts.forEach((at, i) => {
+    const behind = Math.max(0, t - now);            // retard déjà accumulé
+    const step = behind > st.mspw ? st.mspw*0.5 : st.mspw;
+    t = Math.min(Math.max(now, t + (i || st.marks.length ? step : 0)), now + REVEAL_MAX_LAG);
+    st.marks.push({from: at, t});
+  });
+  st.nextT = t;
+  // Repères dont le mot SUIVANT a fini d'apparaître : inutiles.
+  while(st.marks.length > 1 && st.marks[1].t + WORD_IN_MS < now) st.marks.shift();
+}
+// Enveloppe les mots encore en cours d'apparition de `root` (qui commence à la
+// position `offset` du texte affiché) dans des <span class="wi"> dont le délai
+// d'animation pointe sur leur heure d'apparition.
+function wrapReveal(root, offset, st, now){
+  const w = textWalker(root), nodes = [];
+  while(w.nextNode()) nodes.push(w.currentNode);
+  let pos = offset;
+  for(const tn of nodes){
+    const d = tn.data, start = pos; pos += d.length;
+    if(!st.marks.length || pos <= st.marks[0].from) continue;
+    const frag = document.createDocumentFragment(); let plain = '', any = false;
+    for(const m of d.matchAll(/\S+\s*|\s+/g)){
+      const t = /\S/.test(m[0]) ? revealAt(st, start + m.index) : null;
+      if(t === null || now - t >= WORD_IN_MS){ plain += m[0]; continue; }
+      if(plain){ frag.appendChild(document.createTextNode(plain)); plain = ''; }
+      const sp = document.createElement('span');
+      // data-t : heure d'apparition (performance.now). Une copie du texte (bulle de
+      // la scène Jean) en recalcule le délai, sinon ses mots repartaient à zéro.
+      sp.className = 'wi'; sp.style.animationDelay = Math.round(t - now) + 'ms'; sp.dataset.t = Math.round(t);
+      sp.textContent = m[0]; frag.appendChild(sp); any = true;
+    }
+    if(!any) continue;
+    if(plain) frag.appendChild(document.createTextNode(plain));
+    tn.replaceWith(frag);
+  }
+}
+// tail : true = en direct (mot partiel et Markdown incomplet retenus, apparition
+// animée) ; 'idle' = en direct mais le mot partiel s'affiche (rien n'arrive
+// depuis un moment) ; 'end' = texte final exact, encore animé pour les derniers
+// mots ; false = rendu net (rejeu, mouvement réduit).
+function renderBody(el, text, tail){
+  const b=bodyOf(el);
+  const live = tail === true || tail === 'idle';
+  const anim = !!tail;
+  const st = anim ? revealState(b) : null;
+  const tmp=document.createElement('div');
+  if(tail === 'idle') el._idleAt = text.length;
+  else if(el._idleAt > text.length) el._idleAt = 0;   // texte remplacé (replace)
+  tmp.innerHTML=md(encodeMdLinkSpaces(live ? streamSafe(tail === 'idle' ? text : holdPartialWord(text, el._idleAt)) : text));
+  const keys=[...tmp.childNodes].map(n=>n.nodeType===1 ? n.outerHTML : n.nodeType+':'+n.textContent);
+  // Préfixe réutilisable : seulement si le corps est encore celui de notre dernier
+  // rendu (rien d'autre ne l'a réécrit entre-temps). Les blocs gardés gardent
+  // aussi leurs animations en cours.
+  const prev=b._blk, ok=prev && b.childNodes.length===prev.length && b.firstChild===b._blkFirst;
+  let k=0;
+  if(ok) while(k<keys.length && k<prev.length && keys[k]===prev[k]) k++;
+  while(b.childNodes.length>k) b.lastChild.remove();
+  for(let i=0;i<k;i++) tmp.removeChild(tmp.firstChild);
+  // Décorations sur les SEULS blocs neufs (markNotices n'est pas rejouable : il
+  // envelopperait deux fois le même avertissement).
+  markNotices(tmp); addCopyButtons(tmp); markFileLinks(tmp); markWorkspaceImages(tmp);
+  let offset = 0; for(const n of b.childNodes) offset += textLenNoBtn(n);
+  const fresh = [...tmp.childNodes];
+  while(tmp.firstChild) b.appendChild(tmp.firstChild);
+  b._blk=keys; b._blkFirst=b.firstChild;
+  if(anim){
+    const now = performance.now();
+    planReveal(b, st, now);
+    for(const n of fresh){ const len = textLenNoBtn(n); if(n.nodeType===1) wrapReveal(n, offset, st, now); offset += len; }
+    // Puce (ou numéro) d'un élément de liste : cachée jusqu'à ce que son premier
+    // mot commence à apparaître, sinon elle surgissait seule avant le texte.
+    for(const n of fresh){
+      if(n.nodeType!==1) continue;
+      for(const li of (n.tagName==='LI' ? [n] : n.querySelectorAll('li'))){
+        const tw = textWalker(li); let first; while((first = tw.nextNode()) && !/\S/.test(first.data));
+        const sp = first && first.parentElement.closest('span.wi');
+        const d = sp && li.contains(sp) ? parseFloat(sp.style.animationDelay) || 0 : 0;
+        if(d > 0){ li.classList.add('li-wait'); setTimeout(()=>li.classList.remove('li-wait'), d + 60); }
+      }
+    }
+  }
+  scrollMaybe();
 }
 // Lignes d'un contenu en cours d'écriture, comptées comme côté serveur : un saut
 // de ligne final termine la dernière ligne, il n'en ouvre pas une vide.

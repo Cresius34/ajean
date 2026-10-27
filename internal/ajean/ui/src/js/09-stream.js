@@ -202,6 +202,7 @@ function genItems(secs, tok, rate, pr, extra){
 }
 function paintGenStatus(){
   if(!ELAPSED) return;
+  if(touchHold()) return; // repeinte au prochain tick (500 ms) ou au prochain token
   if(COMPACTING) return; // pendant un compactage la barre affiche « compactage… »
   const g=ensureGenEl(); const txt=g.querySelector('.gtxt');
   const secs=(Date.now()-ELAPSED.start)/1000;
@@ -476,12 +477,11 @@ function syncSendBtn(){
 // ne re-rend qu'à intervalle borné. Le rendu final exact est garanti par
 // flushRender(), appelé à chaque frontière de bloc (nouvel élément, outil, fin de
 // tour, caught_up).
-let renderTimer=null, renderPending=null, lastRenderMs=0; // {el, text}
+// Un rendu en attente PAR bloc : un changement de bloc ne force plus le rendu
+// immédiat de l'ancien (il peut attendre la fin d'un tap, voir touchHold).
+let renderTimer=null, renderPending=new Map(), lastRenderMs=0; // el -> {text, tail}
 function scheduleRender(el, text, tail){
-  // Changement de bloc en cours de route : on rend d'abord l'ancien à sa dernière
-  // valeur, sinon son ultime bout de texte serait perdu.
-  if(renderPending && renderPending.el!==el) flushRender();
-  renderPending={el, text, tail:!!tail};
+  renderPending.set(el, {text, tail:tail||false});
   if(renderTimer) return;
   // Cadence ADAPTATIVE : on vise à ne pas passer plus d'~1/6 du temps à re-parser
   // le Markdown. Tant que le bloc est petit, un rendu coûte 1-2 ms → plancher 16 ms
@@ -493,54 +493,22 @@ function scheduleRender(el, text, tail){
 }
 function flushRender(){
   if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; }
-  const p=renderPending; renderPending=null;
-  if(!p) return;
+  if(!renderPending.size) return;
+  // Doigt sur l'écran : on ne touche pas au fil, on réessaie juste après.
+  if(!REPLAYING && touchHold()){ renderTimer=setTimeout(flushRender, TOUCH_GRACE); return; }
+  const items=[...renderPending]; renderPending.clear();
+  const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const t0=performance.now();
-  renderBody(p.el, p.text, p.tail && !matchMedia('(prefers-reduced-motion: reduce)').matches);
+  for(const [el, p] of items) renderBody(el, p.text, still ? false : p.tail);
   lastRenderMs=performance.now()-t0;
 }
-// Lissage d'apparition (« machine à écrire »). Le MTP et le dual-GPU débitent les
-// tokens PAR RAFALES : plusieurs tokens acceptés d'un coup, puis une pause → le
-// texte grandit par paquets et saute à l'écran. On découple donc l'ARRIVÉE (les
-// rafales réseau) de l'AFFICHAGE : `target` = tout ce qui est reçu, `shown` avance
-// à cadence régulière (requestAnimationFrame) et on n'affiche que le préfixe
-// révélé. Le rendu passe TOUJOURS par scheduleRender pour conserver le throttle
-// anti-O(n²) (issue #24) : sur un bloc énorme le lissage devient grossier, mais
-// on ne perçoit plus les à-coups token par token de toute façon.
-// UNIQUEMENT EN DIRECT : au replay, tout est posé d'un bloc (voir handleDelta),
-// sinon relire le fil deviendrait une lente réécriture caractère par caractère.
-let smooth=null, smoothLast=0; // {el, target, shown, raf}
-function smoothReset(){ if(smooth&&smooth.raf) cancelAnimationFrame(smooth.raf); smooth=null; smoothLast=0; }
-// Solde le bloc courant : on affiche TOUT immédiatement. Appelé à chaque frontière
-// (fin de tour, outil, changement de bloc) — sinon l'ultime bout de texte resterait
-// « en retard » derrière le curseur de révélation.
-function smoothSnap(){ if(!smooth) return; const el=smooth.el, target=smooth.target; smoothReset(); scheduleRender(el, target); }
-// Débit BASÉ SUR LE TEMPS (indépendant du frame-rate). La vitesse de révélation
-// est proportionnelle au RETARD accumulé, avec une constante de temps TAU : le
-// curseur traîne volontairement ~TAU derrière l'arrivée, ce qui donne un
-// écoulement CONTINU malgré les rafales du MTP, et se vide en douceur (drain
-// exponentiel) quand la génération s'arrête. Un plancher garantit un progrès
-// même quand le retard est minuscule, sans jamais figer.
-const SMOOTH_TAU=260; // ms — plus grand = plus lisse mais traîne davantage
-function smoothStep(ts){
-  if(!smooth){ return; }
-  if(!smoothLast) smoothLast=ts;
-  const dt=Math.min(120, ts-smoothLast); smoothLast=ts;
-  const remaining=smooth.target.length - smooth.shown;
-  // Tout est révélé : rendu final SANS dégradé (le texte se pose net).
-  if(remaining<=0){ smooth.raf=null; smoothLast=0; scheduleRender(smooth.el, smooth.target); return; }
-  let adv=remaining*dt/SMOOTH_TAU;      // vitesse ∝ retard
-  if(adv<0.4) adv=0.4;                  // progrès minimal
-  smooth.shown=Math.min(smooth.target.length, smooth.shown+Math.ceil(adv));
-  scheduleRender(smooth.el, smooth.target.slice(0, smooth.shown), true);
-  smooth.raf=requestAnimationFrame(smoothStep);
-}
-function smoothFeed(el, target){
-  if(smooth && smooth.el!==el) smoothSnap();   // changement de bloc : solder l'ancien
-  if(!smooth) smooth={el, target, shown:0, raf:null};
-  smooth.target=target;
-  if(!smooth.raf) smooth.raf=requestAnimationFrame(smoothStep);
-}
+// Bloc en cours d'écriture en direct ({el, text}). L'apparition elle-même
+// (rythme, animation) est gérée par renderBody (voir revealState / planReveal).
+let LIVE=null;
+function smoothReset(){ if(LIVE && LIVE.idle) clearTimeout(LIVE.idle); LIVE=null; }
+// Solde le bloc courant : texte final exact, les derniers mots finissent leur
+// apparition. Appelé à chaque frontière (fin de tour, outil, changement de bloc).
+function smoothSnap(){ if(!LIVE) return; const {el, text, idle}=LIVE; if(idle) clearTimeout(idle); LIVE=null; scheduleRender(el, text, 'end'); }
 // Rend un bloc en streaming : lissé en direct, instantané au replay.
 // CATCHUP = on rattrape le backlog d'une RECONNEXION (retour d'onglet en arrière-
 // plan, coupure réseau…). Le serveur rejoue d'un bloc tout ce qui s'est produit
@@ -550,7 +518,35 @@ function smoothFeed(el, target){
 // fini d'« écrire » tout le retard. Le serveur clôt le rattrapage par {caught_up},
 // qui remet CATCHUP à false → le direct qui suit retrouve son lissage normal.
 let CATCHUP=false;
-function feedBlock(el, full){ if(REPLAYING||CATCHUP) scheduleRender(el, full); else smoothFeed(el, full); }
+// Modèle lent : si rien n'arrive pendant WORD_IDLE_MS, le mot en cours de
+// réception s'affiche sans attendre la suite (à 5 tok/s, attendre la fin d'un
+// mot coûtait près d'une demi-seconde).
+const WORD_IDLE_MS=150;
+function feedBlock(el, full){
+  if(REPLAYING||CATCHUP){ scheduleRender(el, full); return; }
+  if(LIVE && LIVE.el!==el) smoothSnap();   // changement de bloc : solder l'ancien
+  if(LIVE && LIVE.idle) clearTimeout(LIVE.idle);
+  LIVE={el, text:full};
+  LIVE.idle=setTimeout(()=>{ if(LIVE && LIVE.el===el && LIVE.text===full) scheduleRender(el, full, 'idle'); }, WORD_IDLE_MS);
+  scheduleRender(el, full, true);
+}
+// File d'attente du direct pendant un tap (voir touchHold) : les événements reçus
+// pendant le contact sont traités juste après, dans l'ordre. Rien ne bouge sous le
+// doigt, et Safari iOS n'annule plus le tap.
+const LIVEQ=[]; let liveQTimer=0;
+function liveDelta(d){
+  if(LIVEQ.length || (!REPLAYING && !CATCHUP && touchHold())){
+    LIVEQ.push(d);
+    if(!liveQTimer) liveQTimer=setTimeout(drainLive, TOUCH_GRACE+20);
+    return;
+  }
+  handleDelta(d);
+}
+function drainLive(){
+  liveQTimer=0;
+  if(touchHold()){ liveQTimer=setTimeout(drainLive, TOUCH_GRACE+20); return; }
+  while(LIVEQ.length){ const d=LIVEQ.shift(); try{ handleDelta(d); }catch(e){} }
+}
 // Traite UN événement du flux — même sémantique que l'ancien switch inline, mais
 // piloté par le serveur et rejouable à l'identique.
 function handleDelta(d){
@@ -600,7 +596,7 @@ function handleDelta(d){
     // sinon on resterait par ex. en Jean en regardant une conversation de projet.
     if(d.mode) setModeFromConv(d.mode);
     histRefreshSoon();
-    TURN_ENDED=true; elapsedStop(); smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending=null; PENDS=[];
+    TURN_ENDED=true; elapsedStop(); smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending.clear(); PENDS=[];
     // Un fil complet suit (changement de mode, session rouverte) : on le reconstruit
     // MASQUÉ, et caught_up le révèle en fondu, déjà positionné en bas. Sinon on le
     // voyait se remplir puis sauter. Nouveau fil vide : simple fondu d'entrée.
@@ -676,7 +672,7 @@ function handleDelta(d){
     if(ELAPSED) ensureGenEl(); // re-ancre la ligne EN DERNIER dans le même cycle : la bulle d'outil ne passe pas au-dessus (pas de saut)
     return; }
   if(d.drop_reasoning){
-    smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending=null; // le bloc raisonnement disparaît
+    smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending.clear(); // le bloc raisonnement disparaît
     if(T.reasonEl){ const i=T.turnCollapsibles.indexOf(T.reasonEl); if(i>=0) T.turnCollapsibles.splice(i,1); T.reasonEl.remove(); T.reasonEl=null; T.fullReason=''; }
     return; }
   if(d.reasoning_content){
@@ -770,7 +766,7 @@ async function connectStream(){
           for(const line of chunk.split('\n')){
             if(!line.startsWith('data:')) continue;
             const data=line.slice(5).trim(); if(data===''||data==='[DONE]') continue;
-            try{ const o=JSON.parse(data); const d=(o.choices&&o.choices[0]&&o.choices[0].delta)||{}; handleDelta(d); }catch(e){}
+            try{ const o=JSON.parse(data); const d=(o.choices&&o.choices[0]&&o.choices[0].delta)||{}; liveDelta(d); }catch(e){}
             if(performance.now()-slice>12){ await new Promise(res=>setTimeout(res,0)); slice=performance.now(); }
           }
         }
@@ -867,7 +863,7 @@ async function readConversation(id, title){
   READING=true; READING_ID=id; chatEl().classList.add('reading'); // fil complet : rendu différé (styles.css)
   if(streamAbort){ try{ streamAbort.abort(); }catch(e){} } // fige le direct (génération autonome côté serveur, intacte)
   const chat=document.getElementById('chat'); if(chat) chat.innerHTML=''; newTurn();
-  smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending=null;
+  smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending.clear();
   const wasReplaying=REPLAYING; REPLAYING=true;
   for(const ev of (r.log||[])){ try{ handleDelta((ev&&ev.delta)||{}); }catch(e){} }
   REPLAYING=wasReplaying;
@@ -884,7 +880,7 @@ function exitReading(){
   READING=false; READING_ID=''; chatEl().classList.remove('reading');
   PENDING_LIVE=false; leaveReadingUI();
   const chat=document.getElementById('chat'); if(chat) chat.innerHTML=''; newTurn();
-  smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending=null;
+  smoothReset(); if(renderTimer){ clearTimeout(renderTimer); renderTimer=null; } renderPending.clear();
   lastSeq=0; REPLAYING=true; setChatLoading(t('chat.loading_conversation'));
 }
 // Pas de gros bandeau : juste un indice discret dans le composeur (le placeholder)

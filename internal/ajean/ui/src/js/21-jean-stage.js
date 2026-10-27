@@ -153,6 +153,10 @@
       const keep=new Map();
       for(const im of bubbleBody.querySelectorAll('img[src]')) if(im.complete && im.naturalWidth) keep.set(im.getAttribute('src'), im);
       lastHTML=html; bubbleBody.innerHTML=html;
+      // Mots en cours d'apparition : la copie relance leur fondu. On recale le délai
+      // sur leur heure d'apparition, sinon chaque mise à jour les faisait clignoter.
+      const now=performance.now();
+      for(const w of bubbleBody.querySelectorAll('span.wi[data-t]')) w.style.animationDelay=Math.round(+w.dataset.t-now)+'ms';
       adoptImages(keep);
       if(fresh){ userScrolled=false; bubbleBody.scrollTop=0; }
       else if(!userScrolled) bubbleBody.scrollTop=bubbleBody.scrollHeight;

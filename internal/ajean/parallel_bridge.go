@@ -24,11 +24,21 @@ package ajean
 //     backend_moe_strata.go:225) : deux contrôles indépendants, pas un seul
 //     qu'on oublie.
 //
-// Ce que le pont ne fait PAS : il ne partage ni la mémoire, ni les outils, ni le
-// fil de conversation. B répond avec son moteur, pas avec son agent. C'est le
-// niveau 0 de l'étude (mémoire r19-faisabilite-ajean-a-ajean) ; la conversation
-// agent↔agent (/api/chat/send) et le partage d'outils (serveur MCP, inexistant)
-// viendraient après.
+// Ce que le pont ne fait PAS : il ne partage ni la mémoire, ni les définitions
+// d'outils, ni le fil de conversation de l'utilisateur.
+//
+// Ce qu'il fait depuis la révision 4 : quand l'appelant est un AUTRE Ajean
+// (en-tête du canal) et que le MODE AGENT est allumé sur ce poste, il ne prête plus
+// son modèle nu — il rend un vrai tour d'agent local, dont la réponse entre dans la
+// conversation active précédée d'une balise. Voir parallel_bridge_agent.go : c'est
+// ce qui permet au voisin de lire SES propres journaux et de diagnostiquer SON
+// moteur, ce que le modèle nu lui interdisait (il répondait « INTROUVABLE, mon
+// exécution est un SaaS cloud »). Agent éteint, on en reste au prêt du modèle nu
+// décrit ci-dessus : l'interrupteur de la machine décide seul de prêter ou non son
+// shell à un voisin.
+//
+// Niveau 0 de l'étude (mémoire r19-faisabilite-ajean-a-ajean) : le partage de la
+// mémoire elle-même et le serveur MCP restent à faire.
 
 import (
 	"bytes"
@@ -54,6 +64,9 @@ const (
 	parallelBridgePortKey    = "parallel_bridge_port" // écoute du pont, défaut 18190
 	parallelBridgePortDef    = "18190"
 	parallelBridgeHostEnvKey = "AJEAN_BRIDGE_HOST" // épingler une interface
+	// parallelBridgeAgentKey : autoriser le canal à déclencher un tour d'AGENT
+	// local (shell, disque, mémoire). ÉTEINT par défaut, volontairement.
+	parallelBridgeAgentKey = "parallel_bridge_agent"
 )
 
 var (
@@ -64,6 +77,20 @@ var (
 func parallelBridgeRequested() bool { return getBool(bkState, parallelBridgeFlagKey) }
 
 func setParallelBridgeRequested(on bool) error { return putBool(bkState, parallelBridgeFlagKey, on) }
+
+// parallelBridgeAgentOn : le canal a-t-il droit à un tour d'agent, et pas seulement
+// à une complétion du modèle prêté. ÉTEINT par défaut : ouvrir un port pour prêter
+// un cerveau est une chose, y faire tourner le shell de la machine en est une autre,
+// et cela se décide machine par machine. AJEAN_BRIDGE_AGENT=1 l'allume pour un
+// lanceur ou un test, sans écrire dans la base.
+func parallelBridgeAgentOn() bool {
+	if v := strings.TrimSpace(os.Getenv("AJEAN_BRIDGE_AGENT")); v != "" {
+		return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "on")
+	}
+	return getBool(bkState, parallelBridgeAgentKey)
+}
+
+func setParallelBridgeAgentOn(on bool) error { return putBool(bkState, parallelBridgeAgentKey, on) }
 
 // parallelBridgeEnvForced : un lanceur peut allumer le pont sans toucher à la
 // base (AJEAN_BRIDGE=1). C'est ce qui permet de tester un pont sans repasser par
@@ -154,6 +181,15 @@ func parallelBridgeHandler() http.Handler {
 		if !antKeyOK(r) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="ajean-pont"`)
 			sendJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "clé API invalide"})
+			return
+		}
+		// Le canal d'abord : quand l'appelant est un AUTRE Ajean, ce n'est pas notre
+		// modèle qu'il cherche, c'est notre agent. Le pont lui rend donc un vrai tour
+		// d'agent local (outils, mémoire, projet) au lieu de proxifier une complétion
+		// vers le moteur nu — d'où ses réponses « INTROUVABLE » sur ses propres
+		// journaux avant ce correctif. Voir parallel_bridge_agent.go.
+		if canalDemande(r) {
+			bridgeAgentTurn(w, r)
 			return
 		}
 		if ep := resolveChatEndpoint(); (ep.External || ep.Cloud) && !isAnthropicPath(r.URL.Path) {
@@ -637,6 +673,12 @@ func parallelBridgeStatus() map[string]any {
 		"port":        parallelBridgePort(),
 		"host":        parallelBridgeHost(),
 		"has_key":     readAPIKey() != "",
+		// agent_on : le canal déclenche-t-il un tour d'agent ici (shell, disque),
+		// ou seulement des complétions du modèle prêté. Les deux sources comptent :
+		// l'interrupteur du pont ET le mode agent de la machine.
+		"agent_on":         parallelBridgeAgentOn() && agentEnabled(),
+		"agent_requested":  parallelBridgeAgentOn(),
+		"agent_mode_local": agentEnabled(),
 		"model":       model,
 		"urls":        parallelBridgeLanURLs(),
 		// engine_port : le port du RÉGLAGE d'instance ; engine_serving : le port
@@ -667,6 +709,7 @@ func handleParallelBridge(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var req struct {
 			Enabled *bool  `json:"enabled"`
+			Agent   *bool  `json:"agent"`
 			Port    string `json:"port"`
 			Apply   bool   `json:"apply"`
 		}
@@ -696,6 +739,12 @@ func handleParallelBridge(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := putStr(bkState, parallelBridgePortKey, p); err != nil {
+				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+				return
+			}
+		}
+		if req.Agent != nil {
+			if err := setParallelBridgeAgentOn(*req.Agent); err != nil {
 				sendJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
@@ -741,6 +790,35 @@ func cmdParallelBridge(args []string) error {
 		sub = strings.ToLower(strings.TrimSpace(args[0]))
 		args = args[1:]
 	}
+	// `bridge agent on|off` : l'autorisation de déclencher un tour d'agent local
+	// depuis le canal. Séparée de `bridge on` parce que ce n'est pas la même chose
+	// prêter un modèle et prêter le shell de sa machine.
+	if sub == "agent" {
+		qui := "on"
+		if len(args) > 0 {
+			qui = strings.ToLower(strings.TrimSpace(args[0]))
+		}
+		switch qui {
+		case "on", "activer", "oui", "1":
+			if err := setParallelBridgeAgentOn(true); err != nil {
+				return err
+			}
+			fmt.Printf("%s le canal peut déclencher un tour d'agent sur ce poste (outils, shell, disque, mémoire).\n", green("[ok]"))
+			if !agentEnabled() {
+				fmt.Printf("%s attention : le MODE AGENT de cette machine est éteint, donc rien ne se déclenchera\n", yellow("[!]"))
+				fmt.Printf("             tant que l'interface n'est pas en mode Projet/Agent.\n")
+			}
+			return nil
+		case "off", "couper", "non", "0":
+			if err := setParallelBridgeAgentOn(false); err != nil {
+				return err
+			}
+			fmt.Printf("%s le canal ne prête plus que le modèle nu (complétions), rien ne s'exécute ici\n", green("[ok]"))
+			return nil
+		default:
+			return fmt.Errorf("usage : ajean bridge agent [on|off]")
+		}
+	}
 	port := ""
 	if len(args) > 0 {
 		port = strings.TrimSpace(args[0])
@@ -750,6 +828,18 @@ func cmdParallelBridge(args []string) error {
 		st := parallelBridgeStatus()
 		fmt.Printf("pont Ajean   : demandé=%v  actif=%v  à l'écoute=%v (ici=%v)\n", st["requested"], st["enabled"], st["listening"], st["running"])
 		fmt.Printf("écoute       : http://%s/v1\n", net.JoinHostPort(parallelBridgeHost(), parallelBridgePort()))
+		// Ce que le voisin a le DROIT de faire ici. La distinction s'affiche parce
+		// qu'elle change tout au diagnostic : avec l'agent, le voisin peut lire ses
+		// propres journaux ; sans lui, il ne reçoit que du texte de modèle nu.
+		if st["agent_on"].(bool) {
+			fmt.Printf("canal        : %s un tour d'agent local est autorisé (outils, shell, disque, mémoire)\n", green("agent"))
+		} else {
+			fmt.Printf("canal        : %s — le voisin ne reçoit que le modèle nu. Ouvrir l'agent : %s\n",
+				yellow("prêt du modèle seul"), bold("ajean bridge agent on"))
+			if parallelBridgeAgentOn() && !agentEnabled() {
+				fmt.Printf("             (l'autorisation du pont est prise, mais le mode agent de cette machine est éteint)\n")
+			}
+		}
 		if ep, ok := st["engine_serving"].(string); ok {
 			fmt.Printf("moteur prêté : 127.0.0.1:%s\n", ep)
 		}

@@ -132,8 +132,19 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply != "Bonjour, moi c'est l'autre IA" {
-		t.Fatalf("réponse du canal : %q", reply)
+	// La réponse rendue à l'agent porte la balise du canal (décision du
+	// 2026-10-27 : distinguer ce qui vient du voisin d'une interaction extérieure),
+	// et dit SURTOUT ce qui a répondu là-bas : ici le moteur nu, donc rien ne
+	// s'exécute chez le voisin.
+	if !strings.HasPrefix(reply, "[Réponse du canal Ajean↔Ajean · voisin « poste-salon » · il a répondu par son modèle nu] ") {
+		t.Fatalf("la réponse de l'appelant n'est pas balisée comme attendu : %q", reply)
+	}
+	if !strings.HasSuffix(reply, "Bonjour, moi c'est l'autre IA") {
+		t.Fatalf("le texte du voisin a été abîmé : %q", reply)
+	}
+	// Le souvenir, lui, reste NU : il est rejoué au voisin à chaque tour.
+	if brut := getStr(bkState, peerThreadKey(peerMustFind(t, "poste-salon"))); strings.Contains(brut, "Réponse du canal") {
+		t.Fatalf("la balise s'est glissée dans le souvenir rejoué au voisin : %s", brut)
 	}
 	// Ce qui est réellement parti du côté appelé. Le pont ajoute une carte
 	// d'identité (bridgeDeclareSelf) : elle doit être là, UNIQUE, et ne jamais

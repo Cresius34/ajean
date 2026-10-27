@@ -42,7 +42,14 @@ const (
 	peersStateKey       = "parallel_peers"
 	peerThreadKeyPrefix = "parallel_peer_thread:"
 	peerThreadMax       = 12          // derniers échanges gardés par voisin
-	peerAskTimeout      = 5 * time.Minute // un gros MoE peut mettre du temps
+	// peerAskTimeout : 5 minutes allaient bien à une COMPLÉTION nue. Depuis la
+	// révision 4, demander à un voisin peut déclencher chez lui un tour d'AGENT
+	// complet : plusieurs passages par son modèle, plus l'exécution de ses outils
+	// (lire un journal, lancer une commande, reposer un binaire). Sur un gros MoE
+	// local, un tour qui diagnostique un moteur dépasse allègrement les 5 minutes —
+	// et l'appelant perdrait le résultat d'un travail déjà payé. 20 minutes, avec
+	// une deadline dans le contexte (peerHTTPClient n'a pas de timeout global).
+	peerAskTimeout      = 20 * time.Minute
 	peerProbeTimeout    = 12 * time.Second
 )
 
@@ -287,6 +294,12 @@ func peerAsk(ctx context.Context, p peerEndpoint, message string) (string, error
 	// il est et ce qu'il ne peut pas faire (parallel_bridge.go,
 	// bridgeDeclareSelf). Sans cet en-tête, la complétion traverse telle quelle.
 	req.Header.Set(canalHeader, "1")
+	// Qui parle, et à quel saut de l'échange on en est. Depuis que le pont rend un
+	// tour d'AGENT (parallel_bridge_agent.go), l'appelé a besoin de savoir qui il a
+	// en face : c'est ce que porte la balise de son message. La profondeur, elle,
+	// borne une chaîne de postes qui se relaieraient la demande.
+	req.Header.Set(canalFromHeader, canalMachineNom())
+	req.Header.Set(canalHopHeader, "1")
 	if p.Key != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Key)
 	}
@@ -303,6 +316,7 @@ func peerAsk(ctx context.Context, p peerEndpoint, message string) (string, error
 		return "", peerStatusError(p, resp.StatusCode, body)
 	}
 	var out struct {
+		Model string `json:"model"`
 		Choices []struct {
 			Message struct {
 				Content string `json:"content"`
@@ -324,7 +338,26 @@ func peerAsk(ctx context.Context, p peerEndpoint, message string) (string, error
 	if err := savePeerThread(p, append(thread, peerThreadMessage{Role: "assistant", Content: reply})); err != nil {
 		return reply, fmt.Errorf("réponse reçue mais le souvenir du canal n'a pas pu être écrit : %w", err)
 	}
-	return reply, nil
+	// Balise aussi de ce côté-ci, mais sur la réponse RENVOYÉE à l'agent et non sur
+	// celle gardée dans le souvenir. La décision du 2026-10-27 demande de pouvoir
+	// distinguer, dans le chat, ce qui vient du canal d'une interaction extérieure :
+	// chez l'appelé c'est la bulle qui porte la balise, chez l'appelant c'est le texte
+	// que l'agent lit. Sans elle, ce que le voisin écrit et ce que j'écris se
+	// ressemblent trait pour trait dans mon contexte — et depuis que le pont rend un
+	// tour d'agent, la réponse du voisin ressemble à s'y méprendre à la mienne.
+	// Le souvenir, lui, reste NU : il est rejoué au voisin à chaque tour, qui n'a pas
+	// à lire dix fois qu'il se parle à lui-même.
+	//
+	// La balise dit AUSSI ce qui a répondu de l'autre côté. Un tour d'agent s'annonce
+	// model:"ajean-agent" (envoiOpenAI), le modèle nu répond sous le nom de son gguf :
+	// c'est suffisant pour étiqueter, sans inventer de protocole. Cette différence est
+	// décisive pour celui qui lit — de l'agent, ou du texte de modèle nu ?
+	facon := "modèle nu"
+	if strings.TrimSpace(out.Model) == "ajean-agent" {
+		facon = "agent"
+	}
+	return fmt.Sprintf("[Réponse du canal Ajean↔Ajean · voisin « %s » · il a répondu par son %s] %s",
+		p.Name, facon, reply), nil
 }
 
 // peerHTTPClient : pas de timeout global — la deadline est dans le contexte,
@@ -360,6 +393,16 @@ func peerStatusError(p peerEndpoint, code int, body []byte) error {
 		return fmt.Errorf("voisin %s : %s", p.Name, bridgeErrorOf(trimmed))
 	case http.StatusNotFound:
 		return fmt.Errorf("voisin %s : %s répond mais ce n'est pas un pont Ajean (surface /v1/* attendue)", p.Name, p.URL)
+	case http.StatusForbidden:
+		// 403 chez un voisin qui a le pont agent (révision 4) : son agent est éteint
+		// ou son pont n'autorise pas le tour. Le message du pont est déjà exact, on y
+		// ajoute seulement ce que l'appelant peut faire, lui.
+		return fmt.Errorf("voisin %s : %s — chez l'appelant : reformuler une demande que ton interlocuteur peut traiter avec le seul texte, ou lui demander d'ouvrir son agent (ajean bridge agent on)", p.Name, bridgeErrorOf(trimmed))
+	case http.StatusLoopDetected:
+		// 421 : le voisin a vu l'échange rebondir de poste en poste. La cause est
+		// presque toujours du côté de l'appelant — il a posé chez un voisin une
+		// demande que lui-même aurait pu traiter.
+		return fmt.Errorf("voisin %s : la demande a déjà fait %s et personne au bout de la chaîne ne peut la traiter. C'est probablement CHEZ TOI qu'elle doit être traitée : la traiter avec tes outils plutôt que la relayer", p.Name, "deux sauts")
 	default:
 		return fmt.Errorf("voisin %s : statut %d — %s", p.Name, code, bridgeErrorOf(trimmed))
 	}
@@ -389,7 +432,7 @@ func peerTool() Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name: "peer",
-			Description: "Talk to ANOTHER Ajean on this local network, through the Ajean↔Ajean bridge. Each side keeps its own brain: this is a channel between two AIs, not a borrowed model. IMPORTANT — across the channel only TEXT travels: the peer answers from its model, and that model has no tools, no disk, no shell and no memory of its own there. So it can never run a command, read a file or install anything for you, and if it claims to have done so it is confabulating — ask it to describe instead, and do the action yourself with your own tools. The last exchanges with that peer are kept and resent, so the conversation continues. list: which peers exist. status: what a peer lends (models, whether it answers). ask: send a message and get the answer. forget: drop the shared history without removing the peer.",
+			Description: "Talk to ANOTHER Ajean on this local network, through the Ajean↔Ajean bridge. Each side keeps its own brain: this is a channel between two AIs, not a borrowed model. What the peer can do depends on ITS OWN setting, and you cannot tell from here — so read its answer, do not assume. If its agent mode is ON, your message starts a real agent turn on that machine: it answers with its own tools, its own memory and its own project, so it CAN read its logs, run its commands and check its own files — and it never sees your disk, only what it writes back. If its agent mode is OFF, the bridge only lends its raw model: no tools, no disk, no shell there, and a claim of having run something would be confabulation. Either way nothing of yours is executed remotely and nothing of theirs is shared automatically. Every message crossing the channel is tagged in its text — yours arrives on their side as [Canal Ajean↔Ajean …], their answer reaches you as [Réponse du canal Ajean↔Ajean …] — so you can always tell a peer apart from a human speaking to you. Their agent may also refuse: a turn already running on their machine, their conversation « Jean » open, or a request relayed too many times. The last exchanges with that peer are kept and resent, so the conversation continues. Never call this tool to answer a message that itself came from the channel — it bounces the question back and the two of you loop. list: which peers exist. status: what a peer lends (models, whether it answers). ask: send a message and get the answer. forget: drop the shared history without removing the peer.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -404,6 +447,14 @@ func peerTool() Tool {
 
 // runPeerTool : l'exécution de l'outil peer.
 func runPeerTool(args map[string]any) string {
+	// Garde-fou anti-boucle. Depuis que le pont d'en face rend un tour d'AGENT et
+	// non plus une complétion nue (parallel_bridge_agent.go), un tour déclenché par
+	// le canal a le droit d'appeler ses outils — mais PAS l'outil peer : il
+	// renverrait la demande à celui qui vient de la poser, et deux agents autonomes
+	// se relaieraient la même question sans fin.
+	if canalTurnActive.Load() > 0 {
+		return canalPeerCoupé()
+	}
 	act, _ := args["action"].(string)
 	who, _ := args["peer"].(string)
 	act = strings.ToLower(strings.TrimSpace(act))

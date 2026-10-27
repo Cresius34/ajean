@@ -15,6 +15,8 @@ package ajean
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -133,9 +135,15 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 	if reply != "Bonjour, moi c'est l'autre IA" {
 		t.Fatalf("réponse du canal : %q", reply)
 	}
-	// Ce qui est réellement parti du côté appelé.
+	// Ce qui est réellement parti du côté appelé. Le pont ajoute une carte
+	// d'identité (bridgeDeclareSelf) : elle doit être là, UNIQUE, et ne jamais
+	// s'empiler tour après tour — le souvenir, lui, ne garde que user/assistant.
 	msgs, _ := reçu["messages"].([]any)
-	if len(msgs) != 1 {
+	système, fil := decompterMessages(msgs)
+	if système != 1 {
+		t.Fatalf("le pont doit injecter exactement une carte d'identité, %d trouvées (%+v)", système, reçu["messages"])
+	}
+	if fil != 1 {
 		t.Fatalf("messages partis : %+v", reçu["messages"])
 	}
 	if _, outils := reçu["tools"]; outils {
@@ -148,8 +156,12 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	msgs, _ = reçu["messages"].([]any)
-	if len(msgs) != 3 {
-		t.Fatalf("mémoire du canal absente : %d messages vus par le voisin (%+v)", len(msgs), reçu["messages"])
+	système, fil = decompterMessages(msgs)
+	if système != 1 {
+		t.Fatalf("la carte d'identité s'empile : %d prompts système (%+v)", système, reçu["messages"])
+	}
+	if fil != 3 {
+		t.Fatalf("mémoire du canal absente : %d messages hors identité vus par le voisin (%+v)", fil, reçu["messages"])
 	}
 
 	// Le voisin est joignable par l'outil, pas seulement par la fonction.
@@ -271,6 +283,199 @@ func TestPeersAPINeverLeaksKeys(t *testing.T) {
 	}
 	if raw := getStr(bkState, peerThreadKey(peerEndpoint{URL: "http://192.168.1.132:18190/v1"})); raw != "" {
 		t.Fatal("le souvenir a survécu au voisin")
+	}
+}
+
+// decompterMessages : sépare la carte d'identité injectée par le pont du fil
+// réel. Un compteur unique ne voyait pas la différence entre « le souvenir suit »
+// et « l'identité s'empile tour après tour », deux bugs opposés.
+func decompterMessages(msgs []any) (systeme, fil int) {
+	for _, m := range msgs {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(fmt.Sprint(mm["role"]))) == "system" {
+			systeme++
+			continue
+		}
+		fil++
+	}
+	return systeme, fil
+}
+
+// Le pont prête un modèle NU : sans carte d'identité, ce modèle invente ce qu'il
+// est. Mesuré le 2026-10-27 sur le poste voisin, à qui demandait s'il avait un
+// outil peer : « je fonctionne sur une infrastructure cloud, pas sur un poste
+// physique », puis « le voisin est ajouté sur le pont 18190 » — alors qu'aucune
+// commande d'ajout n'existe côté modèle. Les deux réponses étaient fausses.
+func TestBridgeDeclaresItselfOnlyAcrossTheCanal(t *testing.T) {
+	parallelTestHome(t)
+	t.Setenv("AJEAN_BRIDGE", "")
+
+	var vus []map[string]any
+	engine := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		vus = append(vus, in)
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "ok"}, "finish_reason": "stop"}},
+		})
+	}))
+	defer engine.Close()
+
+	if err := writeAPIKey("sk-ici"); err != nil {
+		t.Fatal(err)
+	}
+	// Le port du moteur passe par le RÉGLAGE d'instance, jamais par la config :
+	// normalizeParallelConfig écrase PORT par parallelEnginePort()
+	// (parallel_config.go:116). Écrire PORT dans WriteConfig ne trompe personne —
+	// et sans cette ligne le pont va frapper le moteur réel du poste de test, qui
+	// répond 401 avec SA clé. Mesuré, pas supposé.
+	if err := putStr(bkState, "parallel_engine_port", urlPort(engine.URL)); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteConfig(map[string]string{"MODEL": "cerveau-ici.gguf"}); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("pas de port libre")
+	}
+	srv := &http.Server{Handler: parallelBridgeHandler()}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	envoyer := func(avecCanal bool) {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodPost,
+			"http://127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)+"/v1/chat/completions",
+			strings.NewReader(`{"model":"x","messages":[{"role":"user","content":"as-tu un terminal ?"}]}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer sk-ici")
+		if avecCanal {
+			req.Header.Set(canalHeader, "1")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<14))
+			t.Fatalf("statut %d : %s", resp.StatusCode, b)
+		}
+	}
+
+	envoyer(true)
+	msgs, _ := vus[0]["messages"].([]any)
+	if s, _ := decompterMessages(msgs); s != 1 {
+		t.Fatalf("le modèle prêté ne reçoit aucune carte d'identité (%+v)", vus[0]["messages"])
+	}
+	if content := fmt.Sprint(msgs[0].(map[string]any)["content"]); !strings.Contains(content, "AUCUN outil") {
+		t.Fatalf("la carte doit dire au modèle qu'il n'a pas d'outils : %s", content)
+	}
+
+	// Un logiciel tiers branché sur le pont n'est pas un Ajean : sa requête
+	// traverse telle quelle. Le pont ne réécrit pas le dialogue d'un client.
+	envoyer(false)
+	if s, fil := decompterMessages(vus[1]["messages"].([]any)); s != 0 || fil != 1 {
+		t.Fatalf("requête d'un client tiers réécrite : %+v", vus[1]["messages"])
+	}
+}
+
+// La volonté de l'appelant passe avant celle du pont : si le voisin a déjà posé
+// un prompt système, le pont ne se substitue pas à lui.
+func TestBridgeIdentityYieldsToCallerSystemPrompt(t *testing.T) {
+	parallelTestHome(t)
+	t.Setenv("AJEAN_BRIDGE", "")
+
+	var reçu map[string]any
+	engine := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&reçu)
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "ok"}, "finish_reason": "stop"}},
+		})
+	}))
+	defer engine.Close()
+	if err := writeAPIKey("sk-ici"); err != nil {
+		t.Fatal(err)
+	}
+	if err := putStr(bkState, "parallel_engine_port", urlPort(engine.URL)); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteConfig(map[string]string{"MODEL": "cerveau-ici.gguf"}); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("pas de port libre")
+	}
+	srv := &http.Server{Handler: parallelBridgeHandler()}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	req, _ := http.NewRequest(http.MethodPost,
+		"http://127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)+"/v1/chat/completions",
+		strings.NewReader(`{"model":"x","messages":[{"role":"system","content":"Tu es un traducteur."},{"role":"user","content":"bonjour"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer sk-ici")
+	req.Header.Set(canalHeader, "1")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	msgs, _ := reçu["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("le pont a ajouté son identité malgré un prompt système de l'appelant : %+v", reçu["messages"])
+	}
+	if fmt.Sprint(msgs[0].(map[string]any)["content"]) != "Tu es un traducteur." {
+		t.Fatalf("le prompt système de l'appelant a été déplacé : %+v", reçu["messages"])
+	}
+}
+
+// Le refus doit dire POURQUOI il refuse. Six préfixes partageaient un seul
+// message, qui renvoyait vers la « page Mémoire sémantique » — sans rapport avec
+// le réseau. Capturé par l'utilisateur le 2026-10-27 en cliquant sur
+// « joignable depuis le réseau local ».
+func TestParallelRefusentAvecLeurPropreRaison(t *testing.T) {
+	parallelTestHome(t)
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("une route bannie a atteint son gestionnaire")
+	})
+	h := parallelHTTPHandler(next)
+
+	vus := map[string]string{}
+	for _, b := range parallelBlockedRoutes {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, b.prefix+"test", nil))
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("%s : statut %d, attendu 403", b.prefix, w.Code)
+		}
+		var out struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		if out.Error == "" {
+			t.Fatalf("%s : refus sans raison", b.prefix)
+		}
+		vus[out.Error] = b.prefix
+	}
+	if len(vus) != len(parallelBlockedRoutes) {
+		t.Fatalf("des refus partagent la même raison : %d raisons pour %d routes", len(vus), len(parallelBlockedRoutes))
+	}
+
+	// Le cas mesuré : la route réseau doit parler de réseau, pas de mémoire.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/network", nil))
+	msg := w.Body.String()
+	if strings.Contains(msg, "Mémoire sémantique") {
+		t.Fatalf("le refus réseau renvoie encore à la Mémoire sémantique : %s", msg)
+	}
+	if !strings.Contains(msg, "pont") {
+		t.Fatalf("le refus réseau doit désigner le seul port ouvert, le pont : %s", msg)
 	}
 }
 

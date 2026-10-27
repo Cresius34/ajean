@@ -25,13 +25,15 @@ const parallelMemoryRevision = 7
 
 // buildFlavorSuffix est l'identité publique de ce build : la base amont
 // (Version, reprise telle quelle du tag nathaninline fusionné) suivie du
-// millésime Cresius. Version = "0.18.15" + ".2 Cresius" donne donc
-// « 0.18.15.2 Cresius », c'est-à-dire la base 0.18.15 et notre révision 2
-// (tag git v0.18.15+rev2) : la révision 1 était le patch correctif, la 2
-// ajoute le canal Ajean↔Ajean (pont + outil peer). Doit rester identique à
+// millésime Cresius. Version = "0.18.15" + ".3 Cresius" donne donc
+// « 0.18.15.3 Cresius », c'est-à-dire la base 0.18.15 et notre révision 3
+// (tag git v0.18.15+rev3) : la révision 1 était le patch correctif, la 2
+// ajoute le canal Ajean↔Ajean (pont + outil peer), la 3 rend ce canal honnête —
+// le modèle prêté sait enfin qu'il est prêté et qu'il n'a aucun outil, et un
+// refus du build portable explique POURQUOI il refuse. Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".2 Cresius"
+const buildFlavorSuffix = ".3 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.
@@ -116,6 +118,23 @@ func parallelCommandAllowed(cmd string) bool {
 	return false
 }
 
+// parallelBlockedRoutes : ce que le build portable refuse, et POURQUOI. Une
+// raison par préfixe : un message recopié pour six routes différentes rend un
+// refus légitime incompréhensible. Mesuré le 2026-10-27 : qui cliquait sur
+// « joignable depuis le réseau local » lisait « utiliser la page Mémoire
+// sémantique », deux phrases sans aucun rapport avec le réseau.
+var parallelBlockedRoutes = []struct {
+	prefix string
+	msg    string
+}{
+	{"/api/update/", "Mise à jour désactivée : cette version portable de Cresius se met à jour à la main (le binaire est livré avec son patch)."},
+	{"/api/network", "Exposition du moteur sur le réseau désactivée dans cette version portable : le seul port ouvert vers l'extérieur est celui du pont Ajean↔Ajean (page Réglages, carte « Pont Ajean ↔ Ajean »), verrouillé par la clé API de la machine. Le port du moteur reste sur cette machine."},
+	{"/api/cloud/", "GPU cloud désactivé dans cette version portable."},
+	{"/api/link/", "Accès distant ajean.link désactivé dans cette version portable : rien ne sort de cette machine hors du réseau local."},
+	{"/api/oai/", "Exposition publique (ajean.link) désactivée dans cette version portable."},
+	{"/api/backup/", "Sauvegarde à distance désactivée dans cette version portable."},
+}
+
 func parallelHTTPHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -129,10 +148,15 @@ func parallelHTTPHandler(next http.Handler) http.Handler {
 		}
 		// Presets and llama.cpp management use their normal handlers. Services,
 		// registry/network settings and updating this fork stay out of scope.
-		blocked := []string{"/api/update/", "/api/network", "/api/cloud/", "/api/link/", "/api/oai/", "/api/backup/"}
-		for _, prefix := range blocked {
-			if strings.HasPrefix(p, prefix) {
-				sendJSON(w, 403, map[string]any{"ok": false, "error": "Commande désactivée dans la version parallèle ; utiliser la page Mémoire sémantique."})
+		//
+		// Chaque refus porte SA raison. Un message unique recopié pour six préfixes
+		// différents faisait répondre, à qui cliquait « joignable depuis le réseau
+		// local », « utiliser la page Mémoire sémantique » — aucune des deux choses
+		// n'a de rapport avec le réseau (mesuré le 2026-10-27, capture d'écran de
+		// l'utilisateur). Le refus est légitime, l'explication doit l'être aussi.
+		for _, b := range parallelBlockedRoutes {
+			if strings.HasPrefix(p, b.prefix) {
+				sendJSON(w, 403, map[string]any{"ok": false, "error": b.msg})
 				return
 			}
 		}

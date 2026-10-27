@@ -164,11 +164,102 @@ func parallelBridgeHandler() http.Handler {
 				})
 				return
 			}
+			bridgeDeclareSelf(r)
 			bridgeRemoteHandler(ep).ServeHTTP(w, r)
 			return
 		}
+		bridgeDeclareSelf(r)
 		oai.ServeHTTP(w, r)
 	})
+}
+
+// canalHeader : marqueur posé par l'outil peer (parallel_peer.go) sur une
+// complétion qui vient d'UN AUTRE Ajean. Il distingue le canal d'un simple
+// logiciel tiers branché sur le pont — et c'est ce qui autorise le pont à
+// parler de lui-même dans la requête.
+const canalHeader = "X-Ajean-Canal"
+
+// bridgeDeclareSelf : le modèle prêté reçoit le texte brut, sans prompt système.
+// Sans rien pour le situer, il invente ce qu'il est. Mesuré le 2026-10-27, à qui
+// demandait « as-tu un outil peer chez toi ? » : « je fonctionne sur une
+// infrastructure cloud, pas sur un poste physique », puis « le voisin est ajouté
+// sur le pont 18190 » — alors qu'aucun outil d'ajout n'existe. Deux réponses
+// fausses, fabriquées faute de contexte.
+//
+// Le pont corrige donc ce qu'il sait être vrai, et RIEN D'AUTRE : quelle machine
+// prête, que l'interlocuteur est une autre instance d'Ajean, et surtout que par
+// le canal il n'a ni outil, ni disque, ni shell. Un modèle qui sait qu'il n'a pas
+// d'outils cesse d'affirmer qu'il les a utilisés.
+//
+// Trois garde-fous : uniquement si l'en-tête du canal est présent (un client
+// tiers générique garde sa requête telle quelle), uniquement si le chemin est
+// bien celui des complétions de dialogue, et JAMAIS si l'appelant a déjà posé un
+// prompt système — sa volonté passe avant la nôtre.
+func bridgeDeclareSelf(r *http.Request) {
+	if r.Method != http.MethodPost || r.URL.Path != "/v1/chat/completions" {
+		return
+	}
+	if strings.TrimSpace(r.Header.Get(canalHeader)) == "" {
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<20))
+	if err != nil {
+		return
+	}
+	var payload map[string]any
+	if json.Unmarshal(body, &payload) != nil {
+		r.Body = io.NopCloser(bytes.NewReader(body)) // corps illisible : on le rend tel quel
+		return
+	}
+	msgs, _ := payload["messages"].([]any)
+	for _, m := range msgs {
+		mm, _ := m.(map[string]any)
+		role := strings.ToLower(strings.TrimSpace(fmt.Sprint(mm["role"])))
+		// system, developer, ou tout rôle non user/assistant déjà en tête :
+		// l'appelant a une volonté explicite sur l'identité, on ne se substitue pas à lui.
+		if role == "system" || role == "developer" || role == "instruction" {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			return
+		}
+	}
+	msgs = append([]any{map[string]any{
+		"role":    "system",
+		"content": bridgeIdentityNote(),
+	}}, msgs...)
+	payload["messages"] = msgs
+	out, err := json.Marshal(payload)
+	if err != nil {
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewReader(out))
+	r.ContentLength = int64(len(out))
+	// Volontairement PAS d'en-tête Content-Length posé sur r.Header : le proxy et
+	// le transport le déduisent de r.ContentLength, et l'écrire ici risque un
+	// doublon à la sortie.
+}
+
+// bridgeIdentityNote : la carte d'identité du poste qui prête. Volontairement
+// courte et négative : ce qui compte n'est pas ce que le modèle prêté est, c'est
+// ce qu'il ne peut pas faire depuis le canal.
+func bridgeIdentityNote() string {
+	// os.Hostname() et non machineID() : ce dernier est un hexadécimal aléatoire
+	// taillé pour le relais ajean.link, illisible pour une IA qui doit nommer la
+	// machine où elle répond.
+	host := ""
+	if h, err := os.Hostname(); err == nil {
+		host = strings.TrimSpace(h)
+	}
+	if host == "" {
+		host = "cette machine"
+	}
+	return fmt.Sprintf(
+		"Tu réponds par le pont Ajean↔Ajean de la machine « %s » (Ajean %s), sur le réseau local. "+
+			"L'interlocuteur qui t'écrit est une AUTRE instance d'Ajean, avec son propre cerveau et sa propre mémoire : vous vous parlez d'égal à égal, tu n'es pas son sous-programme.\n"+
+			"Dans ce contexte précis, tu n'as AUCUN outil : pas de shell, pas de disque, pas de navigateur, pas de mémoire persistante, pas de moteur de recherche. Seul du texte traverse le pont. "+
+			"Ne prétends donc jamais avoir exécuté, lu ou écrit quoi que ce soit ici : si on te demande une action, dis en une phrase qu'elle est du ressort de l'interlocuteur, qui l'exécutera chez lui.\n"+
+			"Ne devine pas non plus ton environnement (dossier d'installation, système d'exploitation, matériel) : tu ne le vois pas. Réponds dans la langue de l'interlocuteur.",
+		host, displayVersion())
 }
 
 // bridgePointsToItself : le preset prêté est-ce ce pont ? Le piège est classique

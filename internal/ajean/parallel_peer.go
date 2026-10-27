@@ -282,6 +282,11 @@ func peerAsk(ctx context.Context, p peerEndpoint, message string) (string, error
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Le pont d'en face doit savoir que ça vient d'un Ajean, pas d'un simple
+	// logiciel tiers : c'est ce qui lui autorise à déclarer au modèle prêté qui
+	// il est et ce qu'il ne peut pas faire (parallel_bridge.go,
+	// bridgeDeclareSelf). Sans cet en-tête, la complétion traverse telle quelle.
+	req.Header.Set(canalHeader, "1")
 	if p.Key != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Key)
 	}
@@ -384,7 +389,7 @@ func peerTool() Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name: "peer",
-			Description: "Talk to ANOTHER Ajean on this local network, through the Ajean↔Ajean bridge. Each side keeps its own brain: this is a channel between two AIs, not a borrowed model. No tools run across the channel — text only. The last exchanges with that peer are kept and resent, so the conversation continues. list: which peers exist. status: what a peer lends (models, whether it answers). ask: send a message and get the answer. forget: drop the shared history without removing the peer.",
+			Description: "Talk to ANOTHER Ajean on this local network, through the Ajean↔Ajean bridge. Each side keeps its own brain: this is a channel between two AIs, not a borrowed model. IMPORTANT — across the channel only TEXT travels: the peer answers from its model, and that model has no tools, no disk, no shell and no memory of its own there. So it can never run a command, read a file or install anything for you, and if it claims to have done so it is confabulating — ask it to describe instead, and do the action yourself with your own tools. The last exchanges with that peer are kept and resent, so the conversation continues. list: which peers exist. status: what a peer lends (models, whether it answers). ask: send a message and get the answer. forget: drop the shared history without removing the peer.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

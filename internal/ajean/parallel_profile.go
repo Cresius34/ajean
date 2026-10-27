@@ -25,15 +25,20 @@ const parallelMemoryRevision = 7
 
 // buildFlavorSuffix est l'identité publique de ce build : la base amont
 // (Version, reprise telle quelle du tag nathaninline fusionné) suivie du
-// millésime Cresius. Version = "0.18.15" + ".3 Cresius" donne donc
-// « 0.18.15.3 Cresius », c'est-à-dire la base 0.18.15 et notre révision 3
-// (tag git v0.18.15+rev3) : la révision 1 était le patch correctif, la 2
+// millésime Cresius. Version = "0.18.15" + ".5 Cresius" donne donc
+// « 0.18.15.5 Cresius », c'est-à-dire la base 0.18.15 et notre révision 5
+// (tag git v0.18.15+rev5) : la révision 1 était le patch correctif, la 2
 // ajoute le canal Ajean↔Ajean (pont + outil peer), la 3 rend ce canal honnête —
 // le modèle prêté sait enfin qu'il est prêté et qu'il n'a aucun outil, et un
-// refus du build portable explique POURQUOI il refuse. Doit rester identique à
+// refus du build portable explique POURQUOI il refuse ; la 4 fait rendre au pont
+// un véritable tour d'agent de l'autre côté, sous double autorisation ; la 5
+// distingue l'AUTEUR de chaque message du canal — un ordre d'un humain qui vise
+// un poste lie l'IA de ce poste, un ordre d'une IA n'en lie aucune, et le tour
+// lancé pour un appelant qui raccroche est annulé au lieu de tourner pour
+// personne. Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".3 Cresius"
+const buildFlavorSuffix = ".5 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.

@@ -1106,6 +1106,14 @@ func runStep(name, dir, bin string, args ...string) error {
 	return runStepEnv(name, dir, "", bin, args...)
 }
 
+// lenientWriter écrit sur w mais n'échoue jamais (terminal absent ou fermé).
+type lenientWriter struct{ w io.Writer }
+
+func (l lenientWriter) Write(p []byte) (int, error) {
+	_, _ = l.w.Write(p)
+	return len(p), nil
+}
+
 // runStepEnv is runStep with optional extra env vars (NUL-separated KEY=VAL
 // pairs in `extraEnv`, which override existing ones).
 func runStepEnv(name, dir, extraEnv, bin string, args ...string) error {
@@ -1119,13 +1127,18 @@ func runStepEnv(name, dir, extraEnv, bin string, args ...string) error {
 	sinkOn := buildSink != nil
 	buildSinkMu.Unlock()
 	if sinkOn {
+		// Sans console (fenêtre Windows, service), écrire sur stdout/stderr
+		// échoue (« Descripteur non valide ») et MultiWriter ferait échouer
+		// l'étape : la copie terminal ignore ses erreurs (#177).
 		sw := &sinkWriter{}
-		out = io.MultiWriter(os.Stdout, sw)
-		errw = io.MultiWriter(os.Stderr, sw)
+		out = io.MultiWriter(lenientWriter{os.Stdout}, sw)
+		errw = io.MultiWriter(lenientWriter{os.Stderr}, sw)
 	}
 	cmd.Stdout = out
 	cmd.Stderr = errw
-	cmd.Stdin = os.Stdin
+	if !sinkOn {
+		cmd.Stdin = os.Stdin
+	}
 	if extraEnv != "" {
 		env := os.Environ()
 		for _, kv := range strings.Split(extraEnv, "\x00") {

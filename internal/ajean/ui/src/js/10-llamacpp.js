@@ -85,9 +85,8 @@ function lcChipOpen(){
 }
 
 // Place la pastille « conseillé » sur la carte que le SERVEUR recommande pour
-// cette machine (voir recommendedMode) : le précompilé partout, sauf sur Linux
-// avec une carte NVIDIA où il ne donnerait que du Vulkan. La raison est ajoutée
-// à la description de la carte, pour expliquer plutôt que d'imposer.
+// cette machine (voir recommendedMode). Une éventuelle raison est ajoutée à la
+// description de la carte, pour expliquer plutôt que d'imposer.
 function lcRenderReco(reco){
   const mode = (reco && reco.mode) || 'fast';
   for(const m of ['fast','opt']){

@@ -1,39 +1,49 @@
 package ajean
 
-import (
-	"runtime"
-	"testing"
-)
+import "testing"
 
-// Le seul cas où compiler vaut mieux que télécharger : Linux + CUDA. llama.cpp
-// ne publie pas de binaire CUDA pour Linux (seul Windows a bin-win-cuda-*), donc
-// le précompilé y retombe sur Vulkan. Ailleurs, l'asset officiel exploite bien
-// la machine (CUDA sous Windows, Metal sous macOS, ROCm sous Linux).
+// Le précompilé est conseillé partout, y compris Linux + CUDA depuis que
+// llama.cpp publie des builds ubuntu-cuda.
 func TestRecommendedMode(t *testing.T) {
-	cases := []struct {
-		backend  string
-		wantMode string
-		wantWhy  bool
-	}{
-		{"cuda", "opt", true}, // le cas qui motive toute la fonction
-		{"rocm", "fast", false},
-		{"vulkan", "fast", false},
-		{"cpu", "fast", false},
-		{"metal", "fast", false},
+	for _, b := range []string{"cuda", "rocm", "vulkan", "cpu", "metal"} {
+		if got := recommendedMode(b); got["mode"] != "fast" {
+			t.Errorf("backend %q : mode = %v, attendu fast", b, got["mode"])
+		}
+	}
+}
+
+// Noms d'assets réels de la release llama.cpp b11936.
+func TestPickCudaLinuxAndWindows(t *testing.T) {
+	names := []string{
+		"cudart-llama-b11936-bin-ubuntu-cuda-12.8-x64.tar.gz",
+		"cudart-llama-b11936-bin-ubuntu-cuda-13.4-x64.tar.gz",
+		"cudart-llama-b11936-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+		"cudart-llama-bin-win-cuda-12.4-x64.zip",
+		"cudart-llama-bin-win-cuda-13.4-x64.zip",
+		"llama-b11936-bin-ubuntu-cuda-12.8-x64.tar.gz",
+		"llama-b11936-bin-ubuntu-cuda-13.4-x64.tar.gz",
+		"llama-b11936-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+		"llama-b11936-bin-win-cuda-12.4-x64.zip",
+		"llama-b11936-bin-win-cuda-13.4-x64.zip",
+		"llama-b11936-bin-win-cuda-13.4-arm64.zip",
+	}
+	var assets []ghAsset
+	for _, n := range names {
+		assets = append(assets, ghAsset{Name: n})
+	}
+	// Sans pilote détecté (machine de test) : la plus ancienne version.
+	if driverCudaVersion() != 0 {
+		t.Skip("pilote NVIDIA présent : choix dépendant de la machine")
+	}
+	cases := []struct{ os, arch, ext, main, cudart string }{
+		{"ubuntu", "x64", ".tar.gz", "llama-b11936-bin-ubuntu-cuda-12.8-x64.tar.gz", "cudart-llama-b11936-bin-ubuntu-cuda-12.8-x64.tar.gz"},
+		{"ubuntu", "arm64", ".tar.gz", "llama-b11936-bin-ubuntu-cuda-13.4-arm64.tar.gz", "cudart-llama-b11936-bin-ubuntu-cuda-13.4-arm64.tar.gz"},
+		{"win", "x64", ".zip", "llama-b11936-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip"},
 	}
 	for _, c := range cases {
-		got := recommendedMode(c.backend)
-		wantMode, wantWhy := c.wantMode, c.wantWhy
-		// La règle ne vise que Linux : sur les autres OS le précompilé reste
-		// conseillé même avec CUDA détecté.
-		if runtime.GOOS != "linux" {
-			wantMode, wantWhy = "fast", false
-		}
-		if got["mode"] != wantMode {
-			t.Errorf("backend %q sur %s : mode = %v, attendu %q", c.backend, runtime.GOOS, got["mode"], wantMode)
-		}
-		if hasWhy := got["why"] != ""; hasWhy != wantWhy {
-			t.Errorf("backend %q sur %s : why non vide = %v, attendu %v", c.backend, runtime.GOOS, hasWhy, wantWhy)
+		m, cr, _ := pickCuda(assets, c.os, c.arch, c.ext)
+		if m == nil || m.Name != c.main || cr == nil || cr.Name != c.cudart {
+			t.Errorf("%s/%s : main=%v cudart=%v", c.os, c.arch, m, cr)
 		}
 	}
 }

@@ -1,14 +1,19 @@
-Corrections de stabilité : conversation du mode Jean, presets modifiés et moteur ExLlama.
+Installation d'ExLlama depuis l'interface, binaires CUDA officiels sous Linux et affichage du chat plus fluide.
 
 ## Corrections
 
-- **Mode Jean : conversation remplacée par une version vieille de plusieurs jours.** Si la conversation enregistrée ne pouvait pas être lue au démarrage (par exemple juste après une mise à jour, quand l'ancien processus tient encore la base), AJEAN repartait d'une conversation vide sans le signaler, puis rouvrait une ancienne copie du fil Jean et l'écrivait par-dessus la conversation à jour. Le fil Jean enregistré est maintenant toujours préféré à cette ancienne copie. Une conversation illisible est mise de côté (copie de secours) avant toute réécriture, et la lecture au démarrage est retentée plus longtemps. Merci pour le rapport détaillé (#175).
-- **Modifier le preset actif restait sans effet.** Après l'enregistrement, le moteur continuait à tourner avec l'ancienne configuration, même après un redémarrage, jusqu'à passer par un autre preset. Enregistrer une modification du preset actif propose maintenant de l'appliquer tout de suite (#176).
-- **ExLlama : « chargement… » affiché pendant une réponse.** Pendant la lecture d'un long prompt, le moteur ExLlama tarde à répondre aux vérifications d'état, et l'interface concluait à tort que le modèle était en cours de chargement. Un moteur qui a répondu récemment est maintenant considéré comme occupé, pas en chargement.
+- **ExLlama : l'installation échouait depuis l'interface** avec « write /dev/stderr: Descripteur non valide » à l'étape de création de l'environnement Python, alors que `ajean exl3 install` fonctionnait dans un terminal. Sans console (application lancée en fenêtre ou en service), la copie du journal vers le terminal échouait et interrompait toute l'installation. Cette copie ignore maintenant l'absence de console ; le journal de l'interface reçoit toujours tout. Merci pour le rapport (#177).
 
-## Conseil ExLlama
+## Moteur llama.cpp
 
-Une répartition manuelle des cartes trop serrée (champ « répartition GPU » du preset) peut remplir une carte à quelques Mo près et faire échouer la lecture des longues conversations par manque de mémoire. La répartition automatique, avec une réserve de 512 Mo par carte, est plus sûre.
+- **Linux avec carte NVIDIA : binaires CUDA officiels.** llama.cpp publie désormais des builds CUDA pour Linux. L'installation rapide les utilise (avec les bibliothèques CUDA fournies) au lieu de la version Vulkan, plus lente. La version CUDA la plus récente acceptée par le pilote est choisie. La compilation locale n'est plus conseillée par défaut dans ce cas.
+- Compatibilité vérifiée avec la dernière version de llama.cpp (b11936) : options du serveur et routes utilisées par AJEAN inchangées. Les anciennes options `--mlock` / `--no-mmap` des presets restent converties automatiquement en `--load-mode`.
+
+## Interface
+
+- **Défilement du chat plus doux** pendant la génération : la vue suit le texte en glissant au lieu d'avancer par saccades.
+- **Texte qui s'écrit sans clignoter** : seuls les passages qui changent sont redessinés, les mots apparaissent en fondu, et le Markdown incomplet (tableau, titre, gras en cours) n'est affiché qu'une fois sa forme connue.
+- **iPhone : les boutons répondent pendant une réponse.** Le fil ne bouge plus tant qu'un doigt touche l'écran, ce qui faisait annuler les appuis par Safari.
 
 ## Mise à jour
 
@@ -16,4 +21,4 @@ Une répartition manuelle des cartes trop serrée (champ « répartition GPU » 
 ajean update
 ```
 
-Testé sur un serveur Linux à deux cartes avec un preset ExLlama (conversation de plus de 50 000 tokens). La proposition d'appliquer un preset modifié n'a été vérifiée que par les tests automatiques, pas à la main dans l'interface. Le correctif du mode Jean est couvert par un test qui rejoue la situation décrite dans #175 ; la cause exacte de la lecture ratée au démarrage n'a pas été reproduite.
+Testé par les tests automatiques. Les binaires CUDA Linux n'ont pas encore été installés sur une vraie machine Linux avec carte NVIDIA, et le correctif ExLlama n'a pas été rejoué sur un Windows lancé sans console.

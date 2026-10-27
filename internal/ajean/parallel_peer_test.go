@@ -136,7 +136,13 @@ func TestPeerChannelCarriesTextAndMemory(t *testing.T) {
 	// 2026-10-27 : distinguer ce qui vient du voisin d'une interaction extérieure),
 	// et dit SURTOUT ce qui a répondu là-bas : ici le moteur nu, donc rien ne
 	// s'exécute chez le voisin.
-	if !strings.HasPrefix(reply, "[Réponse du canal Ajean↔Ajean · voisin « poste-salon » · il a répondu par son modèle nu] ") {
+	//
+	// Le préfixe s'arrête à « modèle nu » et non au crochet : depuis la révision 6,
+	// le pont voisin annonce aussi POURQUOI il n'a pas pris son tour d'agent, et ce
+	// motif vit dans la balise (l'emplacement des métadonnées), pas collé à la suite
+	// des mots du voisin. Ce test n'a pas à figer la phrase du refus — il vérifie la
+	// balise, et que les mots du voisin arrivent intacts et en dernier.
+	if !strings.HasPrefix(reply, "[Réponse du canal Ajean↔Ajean · voisin « poste-salon » · il a répondu par son modèle nu") {
 		t.Fatalf("la réponse de l'appelant n'est pas balisée comme attendu : %q", reply)
 	}
 	if !strings.HasSuffix(reply, "Bonjour, moi c'est l'autre IA") {

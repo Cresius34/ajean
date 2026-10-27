@@ -88,6 +88,14 @@ const canalHopHeader = "X-Ajean-Canal-Hop"
 
 const canalHopMax = 2
 
+// canalAgentRefusHeader : posé par un pont qui a reçu un appel du canal mais n'a PAS
+// déclenché son agent, pour dire lesquels de ses interrupteurs sont éteints. Valeur
+// en ASCII seul (« bridge_agent=off;agent_mode=off ») : un en-tête HTTP non ASCII est
+// une source de bugs, et une raison en prose fuirait vers n'importe quel client. La
+// traduction en geste actionnable vit chez l'appelant — un seul endroit à corriger.
+// Absent = le tour d'agent a été pris, ou l'appelant n'était pas un Ajean.
+const canalAgentRefusHeader = "X-Ajean-Canal-Agent-Refus"
+
 // canalBalise : la balise de début de message. Elle est dans le TEXTE et pas
 // seulement dans un en-tête, parce que c'est ce que l'agent lit et ce que
 // l'utilisateur voit dans sa bulle : « ce message-là vient du réseau ».
@@ -121,6 +129,35 @@ func canalDemande(r *http.Request) bool {
 		return false
 	}
 	return parallelBridgeAgentOn() && agentEnabled()
+}
+
+// canalAgentRefus : quand un autre Ajean appelle mais qu'ICI le tour d'agent n'est
+// pas autorisé, dire LEQUEL des interrupteurs manque.
+//
+// Pourquoi c'est nécessaire, mesuré sur le poste voisin le 2026-10-27 : le pont
+// rendait le modèle nu en silence. L'appelant voyait bien « modèle nu » (le champ
+// model trahit le gguf), mais rien ne lui disait si c'était voulu, ou si un
+// interrupteur manquait chez l'appelé — ni lequel. Résultat : l'utilisateur
+// tournait en rond entre « ça marche » et « il manque quelque chose chez elle ».
+// Le refus de bridgeAgentTurn (403) ne sert pas ici : canalDemande filtre AVANT,
+// donc on arrive jamais jusqu'à lui.
+//
+// Valeur en ASCII seul et lisible par une machine : la traduction en français
+// actionnable vit chez l'appelant (peerRefusCanal), un seul endroit à corriger.
+// Un en-tête HTTP non ASCII est une autre source de bugs, et une raison libre dans
+// un en-tête serait une fuite d'information vers n'importe quel client.
+func canalAgentRefus() string {
+	var manque []string
+	if !parallelBridgeAgentOn() {
+		manque = append(manque, "bridge_agent=off")
+	}
+	if !agentEnabled() {
+		manque = append(manque, "agent_mode=off")
+	}
+	if len(manque) == 0 {
+		return ""
+	}
+	return strings.Join(manque, ";")
 }
 
 // canalTexteContent : le contenu d'un message, en texte seul. Côté requête comme

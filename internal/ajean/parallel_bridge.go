@@ -192,6 +192,16 @@ func parallelBridgeHandler() http.Handler {
 			bridgeAgentTurn(w, r)
 			return
 		}
+		// Le canal appelle, mais le tour d'agent n'est pas autorisé ici : on rend le
+		// modèle nu, et on le DIT. Sans cet en-tête, l'appelant ne peut pas savoir si
+		// c'est un choix ou un interrupteur oublié chez nous — mesuré sur le poste
+		// voisin le 2026-10-27, où tout le monde cherchait « pourquoi modèle nu ? »
+		// pendant que la réponse était un interrupteur éteint de ce côté-ci.
+		if strings.TrimSpace(r.Header.Get(canalHeader)) != "" {
+			if refus := canalAgentRefus(); refus != "" {
+				w.Header().Set(canalAgentRefusHeader, refus)
+			}
+		}
 		if ep := resolveChatEndpoint(); (ep.External || ep.Cloud) && !isAnthropicPath(r.URL.Path) {
 			if bridgePointsToItself(ep) {
 				sendJSON(w, http.StatusConflict, map[string]any{

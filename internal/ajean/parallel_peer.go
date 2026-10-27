@@ -368,12 +368,49 @@ func peerAsk(ctx context.Context, p peerEndpoint, message, origine string) (stri
 	// model:"ajean-agent" (envoiOpenAI), le modèle nu répond sous le nom de son gguf :
 	// c'est suffisant pour étiqueter, sans inventer de protocole. Cette différence est
 	// décisive pour celui qui lit — de l'agent, ou du texte de modèle nu ?
-	facon := "modèle nu"
+	//
+	// Et quand c'est le modèle nu, le pont d'en face nous dit maintenant POURQUOI
+	// (canalAgentRefusHeader). Sans cette pièce, « modèle nu » laissait l'appelant
+	// deviner entre un choix assumé et un interrupteur oublié chez l'appelé — mesuré
+	// le 2026-10-27 sur le poste voisin : la réponse à « pourquoi est-ce qu'il ne lit
+	// pas ses propres journaux ? » était un simple `ajean bridge agent on` de son
+	// côté, et personne ne l'a trouvé pendant deux jours.
+	//
+	// La raison entre dans la BALISE, pas à la suite du message : la balise est
+	// l'emplacement des métadonnées de l'échange, et les mots du voisin doivent
+	// rester intacts et en dernier — c'est ce que l'agent cite, et ce qu'il doit
+	// pouvoir distinguer de notre propre commentaire.
+	facon, detail := "modèle nu", ""
 	if strings.TrimSpace(out.Model) == "ajean-agent" {
 		facon = "agent"
+	} else if refus := peerRefusCanal(resp.Header.Get(canalAgentRefusHeader)); refus != "" {
+		detail = refus
 	}
-	return fmt.Sprintf("[Réponse du canal Ajean↔Ajean · voisin « %s » · il a répondu par son %s] %s",
-		p.Name, facon, reply), nil
+	return fmt.Sprintf("[Réponse du canal Ajean↔Ajean · voisin « %s » · il a répondu par son %s%s] %s",
+		p.Name, facon, detail, reply), nil
+}
+
+// peerRefusCanal : la valeur de l'en-tête de refus traduite en ce qu'il faut toucher
+// là-bas. Vide si le pont n'a rien signalé (il a pris le tour d'agent, ou ne l'a pas
+// annoncé — un voisin d'une version antérieure à la révision 6 ne l'envoie pas).
+func peerRefusCanal(valeur string) string {
+	v := strings.ToLower(strings.TrimSpace(valeur))
+	if v == "" {
+		return ""
+	}
+	var gestes []string
+	if strings.Contains(v, "bridge_agent=off") {
+		gestes = append(gestes, "l'autorisation du canal est éteinte (`ajean bridge agent on`)")
+	}
+	if strings.Contains(v, "agent_mode=off") {
+		gestes = append(gestes, "le mode agent de cette machine est éteint (Projet/Agent dans l'interface)")
+	}
+	if len(gestes) == 0 {
+		// Valeur inattendue : on la montre, on ne conclut pas à sa place.
+		return fmt.Sprintf(", refusé par son pont : %s", v)
+	}
+	return fmt.Sprintf(" — son tour d'agent n'est pas déclenché, chez lui : %s. Tant que ce n'est pas fait, "+
+		"ce voisin ne peut ni lire ses propres journaux ni lancer ses outils.", strings.Join(gestes, " ET "))
 }
 
 // peerHTTPClient : pas de timeout global — la deadline est dans le contexte,

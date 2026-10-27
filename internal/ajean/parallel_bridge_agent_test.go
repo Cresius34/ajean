@@ -478,7 +478,139 @@ func TestEnvoiOpenAIRendLaFormeAttendueParLoutilPeer(t *testing.T) {
 	}
 }
 
-// L'origine humaine ne s'attribue pas au clavier. Le CLI est le chemin de l'humain,
+// Le pont qui prête doit DIRE pourquoi il n'a pas pris le tour d'agent. Mesuré sur
+// le poste voisin le 2026-10-27 : il rendait son modèle nu en silence, et
+// l'appelant ne pouvait pas distinguer « c'est voulu » de « il manque un
+// interrupteur chez elle ». Deux jours de recherche pour un `bridge agent on`.
+func TestPontAnnonceSonRefusDeTourAgent(t *testing.T) {
+	home := parallelTestHome(t)
+	_ = home
+	if err := writeAPIKey("sk-refus-test"); err != nil {
+		t.Fatal(err)
+	}
+	// Les deux interrupteurs éteints (le comportement par défaut, et l'état réel du
+	// poste voisin) : le refus doit nommer les DEUX.
+	_ = setParallelBridgeAgentOn(false)
+	_ = putStr(bkState, "agent", "0")
+	if got := canalAgentRefus(); got != "bridge_agent=off;agent_mode=off" {
+		t.Fatalf("les deux éteints : %q", got)
+	}
+
+	h := parallelBridgeHandler()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://192.168.1.9/v1/chat/completions",
+		strings.NewReader(`{"model":"x","messages":[{"role":"user","content":"bonjour"}]}`))
+	req.RemoteAddr = "192.168.1.42:51515"
+	req.Header.Set("Authorization", "Bearer sk-refus-test")
+	req.Header.Set(canalHeader, "1")
+	h.ServeHTTP(w, req)
+
+	if got := w.Header().Get(canalAgentRefusHeader); got != "bridge_agent=off;agent_mode=off" {
+		t.Fatalf("le pont n'annonce pas son refus : en-tête %q (code %d)", got, w.Code)
+	}
+
+	// Un seul éteint : le refus ne doit pas accuser l'autre.
+	_ = setParallelBridgeAgentOn(true)
+	_ = putStr(bkState, "agent", "0")
+	if got := canalAgentRefus(); got != "agent_mode=off" {
+		t.Fatalf("mode agent seul éteint : %q", got)
+	}
+	_ = setParallelBridgeAgentOn(false)
+	_ = putStr(bkState, "agent", "1")
+	if got := canalAgentRefus(); got != "bridge_agent=off" {
+		t.Fatalf("autorisation du canal seule éteinte : %q", got)
+	}
+	// Les deux allumés : plus de refus (c'est canalDemande qui prend le tour).
+	_ = setParallelBridgeAgentOn(true)
+	if got := canalAgentRefus(); got != "" {
+		t.Fatalf("tout est allumé, le pont ne doit rien déclarer : %q", got)
+	}
+}
+
+// Un client tiers branché sur le pont (pas un Ajean) ne reçoit pas notre refus : il
+// n'a rien demandé, et lui parler de nos interrupteurs internes serait une fuite.
+func TestRefusDuPontReserveAuCanal(t *testing.T) {
+	parallelTestHome(t)
+	if err := writeAPIKey("sk-refus-test2"); err != nil {
+		t.Fatal(err)
+	}
+	_ = setParallelBridgeAgentOn(false)
+	_ = putStr(bkState, "agent", "0")
+
+	h := parallelBridgeHandler()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://192.168.1.9/v1/chat/completions",
+		strings.NewReader(`{"model":"x","messages":[{"role":"user","content":"bonjour"}]}`))
+	req.RemoteAddr = "192.168.1.42:51515"
+	req.Header.Set("Authorization", "Bearer sk-refus-test2")
+	// Pas de X-Ajean-Canal : un logiciel tiers ordinaire.
+	h.ServeHTTP(w, req)
+
+	if got := w.Header().Get(canalAgentRefusHeader); got != "" {
+		t.Fatalf("un client tiers ne doit pas recevoir notre refus interne : %q", got)
+	}
+}
+
+// La traduction chez l'appelant : c'est là qu'elle sert, et c'est le seul endroit
+// où la reformuler.
+func TestRefusDuVoisinTraduitEnGeste(t *testing.T) {
+	if got := peerRefusCanal(""); got != "" {
+		t.Fatalf("pas d'en-tête, pas de commentaire : %q", got)
+	}
+	got := peerRefusCanal("bridge_agent=off;agent_mode=off")
+	for _, attendu := range []string{"ajean bridge agent on", "mode agent", "ne peut ni lire ses propres journaux"} {
+		if !strings.Contains(got, attendu) {
+			t.Fatalf("le geste « %s » manque : %q", attendu, got)
+		}
+	}
+	// Un seul interrupteur en cause : on ne lui fait pas chercher l'autre.
+	unSeul := peerRefusCanal("agent_mode=off")
+	if strings.Contains(unSeul, "bridge agent on") {
+		t.Fatalf("il ne faut pas conseiller l'interrupteur qui est déjà allumé : %q", unSeul)
+	}
+	if !strings.Contains(unSeul, "mode agent") {
+		t.Fatalf("geste manquant : %q", unSeul)
+	}
+	// Valeur inattendue : on la rend, on ne conclut pas à sa place.
+	inconnu := peerRefusCanal("mystere=oui")
+	if !strings.Contains(inconnu, "mystere=oui") {
+		t.Fatalf("une valeur inconnue doit être montrée telle quelle : %q", inconnu)
+	}
+}
+
+// L'en-tête de refus traverse-t-il réellement le réseau ? Sans ce test, tout le
+// dispositif peut rester local et l'appelant ne verra jamais rien.
+func TestRefusDuVoisinRecuParLEseau(t *testing.T) {
+	parallelTestHome(t)
+	bridge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(canalAgentRefusHeader, "bridge_agent=off")
+		json.NewEncoder(w).Encode(map[string]any{
+			"model":   "C:\\moteur\\cerveau-nu.gguf",
+			"choices": []map[string]any{{"message": map[string]string{"content": "je ne vois pas tes journaux"}, "finish_reason": "stop"}},
+		})
+	}))
+	defer bridge.Close()
+
+	p, err := peerAddDeclared("voisine", bridge.URL+"/v1", "sk-cle", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := peerAsk(peerTestCtx(t), p, "lis ton journal du moteur", canalOrigineIA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "modèle nu") {
+		t.Fatalf("la façon dont le voisin a répondu doit être dite : %q", reply)
+	}
+	if !strings.Contains(reply, "ajean bridge agent on") {
+		t.Fatalf("le refus reçu doit être traduit en geste à faire chez le voisin : %q", reply)
+	}
+	// Le souvenir, lui, reste nu : ni la balise ni le refus ne doivent s'y empiler
+	// et repartir au voisin à chaque tour.
+	if brut := getStr(bkState, peerThreadKey(p)); strings.Contains(brut, "bridge agent on") {
+		t.Fatalf("le refus s'est glissé dans le souvenir rejoué : %s", brut)
+	}
+}
 // mais runShell passe AJEAN_AGENT_TURN à tout ce qu'il lance : une commande tapée
 // pendant un tour d'agent vient de l'agent. Laisser l'agent se déclarer humain, c'est
 // lui donner l'autorité qu'on a justement réservée aux humains.

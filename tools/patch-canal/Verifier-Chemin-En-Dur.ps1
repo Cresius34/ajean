@@ -25,17 +25,39 @@ $ErrorActionPreference = 'Continue'
 
 if (-not $Dossiers -or -not $Dossiers.Count) {
   # On remonte depuis SA PROPRE position, jamais depuis un nom de dossier suppose.
-  # outillage : <install>\data\workspace\atelier-r18\tools\patch-canal
-  $depot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent          # …\atelier-r18
-  $data  = Split-Path (Split-Path (Split-Path $depot -Parent) -Parent) -Parent  # …\data
-  $Dossiers = @(
-    (Join-Path $depot 'tools\patch-canal'),   # l'outillage gelé dans le dépôt
-    (Join-Path $data  'data\scripts')         # les outils vivants de l'installation
-  ) | Where-Object { Test-Path -LiteralPath $_ }
+  # Mais la position n'est PAS une : ce meme fichier vit a deux endroits, et la
+  # premiere version du script ne connaissait que l'autre. Mesure du 2026-10-28,
+  # en le jouant depuis data\scripts : « Join-Path : chaine vide », puis
+  # « DOSSIERS INTROUVABLES » — le garde-fou qui doit compter les chemins en dur
+  # refusait de tourner a l'endroit ou les chemins en dur vivent.
+  #   outillage : <install>\data\workspace\atelier-rXXXX\tools\patch-canal
+  #   installe  : <install>\data\scripts
+  # L'installation est donc TROUVEE en remontant jusqu'au dossier qui contient un
+  # ajean.exe a sa racine — la meme regle que Trouver-Installations.ps1.
+  $inst = $null
+  $m = $PSScriptRoot
+  for ($n = 0; $n -lt 8 -and $m; $n++) {
+    if (Test-Path -LiteralPath (Join-Path $m 'ajean.exe')) { $inst = $m ; break }
+    $parent = Split-Path -Parent $m
+    if (-not $parent -or $parent -eq $m) { break }
+    $m = $parent
+  }
+  $candidats = @()
+  if ($inst) {
+    $candidats += (Join-Path $inst 'data\scripts')            # les outils vivants
+    # L'outillage gele du depot qui heberge cette installation, s'il est la.
+    $candidats += @(Get-ChildItem -LiteralPath (Join-Path $inst 'data\workspace') -Directory -Filter 'atelier-*' -EA SilentlyContinue |
+                    ForEach-Object { Join-Path $_.FullName 'tools\patch-canal' })
+  }
+  # Repli : si l'installation n'est pas trouvable depuis ici (le script est joue
+  # depuis un dossier du patch, par exemple), on scane AU MOINS son propre dossier.
+  $candidats += $PSScriptRoot
+  $Dossiers = @($candidats | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique)
   if (-not $Dossiers.Count) {
-    Write-Output 'DOSSIERS INTROUVABLES depuis ' + $PSScriptRoot + ' — passer -Dossiers.'
+    Write-Output ('DOSSIERS INTROUVABLES depuis ' + $PSScriptRoot + ' — passer -Dossiers.')
     exit 2
   }
+  Write-Output ('dossiers scannes : ' + ($Dossiers -join '  |  '))
 }
 
 Write-Output '== CHEMINS D INSTALLATION CRITS EN DUR =='

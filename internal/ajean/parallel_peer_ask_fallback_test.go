@@ -45,7 +45,7 @@ func TestPeerToolAskSansActionExplicite(t *testing.T) {
 
 	// 3. Avec un voisin déclaré, ask sans message doit le dire — pas relancer la
 	//    question dans le vide.
-	if _, err := peerAddDeclared("voisine", "http://192.168.1.132:18190/v1", "sk-cle", ""); err != nil {
+	if _, err := peerAddDeclared("voisine", "http://192.168.1.99:18190/v1", "sk-cle", ""); err != nil {
 		t.Fatal(err)
 	}
 	vide := runPeerTool(map[string]any{"action": "ask", "peer": "voisine", "message": "   "})

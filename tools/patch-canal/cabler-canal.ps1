@@ -11,8 +11,8 @@
 # cle doit vivre.
 #
 # Usage :
-#   .\cabler-canal.ps1 -Voisin 192.168.1.132            # nom deduit, cle demandee
-#   .\cabler-canal.ps1 -Voisin 192.168.1.132 -Nom poste-salon -Port 18190
+#   .\cabler-canal.ps1 -Voisin 192.168.1.99            # nom deduit, cle demandee
+#   .\cabler-canal.ps1 -Voisin 192.168.1.99 -Nom poste-salon -Port 18190
 #   .\cabler-canal.ps1 -Retirer poste-salon
 #   .\cabler-canal.ps1 -Liste
 #
@@ -74,7 +74,7 @@ $base = $base.TrimEnd('/')
 if ($base -notmatch ':\d+') { $base = ($base -replace ('(//[^:/]+)'), ('$1:' + $Port)) }
 if ($base -notmatch '/v1$') { $base = $base + '/v1' }
 if (-not $Nom) {
-  # Un nom deduit, pas un numero : « 192.168.1.132 » se lit mal dans un log et
+  # Un nom deduit, pas un numero : « 192.168.1.99 » se lit mal dans un log et
   # change si le DHCP bouge.
   $Nom = 'poste-' + (([uri]$base).Host -replace '\.', '-')
 }

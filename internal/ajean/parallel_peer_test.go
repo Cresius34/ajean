@@ -266,7 +266,7 @@ func TestBridgeRefusesToLendToItself(t *testing.T) {
 		t.Fatalf("statut %d, attendu 409", resp.StatusCode)
 	}
 	// Un voisin sur une AUTRE machine du même réseau n'est pas soi.
-	if bridgePointsToItself(chatEndpoint{URL: "http://192.168.1.132:" + port + "/v1/chat/completions"}) {
+	if bridgePointsToItself(chatEndpoint{URL: "http://192.168.1.99:" + port + "/v1/chat/completions"}) {
 		t.Fatal("un voisin distant pris pour soi")
 	}
 }
@@ -274,7 +274,7 @@ func TestBridgeRefusesToLendToItself(t *testing.T) {
 // La clé du voisin ne sort jamais de la machine qui la garde.
 func TestPeersAPINeverLeaksKeys(t *testing.T) {
 	parallelTestHome(t)
-	if _, err := peerAddDeclared("voisin", "http://192.168.1.132:18190/v1", "sk-top-secrete", ""); err != nil {
+	if _, err := peerAddDeclared("voisin", "http://192.168.1.99:18190/v1", "sk-top-secrete", ""); err != nil {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
@@ -298,7 +298,7 @@ func TestPeersAPINeverLeaksKeys(t *testing.T) {
 	if _, ok := peerFind("voisin"); ok {
 		t.Fatal("le voisin est resté")
 	}
-	if raw := getStr(bkState, peerThreadKey(peerEndpoint{URL: "http://192.168.1.132:18190/v1"})); raw != "" {
+	if raw := getStr(bkState, peerThreadKey(peerEndpoint{URL: "http://192.168.1.99:18190/v1"})); raw != "" {
 		t.Fatal("le souvenir a survécu au voisin")
 	}
 }
@@ -500,7 +500,7 @@ func TestParallelRefusentAvecLeurPropreRaison(t *testing.T) {
 // ensuite introuvable.
 func TestPeerAddNormalizesAndRejects(t *testing.T) {
 	parallelTestHome(t)
-	p, err := peerAddDeclared("", "192.168.1.132:18190/v1", "", "")
+	p, err := peerAddDeclared("", "192.168.1.99:18190/v1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +510,7 @@ func TestPeerAddNormalizesAndRejects(t *testing.T) {
 	if p.Name == "" {
 		t.Fatal("un voisin sans nom ne peut pas être choisi")
 	}
-	if _, err = peerAddDeclared("x", "ftp://192.168.1.132/v1", "", ""); err == nil {
+	if _, err = peerAddDeclared("x", "ftp://192.168.1.99/v1", "", ""); err == nil {
 		t.Fatal("un schéma impossible accepté")
 	}
 	if _, err = peerAddDeclared("y", "", "", ""); err == nil {
@@ -531,23 +531,23 @@ func TestPeerArgsNormalizeAccepteDrapeaux(t *testing.T) {
 		voulu []string
 	}{
 		{"positionnel intact",
-			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"},
-			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "sk-bonne"}},
 		{"--key avale sa valeur",
-			[]string{"poste", "http://192.168.1.71:18190/v1", "--key", "sk-bonne"},
-			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "--key", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "sk-bonne"}},
 		{"--cle (francais) avale sa valeur",
-			[]string{"poste", "http://192.168.1.71:18190/v1", "--cle", "sk-bonne"},
-			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "--cle", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "sk-bonne"}},
 		{"--key avant l'url ne la deplace pas",
-			[]string{"poste", "--key", "sk-bonne", "http://192.168.1.71:18190/v1"},
-			[]string{"poste", "sk-bonne", "http://192.168.1.71:18190/v1"}},
+			[]string{"poste", "--key", "sk-bonne", "http://192.168.1.98:18190/v1"},
+			[]string{"poste", "sk-bonne", "http://192.168.1.98:18190/v1"}},
 		{"--key sans valeur ne range pas le drapeau",
-			[]string{"poste", "http://192.168.1.71:18190/v1", "--key"},
-			[]string{"poste", "http://192.168.1.71:18190/v1", ""}},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "--key"},
+			[]string{"poste", "http://192.168.1.98:18190/v1", ""}},
 		{"drapeau inconnu laisse la faute a l'appelant",
-			[]string{"poste", "http://192.168.1.71:18190/v1", "--couleur", "rouge"},
-			[]string{"poste", "http://192.168.1.71:18190/v1", "--couleur", "rouge"}},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "--couleur", "rouge"},
+			[]string{"poste", "http://192.168.1.98:18190/v1", "--couleur", "rouge"}},
 	}
 	for _, c := range cas {
 		got := peerArgsNormalize(c.entre)
@@ -558,7 +558,7 @@ func TestPeerArgsNormalizeAccepteDrapeaux(t *testing.T) {
 
 	// Bout-en-bout : ce que la voisine a tapé doit ranger la VRAIE clé.
 	parallelTestHome(t)
-	args := peerArgsNormalize([]string{"ajean-principale", "http://192.168.1.71:18190/v1", "--key", "sk-la-vraie"})
+	args := peerArgsNormalize([]string{"ajean-principale", "http://192.168.1.98:18190/v1", "--key", "sk-la-vraie"})
 	p, err := peerAddDeclared(args[0], args[1], argAt(args, 2), argAt(args, 3))
 	if err != nil {
 		t.Fatal(err)

@@ -139,10 +139,10 @@ func peerFind(name string) (peerEndpoint, bool) {
 func peerAddDeclared(name, rawURL, key, model string) (peerEndpoint, error) {
 	u := strings.TrimSpace(rawURL)
 	if u == "" {
-		return peerEndpoint{}, errors.New("url du voisin requise (http://192.168.1.71:18190/v1)")
+		return peerEndpoint{}, errors.New("url du voisin requise (http://192.168.1.98:18190/v1)")
 	}
 	if !strings.Contains(u, "://") {
-		// On accepte « 192.168.1.71:18190/v1 » : c'est ce que l'on colle depuis
+		// On accepte « 192.168.1.98:18190/v1 » : c'est ce que l'on colle depuis
 		// `ajean bridge status`, et le http:// manque est l'erreur la plus fréquente.
 		u = "http://" + u
 	}
@@ -665,7 +665,7 @@ func cmdParallelPeer(args []string) error {
 		peers := loadPeers()
 		if len(peers) == 0 {
 			fmt.Printf("aucun voisin déclaré\n")
-			fmt.Printf("  ajean peer add <nom> http://192.168.1.71:18190/v1 <cle-api>\n")
+			fmt.Printf("  ajean peer add <nom> http://192.168.1.98:18190/v1 <cle-api>\n")
 			return nil
 		}
 		for i, p := range peers {

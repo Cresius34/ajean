@@ -24,7 +24,7 @@
 #     l'installation (la seule place ou elle doit vivre).
 #
 # Usage (sur la machine qui doit preter ET parler) :
-#   .\Ouvrir-Canal.ps1 -VoisinNom ajean-voisin -VoisinUrl http://192.168.1.71:18190/v1
+#   .\Ouvrir-Canal.ps1 -VoisinNom ajean-voisin -VoisinUrl http://192.168.1.98:18190/v1
 #   .\Ouvrir-Canal.ps1 -Statut            # lit l'etat, n'ecrit rien
 #   .\Ouvrir-Canal.ps1 -Verifier          # pare-feu + pont + /v1, sans voisin
 #   cle : -Cle sk-... ou $env:AJEAN_CLE_CANAL (la cle de la MACHINE VOISINE)

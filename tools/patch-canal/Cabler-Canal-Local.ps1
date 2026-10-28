@@ -18,8 +18,8 @@
 #      TROUVEE par le binaire (aucun chemin de dossier ecrit ici).
 #
 # Usage, sur la machine ou l'on veut pouvoir appeler l'autre :
-#   .\Cabler-Canal-Local.ps1 -Voisin 192.168.1.71 -Nom cresius
-#   .\Cabler-Canal-Local.ps1 -Voisin 192.168.1.71 -Nom cresius -Test
+#   .\Cabler-Canal-Local.ps1 -Voisin 192.168.1.98 -Nom cresius
+#   .\Cabler-Canal-Local.ps1 -Voisin 192.168.1.98 -Nom cresius -Test
 #   .\Cabler-Canal-Local.ps1 -Liste
 #   .\Cabler-Canal-Local.ps1 -Retirer cresius
 #
@@ -99,7 +99,7 @@ if ($base -match ':18080') {
 }
 
 if (-not $Nom) {
-  # Un nom deduit, pas un numero nu : « 192.168.1.71 » se lit mal dans un log.
+  # Un nom deduit, pas un numero nu : « 192.168.1.98 » se lit mal dans un log.
   $Nom = 'poste-' + (([uri]$base).Host -replace '\.', '-')
 }
 

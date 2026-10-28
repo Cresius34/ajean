@@ -531,7 +531,11 @@ foreach ($Root in $Dossiers) {
       # tourne pas pendant que la principale tourne, a son exe libre.
       $binaireLibre = -not ($instanceDeCeDossier -or $portInconnu)
       if ($binaireLibre) {
-        $ceQueFait = 'ne PAS arreter d''instance (aucune instance de ce dossier ne tourne), poser les 8 fichiers y compris le binaire, et NE PAS jouer les controles HTTP (18090 ne repond pas pour ce dossier)'
+        # Le nombre est CALCULE, jamais ecrit : « poser les 8 fichiers » etait faux
+        # des qu'une piece etait ajoutee au paquet (mesure du 2026-10-28, le paquet
+        # en pose 15). Un chiffre en dur dans un poseur ment a chaque revision.
+        $ceQueFait = 'ne PAS arreter d''instance (aucune instance de ce dossier ne tourne), poser ' +
+                     $aPoser.Count + ' fichier(s) y compris le binaire, et NE PAS jouer les controles HTTP (18090 ne repond pas pour ce dossier)'
       } else {
         $ceQueFait = 'ne PAS arreter l''instance, poser seulement les fichiers non charges en memoire (' +
                      ((@($aPoser | Where-Object { -not $_.exe }) | ForEach-Object { Split-Path -Leaf $_.dst }) -join ', ') +

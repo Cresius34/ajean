@@ -30,11 +30,34 @@ Conséquence mesurée sur ce poste : `cabler-canal.ps1`, `Ouvrir-Canal.ps1` et
 patch y était passé deux fois. Les outils n'étaient jamais arrivés là où on les
 cherchait.
 
-**Maintenant** : le patch déclare les 8 fichiers qu'il installe et les compare **un par
-un** par empreinte SHA‑256. « À jour » veut dire « chaque fichier posé a l'empreinte
-du paquet ». Un fichier manquant ou différent est posé, avec son nom dans le journal.
-Sèche jouée sur l'installation principale : `0 / 8 fichier(s) déjà conforme(s), 8 à
-poser`, avec les 6 outils marqués `MANQUANT`.
+**Maintenant** : le patch déclare **tous** les fichiers qu'il installe (15 outils à la
+révision 12, plus `ajean.exe` et les lanceurs) et les compare **un par un** par
+empreinte SHA‑256. « À jour » veut dire « chaque fichier posé a l'empreinte du
+paquet ». Un fichier manquant ou différent est posé, avec son nom dans le journal.
+Sèche rejouée ici après la révision 12 : `13 / 13 fichier(s) déjà conforme(s), 0 à
+poser` sur l'installation principale — et c'est la première fois que ce chiffre est
+**lu** dans le paquet au lieu d'être écrit dans le script.
+
+Trois défauts de méthode corrigés au passage, tous mesurés le 2026‑10‑28 :
+
+- **Les listes d'outils recopiées.** La sonde annonçait « 7 / 9 » à vie, sans voir
+  les outils ajoutés la veille. La liste est maintenant **lue** dans le poseur
+  (`Outils-du-Poseur`, dans `Trouver-Installations.ps1`) : 15 noms lus des deux
+  côtés. La lecture se fait par profondeur de parenthèses — une regex s'arrêtait à
+  la première parenthèse rencontrée, et le tableau est parsemé de commentaires qui
+  en portent ; elle rendait 3 noms sur 12.
+- **Le garde-fou refusait de tourner là où les liens en dur vivent.**
+  `Verifier-Chemin-En-Dur.ps1` remontait quatre crans en supposant qu'il loge dans
+  l'outillage du dépôt ; or le poseur l'installe dans `data\scripts`, deux crans
+  sous l'installation → `Join-Path : chaîne vide`, puis « DOSSIERS INTROUVABLES ».
+  Il cherche maintenant l'installation en remontant jusqu'au dossier qui contient un
+  `ajean.exe` à sa racine, et **affiche ce qu'il a scanné**.
+- **Les outils de campagne jouée restaient actifs.** `Fabriquer-Paquet-18155.ps1`
+  était encore dans `data\scripts` et embarquait le binaire **18155** en silence :
+  un paquet fabriqué avec lui livrait l'ancienne révision sans le dire — le
+  mécanisme exact du « le patch ne remplace pas les fichiers ». `Archiver-Liens-Morts.ps1`
+  les range dans `data\scripts\archive` (rien n'est supprimé) ; le nom de dossier
+  est jugé vivant par la présence du binaire, jamais par une liste écrite.
 
 Deux précautions prises au passage :
 - **En sèche, plus aucune écriture** — pas même le fichier de journal, ni la création
@@ -149,6 +172,22 @@ Windows et la constante Go annoncent bien la même version).
   `ajean peer add`, `POST /api/peers`, ou `data\scripts\cabler-canal.ps1` — donc un
   humain, sur place. Méfiance systématique : une IA distante a déjà affirmé « clé reçue
   et voisin ajouté » alors que rien n'avait été fait.
+- **La symétrie ne se vérifie pas depuis l'extérieur.** Mesure du 2026‑10‑28 : le pont
+  de la voisine répond **200** à ma clé (il est ouvert, sa clé est bonne) et elle ne
+  peut rien me demander pour autant — faute de voisin déclaré **chez elle**, l'outil
+  `peer` n'est pas annoncé au modèle sans voisin configuré. Son pont ne sert que
+  `/v1/*` (`/api/peers` chez elle = 404 « surface OpenAI uniquement ») et son interface
+  n'est pas ouverte sur le réseau (son `18090` est fermé depuis le LAN, mesuré sur sept
+  ports). Donc **la moitié manquante ne se lit pas d'ici** : `Verifier-Symetrie-Canal.ps1`
+  doit être joué **sur chaque machine**.
+- **Le port 18080 n'est pas l'interface.** Question reçue avec capture : « ma version
+  0.18.16.1 n'affiche pas la partie *Pont Ajean ↔ Ajean* ». Ce n'est pas la version :
+  la carte est dans les octets des trois binaires fabriqués (`bridge-details` ×2,
+  `bridgeToggle` ×2, `renderBridge` ×4, pareil à 18155, 18156 et 18161). Ce n'est pas
+  un cache non plus — le service worker ne met volontairement rien en cache. Sur la
+  capture, l'adresse était saisie sur **18080**, qui est le panneau du **moteur Strata**
+  (16 960 octets, « Strata on GitHub », `/api/bridge` = 404). L'interface est sur
+  **18090** et sert la carte. `Verifier-Carte-Pont.ps1` le mesure port par port.
 - **Le pare‑feu.** Déjà fait ici et là‑bas pour le port 18190. `data\scripts\Ouvrir-PareFeu-Canal.cmd`
   est posé pour le refaire si besoin ; il exige une élévation.
 
@@ -158,7 +197,8 @@ Windows et la constante Go annoncent bien la même version).
 
 1. Fermer ce qui travaille dans ce dossier — l'instance va s'arrêter.
 2. `Appliquer-Patch-Canal.cmd` → il joue d'abord la **sèche** et demande confirmation.
-   Lire la ligne `x / 8 fichier(s) déjà conforme(s), n à poser`.
+   Lire la ligne `x / n fichier(s) déjà conforme(s), m à poser` (n est **lu** dans le
+   paquet, ce n'est plus un chiffre écrit dans le script).
 3. Taper `O`. Le patch archive, arrête proprement, pose les fichiers, relance, vérifie.
 4. Ouvrir le canal (pont + port) : `data\scripts\Ouvrir-Canal.ps1`.
 5. Déclarer le voisin **de ce côté** avec la **clé de l'autre machine** :
@@ -166,6 +206,13 @@ Windows et la constante Go annoncent bien la même version).
    fichier). À faire **des deux côtés** — sinon un seul sens fonctionne.
 6. Contrôler : `ajean bridge status` doit dire `canal : agent`. Sinon, lire la raison du
    refus renvoyée par l'appel.
+7. Vérifier la **symétrie sur chaque machine** : `data\scripts\Verifier-Symetrie-Canal.ps1`.
+   Il sépare « je prête » de « je peux appeler » et nomme la machine où la moitié manque.
+   Pour confirmer l'appel jusqu'au `200` du `/v1/models` du voisin : le même script avec
+   `-Demander` (la clé se saisit masquée).
+8. Si la carte « Pont Ajean ↔ Ajean » ne s'affiche pas :
+   `data\scripts\Verifier-Carte-Pont.ps1`. Il répond par les octets servis, port par
+   port, et distingue l'interface (18090) du moteur (18080).
 
 **Point de retour** : `archive-<ancienne version>\` (nom avec espace), créé **après** la
 vérification du port 18090 — jamais avant un refus, sinon un second passage se croirait

@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.15.1 Cresius` / étiquette `v0.18.15+rev1`
+# Notes de version — AJEAN `0.18.16.1 Cresius` / étiquette `v0.18.16+rev1`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -8,23 +8,63 @@ validés sur d'autres machines, ni garantis transposables. Pour installer AJEAN,
 prenez les versions publiées sur
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-Cette version **absorbe l'amont `v0.18.15`** — donc aussi
+Cette version **absorbe l'amont `v0.18.16`** — donc aussi
 [`v0.18.12`](#amont-v01812--pré-chauffage-du-prompt-paires-doutils-incomplètes),
-[`v0.18.13`](#amont-v01813--moteur-exllama-exl3-en-un-clic) et
-[`v0.18.14`](#amont-v01814--cartes-exllama-qui-déportaient-llamacpp) — dans la
-ligne privée `Cresius`, qui s'arrêtait à `0.18.11.1+rev1`. Le socle est celui de
-l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
+[`v0.18.13`](#amont-v01813--moteur-exllama-exl3-en-un-clic),
+[`v0.18.14`](#amont-v01814--cartes-exllama-qui-déportaient-llamacpp) et
+[`v0.18.15`](#amont-v01815--conversation-de-jean-preset-modifié-exllama) — dans la
+ligne privée `Cresius`. Le socle est celui de l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
 
 ## En-tête
 
-Quatre versions d'amont d'un coup : le **moteur ExLlama (EXL3)** s'installe en un
-clic à côté de llama.cpp (amont `v0.18.13`), le **pré-chauffage du prompt** rend
-le premier message d'une conversation presque instantané (amont `v0.18.12`), et
-deux corrections de stabilité touchent le mode Jean et les presets (amont
-`v0.18.15`). Côté ligne privée : le **journal de Jean** et la **mémoire
-sémantique** partagent toujours un **seul encodeur**, EmbeddingGemma 2 — un seul
-GGUF, un seul moteur, un seul espace vectoriel sur le poste — et le **moteur MoE
-Strata** reste proposé par carte, y compris sur AMD (HIP).
+Le socle amont est `v0.18.16` : l'**installation d'ExLlama depuis l'interface** ne
+casse plus sans console (#177), les **binaires CUDA officiels** de llama.cpp arrivent
+sous Linux avec carte NVIDIA, et l'**affichage du chat** devient continu. Côté ligne
+privée, cette révision 1 sur la nouvelle base porte le **canal Ajean↔Ajean** : le pont
+rend un véritable tour d'agent de l'autre côté sous double autorisation, **dit pourquoi
+il ne le rend pas**, et l'auteur de chaque message du canal est distingué (un ordre
+d'un humain qui vise un poste lie l'IA de ce poste, un ordre d'une IA n'en lie aucune).
+Le **journal de Jean** et la **mémoire sémantique** partagent toujours un **seul
+encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul moteur, un seul espace vectoriel
+sur le poste — et le **moteur MoE Strata** reste proposé par carte, y compris sur AMD (HIP).
+
+## Amont `v0.18.16` — ExLlama depuis l'interface, CUDA Linux, chat plus fluide
+
+Installation d'ExLlama depuis l'interface, binaires CUDA officiels sous Linux et
+affichage du chat plus fluide. Trois commits d'amont, 15 fichiers.
+
+- **ExLlama : l'installation échouait depuis l'interface** avec « write /dev/stderr:
+  Descripteur non valide » à l'étape de création de l'environnement Python, alors que
+  `ajean exl3 install` fonctionnait dans un terminal. Sans console (application lancée
+  en fenêtre ou en service), la copie du journal vers le terminal échouait et
+  interrompait toute l'installation. Cette copie ignore maintenant l'absence de
+  console ; le journal de l'interface reçoit toujours tout. Merci pour le rapport (#177).
+- **Linux + carte NVIDIA : llama.cpp est désormais compilé en CUDA** dans les
+  binaires pré-construits officiels, au lieu du Vulkan plus lent sur ces cartes.
+  L'interface propose le binaire correspondant à la carte détectée.
+  (Fait par l'amont ; non testé chez nous : ce poste est AMD.)
+- **Chat : rendu continu.** Le texte s'affiche sans clignotement — un élément
+  déjà dessiné garde ses nœuds, il n'est plus reconstrifié à chaque fragment —, le
+  défileur suit la réponse sans s'accrocher brutalement, le fil ne saute plus si
+  l'on scrolle vers le haut pendant l'écriture, chaque mot apparaît en fondu, et
+  sur iPhone le fil ne bouge plus tant qu'un doigt touche l'écran, ce qui faisait
+  annuler les appuis par Safari.
+
+**Résolution de la fusion de notre côté** : cinq fichiers seulement étaient touchés
+des deux côtés (`RELEASE_NOTES.md`, `backend_build.go`, `run.go`, `ui/index.html`,
+`ui/src/styles.css`). Dans les deux Go qui comptent, l'amont touche `runStep`/
+`lenientWriter` et nous touchons `requireTools` en build portable : des zones
+distinctes, fusion automatique, rien à arbitrer. `index.html` n'a **pas** été résolu
+à la main — c'est un fichier **généré** (`go:generate` → `tools/assemble-ui`) ; il a
+été **régénéré** depuis `ui/src/` fusionné, puis contrôlé par présence des chaînes
+propres à chaque côté (`revealState`, `aj-word-in`, `li-wait` d'amont ;
+`renderBridge`, `loadPeers`, `bridgeToggle`, `loadMoe`, `moeVerify` de la ligne
+Cresius). Dans `styles.css`, les deux côtés ajoutaient en fin de fichier : les deux
+blocs sont gardés. `RELEASE_NOTES.md` a gardé notre structure (document de ligne
+privée avec l'archive des sections amont) et la section amont a été réécrite ici.
+
+Contrôles sur l'état fusionné : `go vet ./...` sans sortie ; `go test ./internal/ajean
+-count=1` = ok (88 s, zéro échec) ; les trois tests de millésime passent.
 
 ## Amont `v0.18.15` — conversation de Jean, preset modifié, ExLlama
 
@@ -331,16 +371,16 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.15.1 Cresius` |
-| Étiquette Git | `v0.18.15+rev1` |
-| Socle amont | `v0.18.15` |
+| Version affichée | `0.18.16.1 Cresius` |
+| Étiquette Git | `v0.18.16+rev1` |
+| Socle amont | `v0.18.16` |
 | Moteur MoE | Strata `0.2.4` — paquet moteur `0.1.48`, contrôle `0.1.49.2`, cinq paquets par carte, SHA-256 vérifiés |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
-| Précédent | `0.18.11.1 Cresius`, étiquette `v0.18.11+rev1` |
+| Précédent | `0.18.15.6 Cresius`, étiquette `v0.18.15+rev6` (base amont `v0.18.15`) |
 
 La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
-de notre numéro de révision**. `0.18.15` + révision `1` → `0.18.15.1 Cresius`,
-étiquette `v0.18.15+rev1`. Les deux désignent le même build.
+de notre numéro de révision**. `0.18.16` + révision `1` → `0.18.16.1 Cresius`,
+étiquette `v0.18.16+rev1`. Les deux désignent le même build.
 
 ## Installation
 
@@ -351,14 +391,14 @@ ajean update
 ou, depuis le dépôt :
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.15+rev1`
+2. `git checkout v0.18.16+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`
 
 ---
 
 # English
 
-# Release notes — AJEAN `0.18.15.1 Cresius` / tag `v0.18.15+rev1`
+# Release notes — AJEAN `0.18.16.1 Cresius` / tag `v0.18.16+rev1`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -368,23 +408,52 @@ machines and are not guaranteed transposable. To install AJEAN, use the
 releases published at
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-This build **absorbs upstream `v0.18.15`** — and therefore
+This build **absorbs upstream `v0.18.16`** — and therefore
 [`v0.18.12`](#upstream-v01812--prompt-prewarm-incomplete-tool-pairs),
-[`v0.18.13`](#upstream-v01813--exllama-engine-exl3-in-one-click) and
-[`v0.18.14`](#upstream-v01814--exllama-cards-that-broke-llamacpp) — into the
-`Cresius` patch line, which stopped at `0.18.11.1+rev1`. The base is upstream's;
-the private line is reduced to what it still adds.
+[`v0.18.13`](#upstream-v01813--exllama-engine-exl3-in-one-click),
+[`v0.18.14`](#upstream-v01814--exllama-cards-that-broke-llamacpp) and
+[`v0.18.15`](#upstream-v01815--jean-conversation-modified-preset-exllama) — into the
+`Cresius` patch line. The base is upstream's; the private line is reduced to what it still adds.
 
 ## Headline
 
-Four upstream releases at once: the **ExLlama (EXL3) engine** installs in one
-click next to llama.cpp (upstream `v0.18.13`), **prompt prewarm** makes the first
-message of a conversation nearly instant (upstream `v0.18.12`), and two
-stability fixes touch Jean mode and presets (upstream `v0.18.15`). On the private
-side: **Jean's journal** and **semantic memory** still share a **single
-encoder**, EmbeddingGemma 2 — one GGUF, one engine, one vector space on the
-machine — and the **Strata MoE engine** is still offered per card, AMD (HIP)
-included.
+The upstream base is `v0.18.16`: installing **ExLlama from the interface** no longer
+breaks when there is no console (#177), official llama.cpp **CUDA binaries** arrive on
+Linux with an NVIDIA card, and **chat rendering** becomes continuous. On the private
+side, this revision 1 on the new base carries the **Ajean↔Ajean channel**: the bridge can
+run a real agent turn on the other machine under double authorisation, **says why it did
+not**, and every channel message carries its author — an order from a human aimed at a
+machine binds that machine's AI, an order from an AI binds none. **Jean's journal** and
+**semantic memory** still share a **single encoder**, EmbeddingGemma 2 — one GGUF, one
+engine, one vector space on the machine — and the **Strata MoE engine** is still offered
+per card, AMD (HIP) included.
+
+## Upstream `v0.18.16` — ExLlama from the interface, CUDA on Linux, smoother chat
+
+- **ExLlama: installation from the interface failed** with "write /dev/stderr: invalid
+  descriptor" at the Python environment step, while `ajean exl3 install` worked in a
+  terminal. Without a console (app launched in a window or as a service), copying the log
+  to the terminal failed and aborted the whole install. That copy now ignores the missing
+  console; the interface log still receives everything. Thanks for the report (#177).
+- **Linux + NVIDIA card: llama.cpp is now built with CUDA** in the official prebuilt
+  binaries instead of Vulkan, which is slower on those cards. (Done upstream; not tested
+  here — this machine is AMD.)
+- **Chat: continuous rendering.** Text no longer flickers (already-drawn elements keep
+  their nodes instead of being re-tokenised per fragment), the scroller follows the answer
+  smoothly, scrolling up during generation no longer jumps back down, each word fades in,
+  and on iPhone the thread stays put while a finger touches the screen.
+
+**Our side of the merge**: only five files were touched on both sides
+(`RELEASE_NOTES.md`, `backend_build.go`, `run.go`, `ui/index.html`, `ui/src/styles.css`).
+In the two Go files that matter, upstream changed `runStep`/`lenientWriter` while we
+changed `requireTools` in the portable build — different regions, clean auto-merge.
+`index.html` was **not** merged by hand: it is a **generated** file (`go:generate` →
+`tools/assemble-ui`), so it was **regenerated** from the merged `ui/src/`, then verified
+by the presence of strings specific to each side. In `styles.css` both sides appended at
+the end of the file: both blocks kept.
+
+Checks on the merged state: `go vet ./...` silent; `go test ./internal/ajean -count=1` =
+ok (88 s, no failures); the three version-flavour tests pass.
 
 ## Upstream `v0.18.15` — Jean conversation, modified preset, ExLlama
 
@@ -681,16 +750,16 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.15.1 Cresius` |
-| Git tag | `v0.18.15+rev1` |
-| Upstream base | `v0.18.15` |
+| Version displayed | `0.18.16.1 Cresius` |
+| Git tag | `v0.18.16+rev1` |
+| Upstream base | `v0.18.16` |
 | MoE engine | Strata `0.2.4` — engine package `0.1.48`, control `0.1.49.2`, five packages per card, SHA-256 verified |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
-| Previous | `0.18.11.1 Cresius`, tag `v0.18.11+rev1` |
+| Previous | `0.18.15.6 Cresius`, tag `v0.18.15+rev6` (upstream base `v0.18.15`) |
 
 The private line's naming rule: **upstream's number, as is, followed by our
-revision number**. `0.18.15` + revision `1` → `0.18.15.1 Cresius`, tag
-`v0.18.15+rev1`. Both names denote the same build.
+revision number**. `0.18.16` + revision `1` → `0.18.16.1 Cresius`, tag
+`v0.18.16+rev1`. Both names denote the same build.
 
 ## Installation
 
@@ -701,5 +770,5 @@ ajean update
 or, from the repository:
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.15+rev1`
+2. `git checkout v0.18.16+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`

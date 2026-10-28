@@ -41,11 +41,25 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-# Le pont existe depuis 0.18.15.2 ; la revision 3 y ajoute la carte d'identite
-# envoyee au modele prete. On accepte les deux, mais un 0.18.15.2 est signale :
-# de ce cote-la le modele d'en face ne sait pas qu'il est prete et invente.
-$WantV   = '0.18.15.5 Cresius'
-$Accepte = @('0.18.15.2 Cresius', '0.18.15.3 Cresius', '0.18.15.4 Cresius', '0.18.15.5 Cresius')
+# Le pont existe depuis 0.18.15.2 ; la révision 3 y ajoute la carte d'identité
+# envoyée au modèle prêté. On accepte tout ce qui a le pont, mais ce qui est
+# sous la révision 5 est signalé : de ce côté-là le modèle d'en face ne sait pas
+# qu'il est prêté et invente (« je tourne sur une infrastructure cloud »).
+#
+# COMPARAISON NUMÉRIQUE, plus de liste de versions recopiée. FAUTIF MESURÉ le
+# 2026-10-28 : `$Accepte` s'arrêtait à 0.18.15.5, donc ce script REFUSAIT le
+# binaire que le paquet du même nom livrait (0.18.16.1 Cresius) — il disait
+# « le pont n'existe qu'à partir de 0.18.15.2, lancer d'abord le patch » alors
+# que le patch était posé, devant lui. Une liste en dur rattrape toujours le
+# paquet par surprise le lendemain. On compare des nombres.
+$VeutRev = 5                 # révision du canal attendue (carte d'identité + auteur)
+$PontDepuis = '0.18.15.2'    # première version où /api/bridge existe
+# La carte d'identité du modèle prêté est arrivée avec la révision 5 du canal,
+# c'est-à-dire 0.18.15.5. Le millésime Cresius est 0.18.<amont>.<rev> : un amont
+# plus haut (0.18.16.1) passe donc aussi la borne, et [Version] le compare
+# composant par composant — 0.18.16.1 > 0.18.15.5. Une seule borne basse suffit ;
+# c'est justement ce que la liste en dur ne savait pas faire.
+$CarteDepuis = '0.18.15.5'
 $RulePrefix = 'AJEAN canal (port '   # != « AJEAN moteur (port ...) », que le binaire efface
 
 function Note($m) { Write-Output $m }
@@ -61,14 +75,29 @@ if (-not (Test-Path -LiteralPath $exe)) {
 }
 $disque = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $exe).Path).ProductVersion
 Note "   binaire du dossier : $disque"
-if ($Accepte -notcontains $disque) {
-  Note ("   REFUSE : le pont n'existe qu'a partir de " + ($Accepte[0]) + ". Lancer d'abord Appliquer-Patch-Canal.ps1.")
+# La version lue porte un suffixe (« 0.18.16.1 Cresius ») : on n'en compare que la
+# partie numérique. [version] compare les composants un par un, donc 0.18.16.1 est
+# bien au-dessus de 0.18.15.5 — ce qu'une liste en dur ratait.
+function NumVersion([string]$s) {
+  $m = [regex]::Match($s, '(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?')
+  if (-not $m.Success) { return $null }
+  $r = '{0}.{1}.{2}.{3}' -f [int]$m.Groups[1].Value, [int]$m.Groups[2].Value,
+                          [int]$m.Groups[3].Value, $(if ($m.Groups[4].Success) { [int]$m.Groups[4].Value } else { 0 })
+  try { return [Version]$r } catch { return $null }
+}
+$nuDisque = NumVersion $disque
+if (-not $nuDisque) {
+  Note "   REFUSE : version illegible (« $disque ») — impossible de savoir si le pont y est."
   exit 1
 }
-if ($disque -ne $WantV) {
-  Note "   (!) ce binaire est en $disque, pas $WantV : le modele prete par ce pont ne recevra AUCUNE"
+if ($nuDisque -lt (NumVersion $PontDepuis)) {
+  Note ("   REFUSE : le pont n'existe qu'a partir de " + $PontDepuis + " (sur un 0.18.15.1, /api/bridge repond 404). Lancer d'abord Appliquer-Patch-Canal.ps1.")
+  exit 1
+}
+if ($nuDisque -lt (NumVersion $CarteDepuis)) {
+  Note "   (!) ce binaire est en $disque, sous $CarteDepuis : le modele prete par ce pont ne recevra AUCUNE"
   Note "       carte d'identite. Il repondra a « as-tu un terminal ? » par une invention (mesure du"
-  Note "       2026-10-27 : « je tourne sur une infrastructure cloud »). Appliquer le patch 18155."
+  Note "       2026-10-27 : « je tourne sur une infrastructure cloud »). Appliquer le patch du paquet."
 }
 
 # ---------- 1. etat lu par l'instance en cours ----------

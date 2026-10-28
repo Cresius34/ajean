@@ -92,7 +92,18 @@ $WantSha = '9FF0415C1BE29679E132B31FA2026F4A77F65C1C615283F5DCC7B22D814AE987'
 # poseur sans binaire a cote de lui est un leurre. NOTE-DE-PATCH.md reste dans le
 # dossier du patch.
 $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Canal.cmd',
-                     'Verifier-Outils-Canal.ps1', 'Verifier-Collisions-Casse.ps1', 'Encodages.ps1')
+                     'Verifier-Outils-Canal.ps1', 'Verifier-Collisions-Casse.ps1', 'Encodages.ps1',
+                     # Trouver-Installations.ps1 est DOT-SOURCE par les autres outils
+                     # (etat_r18.ps1, controle-patch-can, inventaire-exe, Pointer-retour) :
+                     # s'il manque, ceux-la ne tournent plus du tout. Il doit donc etre pose
+                     # avec eux, pas laisse dans le dossier du patch.
+                     'Trouver-Installations.ps1',
+                     # Le garde-fou : il compte les chemins d'installation ecrits en dur.
+                     # Nos versions sont portables, un chemin cablé ment sans le dire.
+                     'Verifier-Chemin-En-Dur.ps1',
+                     # Aligne le NOM du dossier sur la VERSION du binaire, en refusant si
+                     # l'instance tient le dossier (le cas de la principale, qui nous heberge).
+                     'Renommer-Installation.ps1')
 
 if (-not $Patch) {
   # Le script vit DANS le dossier patch ; on accepte aussi de le lancer d'ailleurs

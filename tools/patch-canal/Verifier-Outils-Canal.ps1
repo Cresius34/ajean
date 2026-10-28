@@ -2,7 +2,14 @@
 # de casse, coherence des versions annoncees, INTEGRITE DU BINAIRE, et ce que le
 # voisin sert reellement. A lancer APRES toute retouche du paquet, avant de le
 # poser sur une machine.
-param([string[]]$AdresseVoisin = @(), [string]$CleCanal = '')
+param([string[]]$AdresseVoisin = @(), [string]$CleCanal = '', [string]$Paquet = '')
+# -Paquet : le dossier du paquet a verifier, quand ce script ne vit PAS dedans.
+# FAUTIF MESURÉ le 2026-10-28 : $dossier valait $PSScriptRoot, donc lancé depuis
+# data\scripts il auditait data\scripts — un dossier qui n'a pas de
+# Appliquer-Patch-Canal.ps1. Avec $ErrorActionPreference='Stop', il plantait sur
+# Select-String au lieu de rendre son bilan : le vérificateur ne pouvait pas
+# vérifier le paquet qu'on s'apprêtait à poser. Sans -Paquet, on garde
+# $PSScriptRoot (le cas d'usage d'origine : le script posé dans le paquet).
 # La cle du VOISIN (jamais la sienne) : sans elle le pont repond 401 et la preuve
 # de la carte d'identite est impossible. Elle passe par ce parametre ou par
 # $env:AJEAN_CLE_CANAL, jamais par un fichier de ce dossier.
@@ -10,7 +17,7 @@ param([string[]]$AdresseVoisin = @(), [string]$CleCanal = '')
 # PowerShell $Voisins et $voisins sont la MEME variable, et le parametre se
 # retrouvait ecrase par la variable locale (attrape par Verifier-Collisions-Casse).
 $ErrorActionPreference = 'Stop'
-$dossier = $PSScriptRoot
+$dossier = if ($Paquet) { (Resolve-Path -LiteralPath $Paquet).Path } else { $PSScriptRoot }
 
 # La liste des fichiers n'est PAS ecrite ici. Mesure du 2026-10-28 : cette liste
 # en dur oubliait les outils ajoutes la veille, donc le verificateur annoncait un

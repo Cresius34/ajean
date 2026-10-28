@@ -118,7 +118,19 @@ $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Can
                      # Son lanceur, pour le double-clic. Sans lui la sonde reste un
                      # fichier a taper dans une fenetre, ce que la destinataire du paquet
                      # ne fait pas.
-                     'Diagnostic-Canal.cmd')
+                     'Diagnostic-Canal.cmd',
+                     # La question que la machine voisine a posee le 2026-10-28 : « ma
+                     # version 0.18.16.1 n'affiche pas la partie Pont Ajean-Ajean ». La
+                     # reponse n'est pas dans la version : la carte est dans les octets
+                     # des trois binaires fabriques. C'est le PORT interroge — 18080 est
+                     # celui du moteur Strata, l'interface est sur 18090. Cet outil le
+                     # mesure port par port au lieu de le supposer.
+                     'Verifier-Carte-Pont.ps1',
+                     # Et la symetrie : un pont peut prete (200 a ma cle) sans que la
+                     # machine en face puisse appeler, faute de voisin declare chez elle.
+                     # Le jeu complet des questions, dans les deux sens, a jouer aussi
+                     # la-bas.
+                     'Verifier-Symetrie-Canal.ps1')
 
 if (-not $Patch) {
   # Le script vit DANS le dossier patch ; on accepte aussi de le lancer d'ailleurs

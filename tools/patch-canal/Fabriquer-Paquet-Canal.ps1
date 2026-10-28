@@ -21,10 +21,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-# tools\patch-canal -> depot. On remonte depuis SA position : le script suit
+# tools\patch-canal -> depot GIT. On remonte depuis SA position : le script suit
 # l'installation ou qu'elle soit installee.
 #   patch-canal -> tools -> depot (atelier-rXXXX, qui EST le depot git)
-# Attention : le depot et l'atelier sont le MEME dossier. Croire qu'il y a un
+# Attention : le depot git et l'atelier sont le MEME dossier. Croire qu'il y a un
 # cran de plus au-dessus envoie le build dans data\workspace\build (mesure du
 # 2026-10-28 : « aucun binaire d'atelier » alors qu'ils etaient la).
 $Outils   = $PSScriptRoot
@@ -32,16 +32,41 @@ $Depot    = Split-Path (Split-Path $Outils -Parent) -Parent
 $Build    = Join-Path $Depot 'build'
 if (-not (Test-Path -LiteralPath $Build)) { throw "dossier de construction absent : $Build" }
 
+# Le depot git est CHERCHE, pas suppose. Mesure du 2026-10-28 : le controle de
+# propreté passait a vide, parce que le « depot » calculé a ce moment-la etait
+# remonte jusqu'a l'INSTALLATION (C:\ProgramData\Ajean v18.15.3 maj Cresius), qui
+# n'est pas un depot git — `git status` y repond « not a git repository », et
+# comme la sortie est vide, le controle se croyait reussi. Un depot qui n'existe
+# pas n'est pas un depot propre.
+$DepotGit = $null
+$m = $Outils
+for ($n = 0; $n -lt 8 -and $m; $n++) {
+  if (Test-Path -LiteralPath (Join-Path $m '.git')) { $DepotGit = $m ; break }
+  $parent = Split-Path -Parent $m
+  if (-not $parent -or $parent -eq $m) { break }
+  $m = $parent
+}
+if (-not $DepotGit) {
+  throw ("aucun depot git au-dessus de $Outils : le controle de propreté de l'outillage " +
+         "ne peut pas se faire. Ne pas fabriquer un paquet dont la source n'est pas gelée.")
+}
+Write-Output ('depot git  : ' + $DepotGit)
+
 # Le depot doit etre propre : un outil corrige a la main et non commité se perd au
 # paquet suivant. C'est exactement le mecanisme du « le patch ne remplace pas les
 # fichiers » (mesure du 2026-10-28 : trois revisions perdues comme ca).
-$statut = & git -C $Depot status --porcelain -- tools/patch-canal 2>$null
+$statut = & git -C $DepotGit status --porcelain -- tools/patch-canal 2>$null
+if ($LASTEXITCODE -ne 0) {
+  throw "git status a echoue dans $DepotGit (code $LASTEXITCODE) : le controle de propreté n'a pas eu lieu."
+}
 if ($statut) {
   if ($Securise) { throw "outillage modifie non commité — commiter avant de fabriquer :" + "`n" + ($statut -join "`n") }
   Write-Output 'ATTENTION : outillage modifie non commité. Il est embarque (fichiers courants),'
   Write-Output '            mais il se perdra si le depot est reinitialise. Penser a commiter.'
   Write-Output ($statut -join "`n")
   Write-Output ''
+} else {
+  Write-Output 'proprete   : outillage du depot sans modification non commitée'
 }
 
 # Le binaire de l'atelier : le plus recent des ajean-<millesime>.exe.
@@ -64,12 +89,15 @@ Write-Output ('millesime  : ' + $Millesime + '   -> dossier patch-canal-' + $Chi
 $Sha = (Get-FileHash -LiteralPath $Exe.FullName -Algorithm SHA256).Hash
 Write-Output ('sha256     : ' + $Sha)
 
-# Installation de depot : celle qui heberge l'atelier. Trouvee par le binaire,
-# JAMAIS par un nom de dossier ecrit ici.
+# Installation qui RECOIT le zip : celle qui heberge l'atelier. Trouvee par le
+# binaire, JAMAIS par un nom de dossier ecrit ici. Ce n'est PAS le depot git : les
+# deux s'appelaient « depot » dans le meme script, et le mot designait deux choses
+# differentes selon l'endroit — c'est ainsi que le controle de propreté a pu se
+# croire reussi sur un dossier qui n'est pas un depot.
 . (Join-Path $Outils 'Trouver-Installations.ps1')
 $Inst = (Trouver-Principale).Dossier
 if (-not $Inst) { throw 'installation principale introuvable (ajean.exe + « maj Cresius » sans suffixe)' }
-Write-Output ('depot      : ' + $Inst)
+Write-Output ('zip pose a : ' + $Inst)
 
 $Sortie = Join-Path $Build ('patch-canal-' + $Chiffres)
 # Le dossier de sortie est UN ARTEFACT : il est vide et refait, jamais repris.
@@ -148,9 +176,13 @@ $manifeste = @(
   ('version   : ' + $Millesime)
   ('octets    : ' + $Exe.Length)
   ('sha256    : ' + $Sha)
-  ('depot     : ' + $Depot)
-  ('depot git : ' + (& git -C $Depot rev-parse --short HEAD 2>$null))
-  ('etiquette : ' + (& git -C $Depot describe --tags --abbrev=0 2>$null))
+  ('source    : ' + $DepotGit)
+  # Le commit et l'etiquette viennent du DEPOT GIT. $Depot (calcul de chemin) et
+  # $DepotGit (decouverte par .git) coincident ici, mais ne pas les melanger dans
+  # le manifeste : un paquet doit dire de quel commit il sort, et ce commit doit
+  # pouvoir etre rejoue.
+  ('commit    : ' + (& git -C $DepotGit rev-parse --short HEAD 2>$null))
+  ('etiquette : ' + (& git -C $DepotGit describe --tags --abbrev=0 2>$null))
   ''
   '# Contenu (' + $Entrees.Count + ' fichiers au moment du manifeste)'
 ) + ($Entrees | ForEach-Object { '  ' + $_ })

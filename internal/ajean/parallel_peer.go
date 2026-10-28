@@ -526,8 +526,18 @@ func runPeerTool(args map[string]any) string {
 	act, _ := args["action"].(string)
 	who, _ := args["peer"].(string)
 	act = strings.ToLower(strings.TrimSpace(act))
+	// Un `action` absent avec un `message` présent est un ask, pas une liste.
+	// FAUTIF MESURÉ le 2026-10-28, deux fois de suite : j'appelle ask avec un
+	// message de plusieurs lignes, l'action arrive vide, et l'outil rend LA LISTE
+	// DES VOISINS — sans un mot d'erreur. Vue d'en face, ça ressemble à une
+	// réponse du voisin ; c'est mon propre outil qui a laissé tomber la question.
+	// Le repli « list » ne gardait que le cas où rien n'est demandé.
 	if act == "" {
-		act = "list"
+		if m, _ := args["message"].(string); strings.TrimSpace(m) != "" {
+			act = "ask"
+		} else {
+			act = "list"
+		}
 	}
 	peers := loadPeers()
 	if act == "list" {

@@ -162,16 +162,25 @@ foreach ($i in $installations) {
 
 Write-Output ''
 Write-Output '== 7. OUTILS DU CANAL dans data\scripts =='
-$attendus = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Canal.cmd',
-              'Verifier-Outils-Canal.ps1', 'Verifier-Collisions-Casse.ps1', 'Encodages.ps1',
-              'Trouver-Installations.ps1', 'Cabler-Canal-Local.ps1', 'Diagnostic-Installation.ps1')
+# La liste des outils attendus n'est PAS ecrite ici : elle est LUE dans le poseur
+# du paquet present sur la machine (son tableau $OutilsInstalles). Une liste figee
+# dans la sonde annoncerait « 7 / 9 » a vie, sans voir ni les pieces ajoutees ni
+# celles qui ont change de nom — c'est la faute du verificateur, reperee le meme
+# jour. Sans paquet a portee, le bloc le dit et ne devine pas.
 foreach ($i in $installations) {
   if ($i.SansBinaire) { continue }
+  $paquet = Trouver-Paquet-Canal -Dossier $i.Dossier
+  $attendus = @(Outils-du-Poseur -Paquet $paquet)
+  if (-not $attendus.Count) {
+    Write-Output ('   ' + $i.Nom + ' : liste des outils NON LUE (aucun paquet avec poseur lisible) — le controle est SAUTE, pas reussi')
+    continue
+  }
   $dos = Join-Path $i.Dossier 'data\scripts'
   if (-not (Test-Path -LiteralPath $dos)) { Write-Output ('   ' + $i.Nom + ' : pas de data\scripts') ; continue }
   $absents = @($attendus | Where-Object { -not (Test-Path -LiteralPath (Join-Path $dos $_)) })
   Write-Output ('   ' + $i.Nom + ' -> ' + ($attendus.Count - $absents.Count) + ' / ' + $attendus.Count +
-                $(if ($absents.Count) { '   absents : ' + ($absents -join ', ') } else { '' }))
+                $(if ($absents.Count) { '   absents : ' + ($absents -join ', ') } else { '' }) +
+                '   (liste lue dans ' + $(if ($paquet) { Split-Path $paquet -Leaf } else { '?' }) + ')')
 }
 
 Write-Output ''

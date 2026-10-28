@@ -97,6 +97,13 @@ $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Can
                      # Le garde-fou : il compte les chemins d'installation ecrits en dur.
                      # Nos versions sont portables, un chemin cablé ment sans le dire.
                      'Verifier-Chemin-En-Dur.ps1',
+                     # Et il range : les outils d'une campagne jouee partent dans
+                     # data\scripts\archive au lieu de rester actifs a mentir sur un
+                     # dossier qui n'existe plus. Mesure du 2026-10-28 : la fabrique de
+                     # la revision PRECEDENTE etait encore active et embarquait son
+                     # ancien binaire en silence — c'est le « le patch ne remplace pas
+                     # les fichiers » qui revient.
+                     'Archiver-Liens-Morts.ps1',
                      # Aligne le NOM du dossier sur la VERSION du binaire, en refusant si
                      # l'instance tient le dossier (le cas de la principale, qui nous heberge).
                      'Renommer-Installation.ps1',
@@ -107,7 +114,11 @@ $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Can
                      # La sonde canonique, en LECTURE SEULE et sans droits. Le .cmd de la
                      # revision 5 portait toute la sonde en UNE ligne : le moindre
                      # guillemet casse et l'erreur pointe dix lignes plus loin.
-                     'Diagnostic-Installation.ps1')
+                     'Diagnostic-Installation.ps1',
+                     # Son lanceur, pour le double-clic. Sans lui la sonde reste un
+                     # fichier a taper dans une fenetre, ce que la destinataire du paquet
+                     # ne fait pas.
+                     'Diagnostic-Canal.cmd')
 
 if (-not $Patch) {
   # Le script vit DANS le dossier patch ; on accepte aussi de le lancer d'ailleurs

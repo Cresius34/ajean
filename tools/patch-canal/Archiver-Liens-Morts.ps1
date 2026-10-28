@@ -96,24 +96,29 @@ function Millesime-du-nom([string]$nomFichier) {
 
 # INTANGIBLES : un outil installe par le patch canal en cours ne s'archive pas, quel
 # que soit ce que son texte contient. La liste est LUE dans le poseur du paquet (son
-# tableau $OutilsInstalles), pas ecrite ici : elle suit le paquet.
+# tableau $OutilsInstalles, via Outils-du-Poseur), pas ecrite ici : elle suit le
+# paquet. Le premier tirage de ce script a archive Verifier-Chemin-En-Dur.ps1, le
+# garde-fou lui-meme, parce que son commentaire cite un dossier mort.
+# Les decouvreurs d'installations et la lecture du tableau d'outils du poseur
+# viennent de Trouver-Installations.ps1. Les DEUX copies sont essayees : celle de
+# l'installation (data\scripts) et celle, gelée, qui vit a cote de ce script dans
+# le depot. Un dot-source sur un fichier absent avec ErrorActionPreference=Stop
+# interrompt tout le script : on teste avant d'appeler.
+$srcTrouver = @((Join-Path $Scripts 'Trouver-Installations.ps1'),
+                (Join-Path $PSScriptRoot 'Trouver-Installations.ps1')) |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if (-not $srcTrouver) { throw 'Trouver-Installations.ps1 introuvable : les decouvreurs sont obligatoires' }
+. $srcTrouver
+Write-Output ('decouvreurs charges depuis : ' + $srcTrouver)
 $intangibles = @()
 foreach ($d in $vivants) {
   $dos = Join-Path $Racine $d
   foreach ($q in (Get-ChildItem -LiteralPath $dos -Directory -Filter 'patch-canal-*' -EA SilentlyContinue)) {
-    $poseur = Join-Path $q.FullName 'Appliquer-Patch-Canal.ps1'
-    if (Test-Path -LiteralPath $poseur) {
-      $pt = [IO.File]::ReadAllText($poseur, [Text.Encoding]::UTF8)
-      $bloc = [regex]::Match($pt, '(?s)\$OutilsInstalles\s*=\s*@\((.*?)\)\s*(\r?\n)')
-      if ($bloc.Success) {
-        $intangibles += @([regex]::Matches($bloc.Groups[1].Value, "'([^']+)'") |
-                          ForEach-Object { $_.Groups[1].Value })
-      }
-    }
+    $intangibles += @(Outils-du-Poseur -Paquet $q.FullName)
     $intangibles += @(Get-ChildItem -LiteralPath $q.FullName -File | ForEach-Object { $_.Name })
   }
 }
-$intangibles = @($intangibles | Sort-Object -Unique)
+$intangibles = @($intangibles | Where-Object { $_ } | Sort-Object -Unique)
 Write-Output ('outils du patch en place, proteges : ' + $intangibles.Count)
 
 # ---- A. reintegration -------------------------------------------------------

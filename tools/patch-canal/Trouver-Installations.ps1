@@ -95,6 +95,47 @@ function Trouver-Paquet-Canal {
   return $p[0].FullName
 }
 
+# Les outils que le poseur du paquet installe dans data\scripts. LUS, jamais recopies :
+# une liste d'outils ecrite a la main dans un controleur ment des qu'une piece est
+# ajoutee ou change de nom (mesure du 2026-10-28 : la sonde annoncait « 7 / 9 » a vie
+# et le verificateur ignorait les deux outils de la veille).
+# La lecture se fait par PROFONDEUR de parentheses, pas par regex gloutonne : le
+# tableau du poseur contient des commentaires qui portent des parentheses, et
+# « (?s)…\) » s'arretait a la premiere d'entre elles.
+function Outils-du-Poseur {
+  param([string]$Paquet)
+  if (-not $Paquet) { return @() }
+  $poseur = Join-Path $Paquet 'Appliquer-Patch-Canal.ps1'
+  if (-not (Test-Path -LiteralPath $poseur -PathType Leaf)) { return @() }
+  $lignes = @([IO.File]::ReadAllLines($poseur, [Text.Encoding]::UTF8))
+  $debut = -1
+  for ($i = 0; $i -lt $lignes.Count; $i++) {
+    if ($lignes[$i] -match '^\s*\$OutilsInstalles\s*=\s*@\(') { $debut = $i ; break }
+  }
+  if ($debut -lt 0) { return @() }
+  $bloc = @()
+  $profondeur = 0
+  for ($i = $debut; $i -lt $lignes.Count; $i++) {
+    $brut = $lignes[$i]
+    $bloc += $brut
+    if ($brut.TrimStart().StartsWith('#')) { continue }   # les parentheses d'un commentaire ne comptent pas
+    foreach ($ch in $brut.ToCharArray()) {
+      if ($ch -eq '(') { $profondeur++ }
+      elseif ($ch -eq ')') { $profondeur-- }
+    }
+    if ($profondeur -le 0) { break }
+  }
+  $corps = ($bloc -join "`n")
+  # On ne garde que les litteraux entre apostrophes des lignes qui ne sont pas des
+  # commentaires : les commentaires citent parfois un nom de fichier.
+  $noms = @()
+  foreach ($lg in ($bloc -split "`n")) {
+    if ($lg.TrimStart().StartsWith('#')) { continue }
+    foreach ($x in [regex]::Matches($lg, "'([^']+)'")) { $noms += $x.Groups[1].Value }
+  }
+  return @($noms | Where-Object { $_ } | Sort-Object -Unique)
+}
+
 if ($MyInvocation.InvocationName -ne '.') {
   # Execute directement (pas dot-source) : on imprime l'etat, c'est deja une
   # reponse pour l'humain qui cherche ou il en est.

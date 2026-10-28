@@ -72,19 +72,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$WantV   = '0.18.16.1 Cresius'
-$Accepte = @('0.18.15.1 Cresius', '0.18.15.2 Cresius', '0.18.15.3 Cresius',
-             '0.18.15.4 Cresius', '0.18.15.5 Cresius', '0.18.15.6 Cresius',
-             # 0.18.16.1 est accepte aussi. Sans cette ligne, un dossier DEJA au
-             # bon binaire se faisait refuser (« version inattendue ») et le patch
-             # ne pouvait plus rattraper les outils jamais poses. Mesure du
-             # 2026-10-28 : l'installation principale avait le bon binaire, pose a
-             # la main, et 0/6 outils. Le patch doit pouvoir finir le travail.
-             '0.18.16.1 Cresius')
-# Empreinte relevée à la sortie de build (commit de fusion v0.18.16 + millésime
-# 0.18.16.1). Une divergence n'est pas bloquante — un rebuild legitime change
-# l'empreinte — mais elle est dite.
-$WantSha = '9FF0415C1BE29679E132B31FA2026F4A77F65C1C615283F5DCC7B22D814AE987'
+# Ni version ni empreinte écrites en dur, et plus aucune liste de versions de
+# départ à allonger à chaque révision (mesure du 2026-10-28 : $Accepte portait six
+# lignes; la septième a failli manquer, et un dossier déjà à jour se faisait
+# refuser). La version visée est LUE dans le binaire du paquet ; tout millésime
+# Cresius antérieur est accepté comme point de départ, parce que c'est la version
+# du binaire qui décide, pas le nom du dossier.
+$WantV = ''
+$WantSha = ''
+$WantBuild = ''
 
 # Les outils du paquet qui doivent finir DANS L'INSTALLATION, dans data\scripts.
 # Appliquer-Patch-Canal.* en est volontairement absent : pose là, il chercherait
@@ -207,8 +203,35 @@ public static class K {
 # de tete MZ). Le nom du lanceur depend du dossier vise : la variante porte
 # RX6900XT dans son nom.
 function Inventaire($Root) {
+  # Le lanceur a poser n'est PAS choisi par un nom de materiel cablé. Mesure du
+  # 2026-10-28 : le poseur testait « $Root -like '*RX6900XT' » — sur une machine
+  # dont le dossier porte un autre suffixe (RTX, portable, la voisine…), il posait
+  # le lanceur de la principale dans la variante. On lit donc le paquet : quel
+  # lanceur y vit, et lequel correspond au SUFFIXE du dossier vise.
   $nomLanceur = 'Lancer-Cresius-principale.ps1'
-  if ($Root -like '*RX6900XT') { $nomLanceur = 'Lancer-Cresius-RX6900XT.ps1' }
+  $dispo = @(Get-ChildItem -LiteralPath $LancD -Filter 'Lancer-Cresius-*.ps1' -EA SilentlyContinue |
+             ForEach-Object { $_.Name })
+  if ($dispo.Count) {
+    # Suffixe du dossier vise : ce qui suit « maj Cresius« . Vide pour la principale.
+    $suffixe = ''
+    $m = [regex]::Match((Split-Path $Root -Leaf), 'maj\s+Cresius\s+(.+)$')
+    if ($m.Success) { $suffixe = $m.Groups[1].Value.Trim() }
+    $trouve = $null
+    foreach ($n in $dispo) {
+      $etiquette = [regex]::Match($n, 'Lancer-Cresius-(.+)\.ps1').Groups[1].Value
+      if ($etiquette -eq 'principale' -and -not $suffixe) { $trouve = $n ; break }
+      if ($etiquette -and $suffixe -and
+          $etiquette.ToLower() -eq $suffixe.ToLower().Replace(' ', '')) { $trouve = $n ; break }
+    }
+    if (-not $trouve -and $suffixe) {
+      # Pas d'etiquette qui correspond : on prend la seule variante disponible,
+      # et on le dit — c'est un desaccord entre le paquet et le dossier, pas un
+      # choix a cacher.
+      $autres = @($dispo | Where-Object { $_ -notlike '*principale*' })
+      if ($autres.Count -eq 1) { $trouve = $autres[0] }
+    }
+    if ($trouve) { $nomLanceur = $trouve }
+  }
 
   # Le NOM du lanceur dans l'installation n'est pas une verite que je detiens :
   # c'est Lancer-Cresius.cmd qui le decide, en appelant
@@ -251,17 +274,48 @@ function Inventaire($Root) {
   return ,$liste
 }
 
-Log ("== patch canal Ajean-Ajean revision 7 - " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+Log ("== patch canal Ajean-Ajean - " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
 Log ("   paquet   : $Patch")
 Log ("   binaire  : $NewExe")
 $nv = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $NewExe).Path)
-if ($nv.ProductVersion -ne $WantV -or $nv.FileVersion -ne $WantV) {
-  throw "le binaire du patch annonce $($nv.ProductVersion) / $($nv.FileVersion), attendu $WantV des deux cotes"
+if ($nv.ProductVersion -ne $nv.FileVersion) {
+  throw ('le binaire du patch est incoherent : ' + $nv.ProductVersion + ' / ' + $nv.FileVersion)
 }
+if ($nv.ProductVersion -notmatch 'Cresius') {
+  throw ('le binaire du patch n''est pas une ligne Cresius (' + $nv.ProductVersion + ') — refus')
+}
+# La version visée est CELLE DU BINAIRE LIVRÉ : elle n'est plus écrite dans ce
+# script. Un poseur qui porte une version en dur refuse ses propres paquets dès
+# que le millésime change (mesure du 2026-10-28).
+$WantV = $nv.ProductVersion
+
+# L'empreinte attendue vient du MANIFESTE du paquet, écrit par la fabrique au
+# moment du build. Sans lui, rien n'est comparé et on le dit — une empreinte
+# recopiée dans le script serait une seconde vérité à maintenir.
+$Manifeste = Join-Path $Patch 'PAQUET.txt'
+$ShaManifeste = ''
+$VerManifeste = ''
+if (Test-Path -LiteralPath $Manifeste) {
+  foreach ($ligne in (Get-Content -LiteralPath $Manifeste)) {
+    $m = [regex]::Match($ligne, 'sha256\s*:\s*([0-9A-Fa-f]{64})')
+    if ($m.Success) { $ShaManifeste = $m.Groups[1].Value.ToUpper() }
+    $mv = [regex]::Match($ligne, 'version\s*:\s*(.+)$')
+    if ($mv.Success -and -not $VerManifeste) { $VerManifeste = $mv.Groups[1].Value.Trim() }
+  }
+  if ($VerManifeste -and $VerManifeste -ne $WantV) {
+    throw ('le manifeste du paquet annonce ' + $VerManifeste + ' alors que son binaire annonce ' +
+           $WantV + ' — paquet mélangé, ne rien poser')
+  }
+}
+if (-not $ShaManifeste) {
+  Log "   (!) pas de manifeste (PAQUET.txt) : l'empreinte du binaire n'est comparée à rien"
+} elseif ((Sha $NewExe) -ne $ShaManifeste) {
+  throw ('le binaire du paquet ne correspond pas à son manifeste (' + $ShaManifeste.Substring(0,16) +
+         ' attendu) — paquet corrompu ou modifié en route, ne rien poser')
+}
+$WantSha = $ShaManifeste
 Log ("   binaire OK : $($nv.ProductVersion), $((Get-Item -LiteralPath $NewExe).Length) o, sha $((Sha $NewExe).Substring(0,16))")
-if ((Sha $NewExe) -ne $WantSha) {
-  Log ("   (!) sha different de celui releve a la sortie de build ($($WantSha.Substring(0,16))) : normal si le binaire a ete recompile, a verifier quand meme")
-}
+Log ("   manifeste  : " + $(if ($ShaManifeste) { 'lu, empreinte controlee' } else { 'ABSENT' }))
 if ($SansAgent) {
   Log "   interrupteurs : NON allumes (-SansAgent). Le pont pretera le modele nu et l'appelant verra la raison du refus."
 } else {
@@ -305,9 +359,13 @@ foreach ($Root in $Dossiers) {
 
   $courant = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $exe).Path)
   Log ("   en place : $($courant.ProductVersion)")
-  if ($Accepte -notcontains $courant.ProductVersion) {
-    Log ("   REFUSE : ce dossier attend " + ($Accepte -join ' / ') + ", il annonce $($courant.ProductVersion). Ce n'est ni la bonne cible, ni une bascule faite comme prevu.")
-    $echecs += "$Root : version $($courant.ProductVersion) inattendue" ; continue
+  # Plus de liste de versions de départ à allonger à chaque révision (elle portait
+  # six lignes, la septième a failli manquer, et un dossier déjà à jour se faisait
+  # refuser). Le point de départ est n'importe quelle ligne Cresius : c'est la
+  # version du binaire qui décide, jamais le nom du dossier.
+  if ($courant.ProductVersion -notmatch 'Cresius') {
+    Log ("   REFUSE : ce dossier n'est pas une ligne Cresius ($($courant.ProductVersion)).")
+    $echecs += "$Root : version $($courant.ProductVersion) hors ligne Cresius" ; continue
   }
   # La version reellement en place devient la reference de ce dossier : l'archive
   # porte son nom, et le controle de l'archive se fait contre elle. Ecrire un nom

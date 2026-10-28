@@ -517,3 +517,56 @@ func TestPeerAddNormalizesAndRejects(t *testing.T) {
 		t.Fatal("une url vide acceptée")
 	}
 }
+
+// TestPeerArgsNormalizeAccepteDrapeaux : la syntaxe à drapeaux est celle que tout
+// le monde recopie. Mesuré le 2026-10-28 : la machine voisine avait reçu
+// « ajean peer add "ajean-principale" "http://…" --key <clé> » ; notre usage est
+// positionnel, « --key » n'y existe pas, et argAt(args, 2) rangeait la chaîne
+// « --key » COMME LA CLÉ. Le pont d'en face répondait 401 à vie, sans que l'outil
+// le dise jamais. Ces cas sont la non-régression.
+func TestPeerArgsNormalizeAccepteDrapeaux(t *testing.T) {
+	cas := []struct {
+		nom   string
+		entre []string
+		voulu []string
+	}{
+		{"positionnel intact",
+			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+		{"--key avale sa valeur",
+			[]string{"poste", "http://192.168.1.71:18190/v1", "--key", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+		{"--cle (francais) avale sa valeur",
+			[]string{"poste", "http://192.168.1.71:18190/v1", "--cle", "sk-bonne"},
+			[]string{"poste", "http://192.168.1.71:18190/v1", "sk-bonne"}},
+		{"--key avant l'url ne la deplace pas",
+			[]string{"poste", "--key", "sk-bonne", "http://192.168.1.71:18190/v1"},
+			[]string{"poste", "sk-bonne", "http://192.168.1.71:18190/v1"}},
+		{"--key sans valeur ne range pas le drapeau",
+			[]string{"poste", "http://192.168.1.71:18190/v1", "--key"},
+			[]string{"poste", "http://192.168.1.71:18190/v1", ""}},
+		{"drapeau inconnu laisse la faute a l'appelant",
+			[]string{"poste", "http://192.168.1.71:18190/v1", "--couleur", "rouge"},
+			[]string{"poste", "http://192.168.1.71:18190/v1", "--couleur", "rouge"}},
+	}
+	for _, c := range cas {
+		got := peerArgsNormalize(c.entre)
+		if strings.Join(got, "|") != strings.Join(c.voulu, "|") {
+			t.Errorf("%s : normalise en %q, voulais %q", c.nom, got, c.voulu)
+		}
+	}
+
+	// Bout-en-bout : ce que la voisine a tapé doit ranger la VRAIE clé.
+	parallelTestHome(t)
+	args := peerArgsNormalize([]string{"ajean-principale", "http://192.168.1.71:18190/v1", "--key", "sk-la-vraie"})
+	p, err := peerAddDeclared(args[0], args[1], argAt(args, 2), argAt(args, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Key == "--key" {
+		t.Fatal("le drapeau est encore range comme cle : la non-régression n'est pas tenue")
+	}
+	if p.Key != "sk-la-vraie" {
+		t.Fatalf("cle rangee = %q, voulais sk-la-vraie", p.Key)
+	}
+}

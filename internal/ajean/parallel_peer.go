@@ -601,6 +601,49 @@ func peerNames(peers []peerEndpoint) string {
 
 // cmdParallelPeer : `ajean peer list | add <nom> <url> [clé] [modèle] | rm <nom> |
 // status [nom] | ask <nom> <message> | forget [nom]`.
+// peerArgsNormalize : enlève les drapeaux --key/--cle/… de la ligne de commande.
+//
+// FAUTIF MESURÉ le 2026-10-28, rapporté par la machine voisine : on lui avait
+// soufflé « ajean peer add "ajean-principale" "http://…" --key <clé> ». Notre
+// usage est positionnel — `peer add <nom> <url> [clé] [modèle]` — et `--key`
+// n'y existe pas : argAt(args, 2) ramassait littéralement la chaîne « --key »
+// comme étant la CLÉ. La clé rangée valait « --key », le pont d'en face
+// répondait 401 à vie, et le seul indice était « clé API refusée » — sans
+// jamais dire que la clé rangée était un drapeau. Un humain comme une IA
+// recopie la syntaxe à drapeaux : c'est celle qu'il connaît. On l'accepte donc,
+// et on ne ment plus sur ce qui a été rangé.
+func peerArgsNormalize(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := strings.TrimSpace(args[i])
+		if !strings.HasPrefix(a, "--") {
+			out = append(out, a)
+			continue
+		}
+		switch strings.ToLower(strings.TrimPrefix(a, "--")) {
+		case "key", "cle", "clee":
+			// le drapeau avale la valeur qui le suit : la position obtenue est
+			// exactement celle de la clé dans l'usage positionnel
+			if i+1 < len(args) && !strings.HasPrefix(strings.TrimSpace(args[i+1]), "--") {
+				out = append(out, strings.TrimSpace(args[i+1]))
+				i++
+			} else {
+				out = append(out, "") // « --key » sans valeur : rien de rangé
+			}
+		case "model", "modele":
+			if i+1 < len(args) && !strings.HasPrefix(strings.TrimSpace(args[i+1]), "--") {
+				out = append(out, strings.TrimSpace(args[i+1]))
+				i++
+			}
+		default:
+			// un drapeau inconnu n'est pas une clé : on le laisse passer pour que
+			// l'appelant le signale, au lieu de l'avaler en silence.
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 func cmdParallelPeer(args []string) error {
 	sub := "list"
 	if len(args) > 0 {
@@ -632,6 +675,12 @@ func cmdParallelPeer(args []string) error {
 		}
 		return nil
 	case "add", "ajouter":
+		args = peerArgsNormalize(args)
+		for _, a := range args {
+			if strings.HasPrefix(a, "--") {
+				return fmt.Errorf("option %q non reconnue : usage ajean peer add <nom> <http://hote:port/v1> [cle] [modele]", a)
+			}
+		}
 		if len(args) < 2 {
 			return errors.New("usage : ajean peer add <nom> <http://hote:port/v1> [cle] [modele]")
 		}

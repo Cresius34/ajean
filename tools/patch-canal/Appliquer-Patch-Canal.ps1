@@ -126,6 +126,12 @@ $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Can
                      # celui du moteur Strata, l'interface est sur 18090. Cet outil le
                      # mesure port par port au lieu de le supposer.
                      'Verifier-Carte-Pont.ps1',
+                     # « Me semble que vos clefs sont les memes » (2026-10-28, l'utilisateur).
+                     # Il avait raison et rien ne le mesurait : le pont prête, le pair est
+                     # déclaré, la clef est « posée » — tout est vert, et les deux ponts
+                     # s'ouvrent avec le même secret. Un seul secret pour deux cerveaux,
+                     # avec une rotation qui casse l'autre côté si on la joue seule.
+                     'Verifier-Cle-Canal.ps1',
                      # Et la symetrie : un pont peut prete (200 a ma cle) sans que la
                      # machine en face puisse appeler, faute de voisin declare chez elle.
                      # Le jeu complet des questions, dans les deux sens, a jouer aussi

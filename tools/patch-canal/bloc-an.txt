@@ -1,0 +1,25 @@
+﻿Write-Output "== versions annoncees par les outils =="
+foreach ($f in @('Appliquer-Patch-Canal.ps1', 'Ouvrir-Canal.ps1', 'lanceurs\genere-lanceurs.ps1')) {
+  $t = [IO.File]::ReadAllText((Join-Path $dossier $f), [Text.Encoding]::UTF8)
+  $want = ([regex]::Match($t, '\$Want\w*\s*=\s*''([^'']*)''')).Groups[1].Value
+  Write-Output ("  {0} : WantV = « {1} »" -f $f, $want)
+  if ($want -ne $WantV) { Write-Output "     (!) ne vise pas $WantV" ; $pb++ }
+  # Une version citee doit etre soit la cible, soit une entree de la liste admise.
+  # (Premiere version du controle : elle signalait la cible elle-meme comme
+  # « citee hors de la liste admise » — fausse alerte, mesurée le 2026-10-27.)
+  if ($f -ne 'lanceurs\genere-lanceurs.ps1') {
+    $admises = @([regex]::Matches($t, "'(0\.18\.15\.\d Cresius)'") | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    Write-Output ("     versions citees : " + ($admises -join ' / '))
+    $ligneAdmises = ($t -split "`n" | Where-Object { $_ -match '\$Accepte\s*=\s*@' } | Out-String)
+    foreach ($v in $admises) {
+      if ($v -eq $WantV) { continue }
+      if ($ligneAdmises -notmatch [regex]::Escape("'$v'")) { Write-Output "     (!) $v citée sans etre dans la liste admise" ; $pb++ }
+    }
+  }
+}
+foreach ($f in @('lanceurs\Lancer-Cresius-principale.ps1', 'lanceurs\Lancer-Cresius-RX6900XT.ps1')) {
+  $t = [IO.File]::ReadAllText((Join-Path $dossier $f), [Text.Encoding]::UTF8)
+  $lock = ([regex]::Match($t, '\$expectedVersion\s*=\s*''([^'']*)''')).Groups[1].Value
+  Write-Output ("  {0} : verrou = « {1} »" -f $f, $lock)
+  if ($lock -ne $WantV) { Write-Output "     (!) le lanceur refuserait de demarrer le binaire du patch" ; $pb++ }
+}

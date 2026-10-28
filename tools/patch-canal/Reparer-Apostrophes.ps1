@@ -1,4 +1,4 @@
-# Remplace l'apostrophe typographique (U+2019) par deux apostrophes droites dans
+﻿# Remplace l'apostrophe typographique (U+2019) par deux apostrophes droites dans
 # une chaine PowerShell, et signale celles qui restent dans du CODE (hors
 # commentaire). U+2018 (guillemet simple ouvrant) est retire.
 #

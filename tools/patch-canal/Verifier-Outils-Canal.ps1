@@ -1,4 +1,4 @@
-﻿# Verifie les .ps1 et .cmd du dossier patch-canal-18155 : BOM, parse, collisions
+﻿# Verifie les .ps1 et .cmd d'un dossier d'outils du canal : BOM, parse, collisions
 # de casse, coherence des versions annoncees, INTEGRITE DU BINAIRE, et ce que le
 # voisin sert reellement. A lancer APRES toute retouche du paquet, avant de le
 # poser sur une machine.
@@ -11,12 +11,43 @@ param([string[]]$AdresseVoisin = @(), [string]$CleCanal = '')
 # retrouvait ecrase par la variable locale (attrape par Verifier-Collisions-Casse).
 $ErrorActionPreference = 'Stop'
 $dossier = $PSScriptRoot
-$fichiers = @(
-  'Appliquer-Patch-Canal.ps1', 'Ouvrir-Canal.ps1', 'cabler-canal.ps1',
-  'Verifier-Collisions-Casse.ps1', 'Verifier-Outils-Canal.ps1', 'Encodages.ps1',
-  'lanceurs\genere-lanceurs.ps1',
-  'lanceurs\Lancer-Cresius-principale.ps1', 'lanceurs\Lancer-Cresius-RX6900XT.ps1')
-$WantV = '0.18.15.5 Cresius'
+
+# La liste des fichiers n'est PAS ecrite ici. Mesure du 2026-10-28 : cette liste
+# en dur oubliait les outils ajoutes la veille, donc le verificateur annoncait un
+# paquet sain en n'ayant rien dit des deux pieces neuves. On enumere ce qui vit
+# reellement dans le dossier, plus ce qui vit dans lanceurs\ quand il existe.
+$fichiers = @(Get-ChildItem -LiteralPath $dossier -File |
+              Where-Object { $_.Extension -in '.ps1', '.cmd' } |
+              ForEach-Object { $_.Name })
+$sousLanceurs = Join-Path $dossier 'lanceurs'
+if (Test-Path -LiteralPath $sousLanceurs) {
+  $fichiers += @(Get-ChildItem -LiteralPath $sousLanceurs -File |
+                 Where-Object { $_.Extension -in '.ps1', '.cmd' } |
+                 ForEach-Object { 'lanceurs\' + $_.Name })
+}
+$fichiers = @($fichiers | Sort-Object)
+
+# La version visee n'est PAS ecrite ici non plus. Elle est LUE dans le binaire qui
+# accompagne le paquet (a cote du script, ou au dossier au-dessus). Un millésime
+# cablé dans le verificateur le rend faux au build suivant : c'est exactement le
+# mecanisme du « le patch ne remplace pas les fichiers » — l'outil annoncait une
+# coherence qui n'existait plus.
+$WantV = ''
+foreach ($c in @((Join-Path $dossier 'ajean.exe'),
+                 (Join-Path (Split-Path -Parent $dossier) 'ajean.exe'))) {
+  if (Test-Path -LiteralPath $c -PathType Leaf) {
+    $WantV = [Diagnostics.FileVersionInfo]::GetVersionInfo($c).ProductVersion
+    if ($WantV) { $WantV = $WantV.Trim() ; break }
+  }
+}
+if (-not $WantV) {
+  Write-Output '(!) AUCUN ajean.exe a cote de ce script ni dans son dossier parent :'
+  Write-Output '    la version visee ne peut pas etre lue. Ce verificateur tourne dans'
+  Write-Output '    data\scripts d''une installation, ou dans un dossier d''outils sans'
+  Write-Output '    binaire : le controle des versions est SAUTE, pas reussi.'
+}
+Write-Output ("fichiers enumeres : " + $fichiers.Count +
+              "   version lue du binaire : " + $(if ($WantV) { $WantV } else { 'INDISPONIBLE' }))
 $pb = 0
 
 Write-Output "== presence + parse + BOM =="
@@ -26,30 +57,65 @@ foreach ($f in $fichiers) {
   $b = [IO.File]::ReadAllBytes($p)
   $bom = ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
   $t = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)
-  $err = $null
-  $null = [System.Management.Automation.PSParser]::Tokenize($t, [ref]$err)
-  Write-Output ("{0} | octets={1} | BOM={2} | erreurs_parse={3}" -f $f, $b.Length, $bom, $err.Count)
-  foreach ($e in $err) { Write-Output ("    ligne {0} : {1}" -f $e.Token.StartLine, $e.Message) ; $pb++ }
+  $estBatch = ($f -like '*.cmd')
+
+  # Un .cmd n'est PAS du PowerShell. Le passer au parseur produisait 18 fausses
+  # erreurs par fichier (mesure du 2026-10-28 : « jeton inattendu off » sur
+  # @echo off), donc le bilan criait et on apprenait a ne plus le lire.
+  $err = @()
+  if (-not $estBatch) {
+    $e = $null
+    $null = [System.Management.Automation.PSParser]::Tokenize($t, [ref]$e)
+    $err = @($e)
+  }
+  Write-Output ("{0} | octets={1} | BOM={2} | {3}" -f $f, $b.Length, $bom,
+                $(if ($estBatch) { 'batch — non parse (cmd, pas ps1)' } else { 'erreurs_parse=' + $err.Count }))
+  foreach ($x in $err) { Write-Output ("    ligne {0} : {1}" -f $x.Token.StartLine, $x.Message) ; $pb++ }
+
   # Le BOM n'est pas un ornement : c'est lui qui fait lire les accents a PowerShell 5.
   # Un fichier SANS accent peut s'en passer (les lanceurs de la variante), encore faut-il
   # ne pas lui imposer celui de son voisin — le generateur les rend tels qu'ils sont.
-  $sansAccents = ($t -notmatch '[^\x20-\x7E]')
-  if (-not $bom -and -not $sansAccents) { Write-Output "    (!) BOM absent alors que le fichier a des accents" ; $pb++ }
-  if ($bom -and $sansAccents) { Write-Output "    (info) BOM pose sur un fichier sans accents — herite du fichier source, conserve volontairement" }
+  # Le test d'accent ne doit pas compter les fins de ligne : \r tombait hors de
+  # \x20-\x7E et faisait annoncer « le fichier a des accents » a un fichier 100 % ASCII.
+  $sansAccents = ($t -notmatch '[^\x20-\x7E\r\n]')
+  $octetsNonAscii = @($b | Where-Object { $_ -ge 128 }).Count
+  if ($estBatch) {
+    # Regle mesuree : un .cmd sans BOM et sans aucun octet non ASCII. Le BOM sur un
+    # .cmd s'affiche en caracteres parasites et la premiere commande est mal lue ;
+    # un accent dans un .cmd est detruit par le codepage de la console.
+    if ($bom) { Write-Output '    (!) BOM sur un .cmd : la premiere ligne est mal lue' ; $pb++ }
+    if ($octetsNonAscii -gt 0) { Write-Output ("    (!) " + $octetsNonAscii + ' octet(s) non ASCII dans un .cmd : le console les detruit') ; $pb++ }
+  } else {
+    if (-not $bom -and -not $sansAccents) { Write-Output "    (!) BOM absent alors que le fichier a des accents — PowerShell 5.1 le lit en ANSI" ; $pb++ }
+    if ($bom -and $sansAccents) { Write-Output "    (info) BOM pose sur un fichier sans accents — heritage, sans consequence" }
+  }
 }
 
 Write-Output ""
 Write-Output "== versions annoncees par les outils =="
+# Le controle n'est saute que si le binaire est vraiment absent, et le mot le dit :
+# « SAUTE », pas « reussi ». Annoncer une coherence qu'on n'a pas pu lire est la
+# faute exacte qui a laisse passer trois revisions perdues.
+if (-not $WantV) { Write-Output '  SAUTE — aucune version lue dans un binaire du paquet.' }
 foreach ($f in @('Appliquer-Patch-Canal.ps1', 'Ouvrir-Canal.ps1', 'lanceurs\genere-lanceurs.ps1')) {
-  $t = [IO.File]::ReadAllText((Join-Path $dossier $f), [Text.Encoding]::UTF8)
+  $p = Join-Path $dossier $f
+  if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {
+    Write-Output ("  {0} : ABSENT" -f $f) ; $pb++ ; continue
+  }
+  $t = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)
   $want = ([regex]::Match($t, '\$Want\w*\s*=\s*''([^'']*)''')).Groups[1].Value
-  Write-Output ("  {0} : WantV = « {1} »" -f $f, $want)
-  if ($want -ne $WantV) { Write-Output "     (!) ne vise pas $WantV" ; $pb++ }
+  Write-Output ("  {0} : WantV en dur = « {1} »" -f $f, $(if ($want) { $want } else { 'AUCUNE — version lue a l execution, ce qui est le comportement voulu' }))
+  # Une version en dur dans un outil est un mensonge differe : elle devient fausse
+  # au build suivant et l'outil refuse alors de tourner sans dire pourquoi.
+  if ($WantV -and $want -and $want -ne $WantV) { Write-Output "     (!) vise $want alors que le binaire du paquet annonce $WantV" ; $pb++ }
   # Une version citee doit etre soit la cible, soit une entree de la liste admise.
   # (Premiere version du controle : elle signalait la cible elle-meme comme
   # « citee hors de la liste admise » — fausse alerte, mesurée le 2026-10-27.)
   if ($f -ne 'lanceurs\genere-lanceurs.ps1') {
-    $admises = @([regex]::Matches($t, "'(0\.18\.15\.\d Cresius)'") | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    # Le motif etait '(0\.18\.15\.\d Cresius)' : il ne voyait plus rien des que la
+    # ligne Cresius changeait d'etage, donc le controle passait en ne controlant
+    # rien. N'importe quelle version Cresius est cherchee.
+    $admises = @([regex]::Matches($t, "'(0\.18\.\d+(\.\d+)? Cresius)'") | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
     Write-Output ("     versions citees : " + ($admises -join ' / '))
     $ligneAdmises = ($t -split "`n" | Where-Object { $_ -match '\$Accepte\s*=\s*@' } | Out-String)
     foreach ($v in $admises) {
@@ -58,10 +124,14 @@ foreach ($f in @('Appliquer-Patch-Canal.ps1', 'Ouvrir-Canal.ps1', 'lanceurs\gene
     }
   }
 }
-foreach ($f in @('lanceurs\Lancer-Cresius-principale.ps1', 'lanceurs\Lancer-Cresius-RX6900XT.ps1')) {
+# Les lanceurs ne sont pas nommes ici : le paquet peut n'en contenir qu'un, ou
+# trois (une machine par materiel). On enumere ce qui existe.
+$lanceursAVerifier = @($fichiers | Where-Object { $_ -like 'lanceurs\Lancer-*' })
+foreach ($f in $lanceursAVerifier) {
   $t = [IO.File]::ReadAllText((Join-Path $dossier $f), [Text.Encoding]::UTF8)
   $lock = ([regex]::Match($t, '\$expectedVersion\s*=\s*''([^'']*)''')).Groups[1].Value
   Write-Output ("  {0} : verrou = « {1} »" -f $f, $lock)
+  if (-not $WantV) { Write-Output '     SAUTE — pas de binaire a cote pour comparer' ; continue }
   if ($lock -ne $WantV) { Write-Output "     (!) le lanceur refuserait de demarrer le binaire du patch" ; $pb++ }
 }
 

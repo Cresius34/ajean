@@ -176,21 +176,30 @@ vérification du port 18090 — jamais avant un refus, sinon un second passage s
 
 ---
 
-## 6. Le paquet contient deux sondes de diagnostic (lecture seule)
+## 6. Le paquet contient une sonde de diagnostic (lecture seule)
 
-Avant de poser quoi que ce soit, `Diagnostic-court.cmd` (2 408 o) répond sans rien
-modifier — pas de téléchargement, aucun service arrêté, rien d'écrit, et **pas
-besoin de droits administrateur**. Double-clic, ou coller son contenu dans une
-fenêtre `cmd`. Six blocs :
+Avant de poser quoi que ce soit, double-clic sur **`Diagnostic-Canal.cmd`** : il
+appelle `Diagnostic-Installation.ps1`, qui répond sans rien modifier — pas de
+téléchargement, aucun service arrêté, rien d'écrit, et **pas besoin de droits
+administrateur**. Huit blocs (le détail bloc par bloc est dans
+`README-DIAGNOSTIC.md`) :
 
 | Bloc | Ce qu'il dit | Ce qu'on en conclut |
 |---|---|---|
-| 1) ports en écoute | le **chemin** du processus qui tient 18090/18190/18080/18081 | **quel dossier tourne vraiment** — c'est la première cause des patches qui « ne s'appliquent pas » : on patche un dossier qui n'est pas celui en service |
-| 2) version de chaque `ajean.exe` | `ProductVersion` de chaque dossier | l'écart entre ce qui est posé et ce qui tourne |
+| 1) installations | trouvées **par la présence du binaire**, jamais par nom de dossier | un dossier `Ajean v18.x` sans `ajean.exe` à sa racine est un reste, pas une installation |
+| 2) ports en écoute | le **chemin** du processus qui tient 18090/18190/18080/18081, avec sa version **chargée en mémoire** | **quel dossier tourne vraiment** — c'est la première cause des patches qui « ne s'appliquent pas » : on patche un dossier qui n'est pas celui en service |
 | 3) encodeur | `dims=512` ou `dims=768` | **512 = EmbeddingGemma 2 en place ; 768 = l'ancien moteur Gemma encore là** |
-| 4) moteur | `service=strata loaded=True modele=…` | Strata en service, ou rien sur 18080 = Strata non démarré |
-| 5) dossiers `data\moe` | `strata-0.1.48-hip`, ou seulement `cache`/`dl`/`proofs` | le moteur est **installé** ou non |
-| 6) SHA du paquet | `9FF0415C…` attendu | le fichier est **intègre**, ou **ILLISIBLE** = quarantaine antimalware |
+| 4) moteur | `service=strata charge=True modele=…` | Strata en service, ou rien sur 18080 = Strata non démarré |
+| 5) pont | `enabled/listening/port`, voisins déclarés, interrupteurs d'agent | la carte « Pont Ajean ↔ Ajean » **peut ne pas exister** dans ce binaire : 404 = plus ancien que le pont, 403 = pas une version portable |
+| 6) paquet | cherché **par motif**, empreinte comparée à son `PAQUET.txt` | le fichier est **intègre**, **divergent**, ou **ILLISIBLE** = quarantaine antimalware |
+| 7) outils | ce qui est réellement dans `data\scripts` | ce que la pose a laissé, fichier par fichier |
+| 8) antimalware | détections qui concernent nos fichiers | un de nos binaires est-il mangé, et lequel |
+
+Avant le 2026-10-28 il y avait trois sondes (`Diagnostic-court.cmd`,
+`Diagnostic-installation.cmd`, `Diagnostic-Bekka.ps1`), dont deux portaient **toute
+la sonde en UNE ligne dans le `.cmd`** : un guillemet mal échappé cassait
+l'ensemble, et l'erreur remontait dix lignes plus loin sans dire quelle sonde
+était morte. Remplacées par le couple `.ps1` + lanceur de 20 lignes.
 
 Deux pièges mesurés, qui expliquent de fausses conclusions :
 

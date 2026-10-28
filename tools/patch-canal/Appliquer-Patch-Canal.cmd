@@ -69,6 +69,6 @@ echo Reste a faire pour le canal, dans ce meme dossier :
 echo    Cabler-Canal-Local.ps1 -Voisin ^<IP de l'autre machine^> -Nom ^<nom^> -Test
 echo    (lit TA propre cle API depuis ton interface locale : rien a taper)
 echo.
-echo Et pour l'etat complet de ce poste : Diagnostic-installation.cmd
+echo Et pour l'etat complet de ce poste : Diagnostic-Canal.cmd (lecture seule)
 pause
 endlocal

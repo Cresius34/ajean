@@ -99,7 +99,15 @@ $OutilsInstalles = @('cabler-canal.ps1', 'Ouvrir-Canal.ps1', 'Ouvrir-PareFeu-Can
                      'Verifier-Chemin-En-Dur.ps1',
                      # Aligne le NOM du dossier sur la VERSION du binaire, en refusant si
                      # l'instance tient le dossier (le cas de la principale, qui nous heberge).
-                     'Renommer-Installation.ps1')
+                     'Renommer-Installation.ps1',
+                     # La moitie qui manquait a la symetrie : la declaration du voisin se
+                     # joue SUR la machine appelee, et un Ajean a distance ne peut pas la
+                     # faire lui-meme (peer n'expose que list/status/ask/forget).
+                     'Cabler-Canal-Local.ps1',
+                     # La sonde canonique, en LECTURE SEULE et sans droits. Le .cmd de la
+                     # revision 5 portait toute la sonde en UNE ligne : le moindre
+                     # guillemet casse et l'erreur pointe dix lignes plus loin.
+                     'Diagnostic-Installation.ps1')
 
 if (-not $Patch) {
   # Le script vit DANS le dossier patch ; on accepte aussi de le lancer d'ailleurs

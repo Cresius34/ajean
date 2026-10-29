@@ -97,7 +97,8 @@ var configTemplate = []struct{ key, help string }{
 	{"REASONING", "passthrough du mode raisonnement (on/auto/deepseek)"},
 	{"REASONING_BUDGET", "plafond de tokens de réflexion ; -1 = illimité"},
 	{"COMPACT", "compactage automatique du contexte (off pour couper)"},
-	{"COMPACT_MAX", "compacter au plus tard à ce nombre de jetons, quelle que soit la fenêtre (0 = 75 % de la fenêtre)"},
+	{"COMPACT_MAX", "compacter au plus tard à ce nombre de jetons, quelle que soit la fenêtre (0 = pas de plafond)"},
+	{"COMPACT_FRAC", "pourcentage de la fenêtre où l'on compacte, 50 à 100 (vide = 75 %)"},
 	{"MEM_MODE", "mémoire de l'IA (repli global ; réglable par projet) : off / ondemand / always / search"},
 	{"EXTRA_ARGS", "ajouté tel quel à la ligne de commande de llama-server"},
 }

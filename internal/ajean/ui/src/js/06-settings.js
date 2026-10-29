@@ -193,6 +193,83 @@ function initPresetSortable(cont){
 }
 // « Mode agent » = accès machine + skills réunis en un seul interrupteur.
 // Quand il est actif, un « a » blanc apparaît en fondu devant « ajean » → « ajean ».
+// -- Seuil de compactage ----------------------------------------------------
+// Deux réglages qui se COMBINENT, comme côté serveur :
+//   seuil = min(frac% x fenetre , plafond en jetons), le tout ecrete par la
+//   marge de securite. Le pourcentage est le levier utile aux grandes fenetres
+//   (le plafond en jetons, lui, ne peut que compacter plus tot).
+let COMPACT_D = { compact_frac: 75, compact_max: 0, ctx_window: 0, compact_threshold: 0 };
+
+function compactFmt(n){ return (+n||0).toLocaleString('fr-FR'); }
+
+// La piste du curseur est dessinee en CSS via la variable --p.
+function paintCompactSlider(el){
+  if(!el) return;
+  el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+}
+
+// Affiche, sans envoyer : le pourcentage, le seuil reel en jetons, et si la
+// marge de securite a rabaisse ce seuil (le cas a 95-100 %).
+// L'ordre des ecretements reproduit celui de compactThreshold() cote Go :
+// min(frac x fenetre, plafond) puis ecretement par la marge. Un ecart ici
+// afficherait un nombre different de celui qui est vraiment applique.
+function showCompactFrac(v){
+  const sl = document.getElementById('compact-frac');
+  paintCompactSlider(sl);
+  const out = document.getElementById('compact-frac-out');
+  const note = document.getElementById('compact-frac-note');
+  const frac = +v || 75, win = +COMPACT_D.ctx_window || 0;
+  if(out) out.textContent = frac + ' %';
+  if(!note) return;
+  if(!win){ note.textContent = ''; return; }
+  let th = Math.floor(win * frac / 100);
+  const plafondJetons = +COMPACT_D.compact_max || 0;
+  if(plafondJetons > 0 && plafondJetons < th) th = plafondJetons;
+  let marge = Math.floor(win / 20);
+  if(marge < 8192) marge = 8192;
+  if(marge > Math.floor(win / 4)) marge = Math.floor(win / 4);
+  const plafond = win - marge;
+  const rabaisse = th > plafond;
+  if(rabaisse) th = plafond;
+  note.textContent = t('agent.compact_frac_at') + ' ' + compactFmt(th) + ' ' + t('agent.compact_frac_tokens') +
+    (rabaisse ? ' · ' + t('agent.compact_frac_capped') : '');
+  note.classList.toggle('warn', rabaisse);
+}
+
+async function setCompactFrac(){
+  const on = document.getElementById('compact-toggle').checked;
+  const frac = +document.getElementById('compact-frac').value;
+  const r = await jpost('/api/agent/compact',{on, frac});
+  if(r && r.ok === false){ toast(r.error||'erreur'); await loadAgent(); return; }
+  if(r) setCompactUI(r);
+}
+
+function setCompactUI(s){
+  COMPACT_D = { compact_frac: s.compact_frac || 75, compact_max: s.compact_max || 0,
+                ctx_window: s.ctx_window || 0, compact_threshold: s.compact_threshold || 0 };
+  const sl = document.getElementById('compact-frac');
+  if(sl){ sl.value = COMPACT_D.compact_frac; sl.disabled = (s.compact === false); }
+  const cm = document.getElementById('compact-max');
+  if(cm){
+    const v = String(COMPACT_D.compact_max || 0);
+    // une valeur hors liste (reglee ailleurs, ou ancienne) : on l'ajoute en jetons exacts
+    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(compactFmt(+v), v));
+    cm.value = v; cm.disabled = s.compact === false;
+  }
+  showCompactFrac(sl ? sl.value : COMPACT_D.compact_frac);
+}
+
+// Le plafond en jetons ne peut que DESCENDRE sous le pourcentage : s'il est actif
+// et sous le seuil du curseur, il gagne, et le curseur ne fait plus rien. Le
+// signaler, sinon le reglage parait muet.
+function compactPlafondEcrase(){
+  const win = +COMPACT_D.ctx_window || 0, max = +COMPACT_D.compact_max || 0;
+  const frac = +document.getElementById('compact-frac')?.value || 75;
+  if(!win || !max) return false;
+  return max < Math.floor(win * frac / 100);
+}
+// --------------------------------------------------------------------------
+
 async function loadAgent(){
   // MEM_VIEW_PROJECT (si posé) scope les pages + le mode mémoire sur un autre projet.
   const s=await jget('/api/agent' + (MEM_VIEW_PROJECT ? ('?project='+encodeURIComponent(MEM_VIEW_PROJECT)) : ''));
@@ -200,12 +277,7 @@ async function loadAgent(){
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
   const pw=document.getElementById('prewarm-toggle'); if(pw) pw.checked = (s.prewarm !== false);
-  const cm = document.getElementById('compact-max');
-  if(cm){
-    const v = String(s.compact_max || 0);
-    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(Math.round(+v/1024)+'K', v));
-    cm.value = v; cm.disabled = s.compact === false;
-  }
+  setCompactUI(s);
   syncModeWithAgent();
   document.getElementById('brand').classList.toggle('agent', on);
   setAgentGate(on);
@@ -451,13 +523,18 @@ async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;
   await jpost('/api/agent/compact',{on});
   const cm=document.getElementById('compact-max'); if(cm) cm.disabled=!on;
+  const sl=document.getElementById('compact-frac'); if(sl) sl.disabled=!on;
 }
-// Plafond du seuil de compactage (#142) : 0 = 75 % de la fenêtre du modèle.
+// Plafond du seuil de compactage (#142) : 0 = le pourcentage du curseur (75 %
+// par defaut). Un plafond actif sous ce pourcentage gagne : le curseur ne fait
+// alors plus rien, on le dit au lieu de laisser le reglage paraitre muet.
 async function setCompactMax(){
   const on=document.getElementById('compact-toggle').checked;
   const max=+document.getElementById('compact-max').value;
   const r=await jpost('/api/agent/compact',{on, max});
-  if(r && r.ok===false) toast(r.error||'erreur');
+  if(r && r.ok===false){ toast(r.error||'erreur'); await loadAgent(); return; }
+  if(r) setCompactUI(r);
+  if(compactPlafondEcrase()) toast(t('agent.compact_max_plafond_actif'));
 }
 // Mode mémoire (4 états, par projet) — indépendant du mode agent. La description
 // de chaque mode vit désormais sous chaque option (voir .mem-opt-d dans le

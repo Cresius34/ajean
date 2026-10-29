@@ -30,8 +30,14 @@ import (
 
 const (
 	// Seuil de déclenchement proactif : on compacte quand l'historique estimé
-	// dépasse cette fraction de la fenêtre de contexte.
+	// dépasse cette fraction de la fenêtre de contexte. C'est le DÉFAUT, réglable
+	// par la clé d'appareil COMPACT_FRAC (voir compactFrac).
 	compactTriggerFrac = 0.75
+	// Bornes du réglage COMPACT_FRAC, en pourcents. Sous 50, on compacterait trop
+	// tôt pour que la conversation tienne ; à 100, on viserait la fenêtre pleine —
+	// l'écrêtement de sécurité (compactSafetyMargin) s'occupe de la marge réelle.
+	compactFracMin = 50
+	compactFracMax = 100
 	// Budget de la queue : fraction de la fenêtre gardée intacte (tours récents).
 	// Plus la queue est petite, plus on compacte de torse d'un coup → le contexte
 	// retombe bas et met longtemps à re-déclencher (au lieu de compacter souvent).
@@ -99,12 +105,61 @@ func compactMaxTokens() int {
 	return max(n, 8192) // en dessous, on compacterait à chaque message
 }
 
-// compactThreshold : nombre de jetons à partir duquel on compacte, 75 % de la
-// fenêtre, ramené au plafond COMPACT_MAX s'il est plus bas.
+// compactFrac : fraction de la fenêtre où l'on compacte, réglée par la clé
+// d'appareil COMPACT_FRAC (un pourcentage, 50 à 100). Absent ou hors bornes =
+// compactTriggerFrac (75 %), le comportement d'origine, mesuré de longue date.
+//
+// Le pourcentage est le vrai levier pour une GROSSE fenêtre : avec 262 144 de
+// contexte, le plafond en jetons proposé dans l'interface (jusqu'à 128K) ne peut
+// que compacter PLUS TÔT — aucune de ses valeurs n'atteint 75 % de la fenêtre.
+// Le réglage en jetons (COMPACT_MAX) garde son rôle : un plafond absolu, utile
+// aux petites fenêtres et aux petits modèles qui décrochent bien avant (#142).
+func compactFrac() float64 {
+	v := strings.TrimSpace(ReadConfig()["COMPACT_FRAC"])
+	if v == "" {
+		return compactTriggerFrac
+	}
+	n, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSuffix(v, "%"), " "))
+	if err != nil {
+		if f, ferr := strconv.ParseFloat(v, 64); ferr == nil {
+			n, err = int(f), nil
+		}
+	}
+	if err != nil || n < compactFracMin || n > compactFracMax {
+		return compactTriggerFrac
+	}
+	return float64(n) / 100
+}
+
+// compactFracPercent : compactFrac exprimé en pourcentage entier, pour l'interface.
+func compactFracPercent() int { return int(compactFrac() * 100) }
+
+// compactSafetyMargin : ce qu'on laisse libre AU-DESSUS du seuil. Monter le
+// seuil vers 100 % supprime la marge qui reste au tour suivant (outils +
+// système) : un gros résultat d'outil pouvait alors dépasser la fenêtre AVANT
+// que le compactage se déclenche — la requête partait, revenait en
+// exceed_context_size_error, et il fallait une réduction d'urgence. Le seuil
+// effectif est donc écrêté, quel que soit le réglage.
+func compactSafetyMargin(window int) int {
+	m := window / 20 // 5 % de la fenêtre
+	if m < 8192 {
+		m = 8192 // jamais moins d'un tour d'outils, sur les petites fenêtres
+	}
+	if m > window/4 {
+		m = window / 4 // fenêtre minuscule : on ne compacte pas à 75 %
+	}
+	return m
+}
+
+// compactThreshold : nombre de jetons à partir duquel on compacte.
+//	min(frac × fenêtre, COMPACT_MAX), le tout écrêté à fenêtre − marge de sécurité.
 func compactThreshold() int {
-	th := int(float64(ctxWindow()) * compactTriggerFrac)
+	th := int(float64(ctxWindow()) * compactFrac())
 	if m := compactMaxTokens(); m > 0 && m < th {
 		th = m
+	}
+	if ceiling := ctxWindow() - compactSafetyMargin(ctxWindow()); th > ceiling {
+		th = ceiling
 	}
 	return th
 }

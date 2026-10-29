@@ -528,6 +528,16 @@ textarea.sctl{min-height:76px;resize:vertical;line-height:1.5}
 .moe-ctx input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;margin-top:-5px;border:none;border-radius:50%;background:var(--accent)}
 .moe-ctx input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--accent)}
 .moe-ctx span{min-width:62px;text-align:right;font-variant-numeric:tabular-nums}
+.compact-frac-row input[type=range]{width:160px;height:16px;margin:0;padding:0;background:transparent;border:none;-webkit-appearance:none;appearance:none;cursor:ew-resize}
+.compact-frac-row input[type=range]:focus{outline:none}
+.compact-frac-row input[type=range]::-webkit-slider-runnable-track{height:4px;border:none;border-radius:999px;background:linear-gradient(to right,var(--accent) var(--p,50%),color-mix(in srgb,var(--dim) 25%,transparent) var(--p,50%))}
+.compact-frac-row input[type=range]::-moz-range-track{height:4px;border:none;border-radius:999px;background:color-mix(in srgb,var(--dim) 25%,transparent)}
+.compact-frac-row input[type=range]::-moz-range-progress{height:4px;border-radius:999px;background:var(--accent)}
+.compact-frac-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;margin-top:-5px;border:none;border-radius:50%;background:var(--accent)}
+.compact-frac-row input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--accent)}
+.compact-frac-row .cfrac-out{min-width:48px;text-align:right;font-variant-numeric:tabular-nums}
+.compact-frac-row .cfrac-note{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.compact-frac-row .cfrac-note.warn{color:var(--warn,#c8841a)}
 .moe-details .moe-kv span:last-child{text-align:right}
 .lc-mode-state{font-size:11px;min-height:16px;margin-top:7px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .lc-mode-go{color:var(--accent)}
@@ -2237,6 +2247,7 @@ button.th-head:hover{background:var(--t1)}
           <small id="memory-system-effective" style="flex-basis:100%;opacity:.65"></small>
         </div>
         <label class="switchrow agent-gated"><span class="switch"><input type="checkbox" id="compact-toggle" onchange="toggleCompact()"><span class="slider"></span></span> <span data-i18n="agent.compact_toggle">compactage automatique du contexte</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_help" data-i18n-html>activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.</span></span></label>
+        <div class="switchrow agent-gated compact-frac-row"><span data-i18n="agent.compact_frac">compactage à</span><input type="range" id="compact-frac" min="50" max="100" step="5" value="75" oninput="showCompactFrac(this.value)" onchange="setCompactFrac()"><output id="compact-frac-out" class="cfrac-out">75 %</output><span class="cfrac-note" id="compact-frac-note"></span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_frac_help">Le contexte se compacte quand il atteint ce pourcentage de la fenêtre du modèle. 75 % par défaut. Plus haut = moins souvent, mais il reste moins de place pour le tour suivant : une marge de sécurité (5 % de la fenêtre, 8 192 jetons au minimum) est toujours gardée libre au-dessus du seuil. Le nombre affiché à droite est le seuil réel en jetons.</span></span></div>
         <div class="switchrow agent-gated compact-max-row"><span data-i18n="agent.compact_max">compacter au plus tard à</span><select id="compact-max" class="sctl" onchange="setCompactMax()"><option value="0" data-i18n="agent.compact_max_auto">75 % du contexte</option><option value="16384">16K</option><option value="24576">24K</option><option value="32768">32K</option><option value="49152">48K</option><option value="65536">64K</option><option value="98304">96K</option><option value="131072">128K</option></select><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.compact_max_help">Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.</span></span></div>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="prewarm-toggle" onchange="togglePrewarm()"><span class="slider"></span></span> <span data-i18n="agent.prewarm_toggle">pré-chauffage du prompt</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.prewarm_help">Activé par défaut. Quand une nouvelle conversation est ouverte, le moteur lit à l'avance les consignes et les outils. Le premier message obtient sa réponse en quelques dixièmes de seconde au lieu de plusieurs secondes. Le moteur travaille quelques secondes en arrière-plan à chaque nouvelle conversation.</span></span></label>
         <label class="switchrow"><span class="switch"><input type="checkbox" id="push-toggle" onchange="togglePush()"><span class="slider"></span></span> <span data-i18n="agent.push_toggle">me prévenir quand la réponse est prête</span><span class="help" tabindex="0" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle('open')">?<span class="tip" data-i18n="agent.push_help" data-i18n-html>Le serveur t'envoie une <b>notification</b> à la fin de chaque réponse, même l'app fermée ou le téléphone verrouillé. Sur iPhone : <b>ajoute d'abord AJEAN à l'écran d'accueil</b> puis active depuis l'app installée. À régler sur chaque appareil.</span></span></label>
@@ -3628,7 +3639,13 @@ fr: {
   "agent.compact_toggle": "compactage automatique du contexte",
   "agent.compact_help": "activé par défaut : quand la conversation approche de la limite de contexte, les vieux tours sont résumés automatiquement (façon Hermes) au lieu de t'imposer un « vider ». Discussions quasi illimitées sans perdre le fil.",
   "agent.compact_max": "compacter au plus tard à",
-  "agent.compact_max_auto": "75 % du contexte",
+  "agent.compact_max_auto": "plafond désactivé",
+  "agent.compact_frac": "compactage à",
+  "agent.compact_frac_help": "Le contexte se compacte quand il atteint ce pourcentage de la fenêtre du modèle (75 % par défaut). Plus haut = moins souvent, mais il reste moins de place pour le tour suivant : une marge de sécurité (5 % de la fenêtre, 8 192 jetons au minimum) reste toujours libre au-dessus du seuil. Le nombre à droite est le seuil réel en jetons.",
+  "agent.compact_frac_at": "soit",
+  "agent.compact_frac_tokens": "jetons",
+  "agent.compact_frac_capped": "ramené à la marge de sécurité",
+  "agent.compact_max_plafond_actif": "le plafond en jetons est plus bas que le pourcentage : c'est lui qui décide",
   "agent.compact_max_help": "Par défaut, le contexte est compacté à 75 % de la fenêtre du modèle. Avec une très grande fenêtre, ce seuil n'est presque jamais atteint et les longues conversations deviennent lentes. Un plafond compacte plus tôt, quelle que soit la fenêtre.",
   "agent.push_toggle": "me prévenir quand la réponse est prête",
   "agent.prewarm_toggle": "pré-chauffage du prompt",
@@ -5082,7 +5099,13 @@ en: {
   "agent.compact_toggle": "automatic context compaction",
   "agent.compact_help": "on by default: when the conversation nears the context limit, old turns are automatically summarized (Hermes-style) instead of forcing you to \"clear\". Near-unlimited conversations without losing the thread.",
   "agent.compact_max": "compact at the latest at",
-  "agent.compact_max_auto": "75% of the context",
+  "agent.compact_max_auto": "no cap",
+  "agent.compact_frac": "compact at",
+  "agent.compact_frac_help": "Context is compacted once it reaches this percentage of the model window (75% by default). Higher means less often, but less room left for the next turn: a safety margin (5% of the window, at least 8,192 tokens) is always kept free above the threshold. The number on the right is the actual threshold in tokens.",
+  "agent.compact_frac_at": "i.e.",
+  "agent.compact_frac_tokens": "tokens",
+  "agent.compact_frac_capped": "lowered to the safety margin",
+  "agent.compact_max_plafond_actif": "the token cap is lower than the percentage: it is the cap that decides",
   "agent.compact_max_help": "By default, the context is compacted at 75% of the model's window. With a very large window this threshold is almost never reached and long conversations get slow. A cap compacts earlier, whatever the window.",
   "agent.push_toggle": "notify me when the response is ready",
   "agent.prewarm_toggle": "prompt prewarming",
@@ -7514,18 +7537,67 @@ function initPresetSortable(cont){
     },
   });
 }
+let COMPACT_D = { compact_frac: 75, compact_max: 0, ctx_window: 0, compact_threshold: 0 };
+function compactFmt(n){ return (+n||0).toLocaleString('fr-FR'); }
+function paintCompactSlider(el){
+  if(!el) return;
+  el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+}
+function showCompactFrac(v){
+  const sl = document.getElementById('compact-frac');
+  paintCompactSlider(sl);
+  const out = document.getElementById('compact-frac-out');
+  const note = document.getElementById('compact-frac-note');
+  const frac = +v || 75, win = +COMPACT_D.ctx_window || 0;
+  if(out) out.textContent = frac + ' %';
+  if(!note) return;
+  if(!win){ note.textContent = ''; return; }
+  let th = Math.floor(win * frac / 100);
+  const plafondJetons = +COMPACT_D.compact_max || 0;
+  if(plafondJetons > 0 && plafondJetons < th) th = plafondJetons;
+  let marge = Math.floor(win / 20);
+  if(marge < 8192) marge = 8192;
+  if(marge > Math.floor(win / 4)) marge = Math.floor(win / 4);
+  const plafond = win - marge;
+  const rabaisse = th > plafond;
+  if(rabaisse) th = plafond;
+  note.textContent = t('agent.compact_frac_at') + ' ' + compactFmt(th) + ' ' + t('agent.compact_frac_tokens') +
+    (rabaisse ? ' · ' + t('agent.compact_frac_capped') : '');
+  note.classList.toggle('warn', rabaisse);
+}
+async function setCompactFrac(){
+  const on = document.getElementById('compact-toggle').checked;
+  const frac = +document.getElementById('compact-frac').value;
+  const r = await jpost('/api/agent/compact',{on, frac});
+  if(r && r.ok === false){ toast(r.error||'erreur'); await loadAgent(); return; }
+  if(r) setCompactUI(r);
+}
+function setCompactUI(s){
+  COMPACT_D = { compact_frac: s.compact_frac || 75, compact_max: s.compact_max || 0,
+                ctx_window: s.ctx_window || 0, compact_threshold: s.compact_threshold || 0 };
+  const sl = document.getElementById('compact-frac');
+  if(sl){ sl.value = COMPACT_D.compact_frac; sl.disabled = (s.compact === false); }
+  const cm = document.getElementById('compact-max');
+  if(cm){
+    const v = String(COMPACT_D.compact_max || 0);
+    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(compactFmt(+v), v));
+    cm.value = v; cm.disabled = s.compact === false;
+  }
+  showCompactFrac(sl ? sl.value : COMPACT_D.compact_frac);
+}
+function compactPlafondEcrase(){
+  const win = +COMPACT_D.ctx_window || 0, max = +COMPACT_D.compact_max || 0;
+  const frac = +document.getElementById('compact-frac')?.value || 75;
+  if(!win || !max) return false;
+  return max < Math.floor(win * frac / 100);
+}
 async function loadAgent(){
   const s=await jget('/api/agent' + (MEM_VIEW_PROJECT ? ('?project='+encodeURIComponent(MEM_VIEW_PROJECT)) : ''));
   const on = s.enabled;
   AGENT_ON = !!on;
   document.getElementById('compact-toggle').checked = (s.compact !== false);
   const pw=document.getElementById('prewarm-toggle'); if(pw) pw.checked = (s.prewarm !== false);
-  const cm = document.getElementById('compact-max');
-  if(cm){
-    const v = String(s.compact_max || 0);
-    if(![...cm.options].some(o=>o.value===v)) cm.add(new Option(Math.round(+v/1024)+'K', v));
-    cm.value = v; cm.disabled = s.compact === false;
-  }
+  setCompactUI(s);
   syncModeWithAgent();
   document.getElementById('brand').classList.toggle('agent', on);
   setAgentGate(on);
@@ -7715,12 +7787,15 @@ async function toggleCompact(){
   const on=document.getElementById('compact-toggle').checked;
   await jpost('/api/agent/compact',{on});
   const cm=document.getElementById('compact-max'); if(cm) cm.disabled=!on;
+  const sl=document.getElementById('compact-frac'); if(sl) sl.disabled=!on;
 }
 async function setCompactMax(){
   const on=document.getElementById('compact-toggle').checked;
   const max=+document.getElementById('compact-max').value;
   const r=await jpost('/api/agent/compact',{on, max});
-  if(r && r.ok===false) toast(r.error||'erreur');
+  if(r && r.ok===false){ toast(r.error||'erreur'); await loadAgent(); return; }
+  if(r) setCompactUI(r);
+  if(compactPlafondEcrase()) toast(t('agent.compact_max_plafond_actif'));
 }
 function setMemModeUI(m){
   const r=document.querySelector('input[name="mem-mode-seg"][value="'+m+'"]');

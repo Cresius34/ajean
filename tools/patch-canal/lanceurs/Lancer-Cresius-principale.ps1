@@ -1,13 +1,13 @@
 ﻿[CmdletBinding()]
 param()
-# Lanceur de l'installation "Ajean v18.15.1 maj Cresius" (binaire 0.18.16.1 Cresius, base amont 0.18.16, paquet moteur hip).
+# Lanceur de l'installation "Ajean v18.15.1 maj Cresius" (binaire 0.18.16.2 Cresius, base amont 0.18.16, etiquete v0.18.16+rev2, paquet moteur hip).
 # Le nom du dossier en reste a 18.15.1 (c'est celui des raccourcis, des regles pare-feu et des outils) ; seule la
-# version du binaire a monte, avec le patch canal 18161. Le verrou "$expectedVersion" ci-dessous est la seule verite.
+# la version du binaire a monte (revision 2 de la base 0.18.16). Le verrou "$expectedVersion" est la seule verite.
 # Refuse de demarrer si le port 18090 est occupe par une autre instance (n'en arrete aucune).
 $ErrorActionPreference = 'Stop'
 $app = Join-Path $PSScriptRoot 'ajean.exe'
 if (-not (Test-Path -LiteralPath $app)) { throw "Executable introuvable : $app" }
-$expectedVersion = '0.18.16.1 Cresius'
+$expectedVersion = '0.18.16.2 Cresius'
 $diskVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($app).ProductVersion
 if ($diskVersion -ne $expectedVersion) {
     throw "Cet executable annonce $diskVersion, le dossier attend $expectedVersion."

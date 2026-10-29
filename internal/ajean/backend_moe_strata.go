@@ -207,15 +207,30 @@ func moeStrataBuildConfig(base map[string]any, c map[string]string, key string) 
 			args = setArg(args, flag, s)
 		}
 	}
+	// Deux drapeaux portent la mention « applique par l'application », pour que
+	// leur valeur survive a la fusion de « user_args » (strataSyncUserFlags) :
+	//   - la reserve, dont l'ecran affichait une valeur que le moteur ignorait ;
+	//   - la vision, que nous retirons d'« args » et que « user_args » remettrait.
+	// Les trois autres ne sont pas marques : --max-context, --kv et --spec sont
+	// aussi des reglages que la personne peut avoir decides a la main dans le
+	// controle du moteur, et les pousser dans « user_args » ecraserait son choix a
+	// chaque demarrage. Une etape a part, si on veut que l'ecran pilote aussi ceux-
+	// la : il faudra alors le dire a l'interface, pas le decider en silence.
+	applied := map[string]string{}
+	if s := c["MOE_VRAM_RESERVE"]; s != "" {
+		applied["--vram-reserve-mib"] = s
+	}
 	if c["MOE_VISION"] != "1" {
 		delete(out, "vision")
 		args = dropFlag(args, "--vision")
+		applied["--vision"] = "" // vide = l'option est retiree, pas reecrite
 	}
 	list = make([]any, len(args))
 	for i, a := range args {
 		list[i] = a
 	}
 	out["args"] = list
+	strataSyncUserFlags(out, applied)
 	out["host"] = "127.0.0.1"
 	port := firstNonEmpty(c["PORT"], "8080")
 	if parallelBuild() {
@@ -231,6 +246,115 @@ func moeStrataBuildConfig(base map[string]any, c map[string]string, key string) 
 	delete(out, "mcp_servers") // tools are supplied by Ajean in the OpenAI request
 	delete(out, "images")      // no unrelated image generator is installed or started
 	return out, nil
+}
+
+// strataAsStrings : une liste JSON ([]any, ou []string) vue comme []string.
+// Les listes venaient de json.Decode ; celles construites ici sont des []any.
+func strataAsStrings(list any) []string {
+	switch v := list.(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, x := range v {
+			out = append(out, fmt.Sprint(x))
+		}
+		return out
+	}
+	return nil
+}
+
+// strataArgGroups : une liste d'arguments decoupee en groupes (le drapeau et les
+// valeurs qui le suivent), comme strata_control/user_args.py:def groups.
+func strataArgGroups(list any) [][]string {
+	var out [][]string
+	for _, a := range strataAsStrings(list) {
+		if strings.HasPrefix(a, "--") || len(out) == 0 {
+			out = append(out, []string{a})
+		} else {
+			out[len(out)-1] = append(out[len(out)-1], a)
+		}
+	}
+	return out
+}
+
+// strataSyncUserFlags rend effectifs les reglages que l'application ecrit.
+//
+// Le moteur ne lit pas « args » tel quel : a chaque demarrage il remet par-dessus
+// la cle « user_args » (serve/server.py L3081-3085 : args = user_args.merge(args,
+// cfg["user_args"])), et pour un meme drapeau la valeur de « user_args » gagne
+// (strata_control/user_args.py:def merge, L68-73). Or « user_args » est ecrit par
+// la preparation du moteur lui-meme : setup.py:def explicit_args (L6234-6237) y
+// pose le --vram-reserve-mib passe en ligne de commande, et notre installeur le
+// passe (moe_portable_install.ps1 L145). Le reglage de reserve affiche dans
+// l'application etait donc ignore par le moteur : ce que l'ecran disait n'etait
+// pas ce qui tournait.
+//
+// Le moteur fait deja ce geste pour ses propres ecrans : serve/runconfig.py
+// L149-167, apres avoir pose un drapeau dans « args », appelle
+// user_args.set_flag puis remet a jour « args_written ». Ce port applique la meme
+// regle aux seuls drapeaux que l'application ecrit elle-meme, drapeau par drapeau :
+// un drapeau mis a la main par la personne (vecteurs de controle, etc.) garde sa
+// place et sa valeur.
+//
+// « applied » : les drapeaux que l'application vient d'ecrire dans « args », avec
+// leur valeur ; une valeur vide signifie que le drapeau a ete retire de « args ».
+func strataSyncUserFlags(out map[string]any, applied map[string]string) {
+	if len(applied) == 0 {
+		return
+	}
+
+	groups := strataArgGroups(out["user_args"])
+	if len(groups) > 0 {
+		kept := make([][]string, 0, len(groups))
+		for _, g := range groups {
+			if _, ok := applied[g[0]]; ok {
+				continue // l'application vient de decider de ce drapeau
+			}
+			kept = append(kept, g)
+		}
+		// set_flag (user_args.py L129-134) : les groupes conserves dans leur ordre,
+		// puis les drapeaux de l'application remis a la fin avec leur valeur. Une
+		// valeur vide = le drapeau est retire, pas reecrit.
+		flags := make([]string, 0, len(applied))
+		for flag := range applied {
+			flags = append(flags, flag)
+		}
+		sort.Strings(flags)
+		for _, flag := range flags {
+			if v := applied[flag]; v != "" {
+				kept = append(kept, []string{flag, v})
+			}
+		}
+		if len(kept) == 0 {
+			delete(out, "user_args")
+		} else {
+			flat := make([]any, 0, len(kept))
+			for _, g := range kept {
+				for _, t := range g {
+					flat = append(flat, t)
+				}
+			}
+			out["user_args"] = flat
+		}
+	}
+
+	// « args_written » : la copie d'« args » telle que l'application vient de
+	// l'ecrire (strata_control/user_args.py:def stamp). Sans cette copie, la
+	// preparation suivante du moteur prendrait nos valeurs pour des reglages mis a
+	// la main et les remettrait dans « user_args » a notre place.
+	//
+	// Mis a jour seulement s'il existe deja, comme le fait runconfig.py L166-167 :
+	// une config plus ancienne qui n'a pas cette copie doit la garder vide, sinon
+	// on supprimerait le repli documente de setup.py (dropped_by_setup), qui
+	// retrouve les options ajoutees a la main faute de copie.
+	if args, ok := out["args"].([]any); ok {
+		if _, existed := out["args_written"]; existed {
+			copie := make([]any, len(args))
+			copy(copie, args)
+			out["args_written"] = copie
+		}
+	}
 }
 
 func serveStrataMoe(c map[string]string) error {

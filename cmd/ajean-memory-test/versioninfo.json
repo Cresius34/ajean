@@ -4,13 +4,13 @@
       "Major": 0,
       "Minor": 18,
       "Patch": 16,
-      "Build": 1
+      "Build": 2
     },
     "ProductVersion": {
       "Major": 0,
       "Minor": 18,
       "Patch": 16,
-      "Build": 1
+      "Build": 2
     },
     "FileFlagsMask": "3f",
     "FileFlags": "00",
@@ -24,9 +24,9 @@
     "InternalName": "ajean-memoire-test",
     "LegalCopyright": "Copyright (c) 2026 AJEAN contributors. MIT License.",
     "OriginalFilename": "ajean-memoire-test.exe",
-    "ProductName": "AJEAN v0.18.16.1 Cresius",
-    "FileVersion": "0.18.16.1 Cresius",
-    "ProductVersion": "0.18.16.1 Cresius",
+    "ProductName": "AJEAN v0.18.16.2 Cresius",
+    "FileVersion": "0.18.16.2 Cresius",
+    "ProductVersion": "0.18.16.2 Cresius",
     "Comments": "https://github.com/nathaninline/ajean — projet open source (MIT)"
   },
   "VarFileInfo": {

@@ -8,11 +8,12 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), créé et maintenu par
 > **nathaninline** — le projet principal, et la seule source des versions publiées d'AJEAN.
 > Ce qui suit décrit AJEAN **en général**. Ce fork-ci porte une **ligne de correctifs
-> privée** (**0.18.15.1 Cresius**, construite sur l'amont `v0.18.15`) répondant aux besoins
+> privée** (**0.18.16.2 Cresius**, construite sur l'amont `v0.18.16`) répondant aux besoins
 > d'une machine précise : moteur MoE
-> **Strata** sur AMD (taille de contexte, quantification KV, images sur AMD), mémoire
-> sémantique EmbeddingGemma 2, recherche par
-> embeddings, déduplication des appels. Ces ajouts ne sont
+> **Strata** sur AMD (taille de contexte, quantification KV, réserve de VRAM, vision sur AMD), mémoire
+> sémantique EmbeddingGemma 2, **pont Ajean↔Ajean** — deux Ajean d'un même réseau local
+> qui se parlent, chacun gardant son propre cerveau —, déduplication des appels et
+> réglage du seuil de compactage. Ces ajouts ne sont
 > **pas** des versions de l'amont, ne sont **pas** testés ailleurs et ne sont **pas**
 > garantis transposables. Pour installer AJEAN, prenez les versions publiées sur
 > [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).

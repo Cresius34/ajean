@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.16.1 Cresius` / étiquette `v0.18.16+rev1`
+# Notes de version — AJEAN `0.18.16.2 Cresius` / étiquette `v0.18.16+rev2`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -303,6 +303,94 @@ le contrôle préalable refuse de le charger — c'est le message
 « moteur MoE différent de la version figée ». Il faut installer le moteur depuis
 l'interface Moteur, ou promouvoir le paquet `0.1.48` à l'emplacement épinglé.
 
+## Le pont Ajean↔Ajean : deux Ajean du réseau local qui se parlent
+
+**Front entièrement absent de l'amont** — c'est la plus grosse partie de la ligne
+privée actuelle (`parallel_bridge.go` +993 lignes, `parallel_peer.go` +858,
+`parallel_bridge_agent.go` +526, plus `parallel_config/_engine/_import/_profile/
+_memory.go`, la carte d'interface `13b-bridge.js` et quatre fichiers de tests).
+
+Ce n'est **pas** un modèle emprunté ni un partage de charge : **chaque côté garde
+son propre cerveau.** Le pont est un canal entre deux IA, pas un modèle prêté.
+
+| Côté | Ce qui est exposé |
+| --- | --- |
+| **La carte** (interface) | « Pont Ajean ↔ Ajean », qui n'apparaît que si `/api/bridge` répond. Un interrupteur, un port réglable, et **l'adresse à coller chez l'autre Ajean** |
+| **L'API** | `/api/bridge` : `GET` = état, `POST {enabled, port}` = réglage. La surface offerte au voisin est **`/v1` seule** — ni l'interface, ni la mémoire, ni les outils |
+| **L'outil** | `peer`, quatre actions : `list`, `status`, `ask`, `forget` |
+
+**Ce que le pont transporte, et ce qu'il ne transporte pas.** Une question et une
+réponse textuelles. Le voisin **ne voit jamais notre disque** : il répond avec ses
+propres outils sur sa propre machine, et il peut refuser. Nos fichiers ne partent
+pas, ses fichiers n'arrivent pas.
+
+**Deux règles d'autorité, mesurées puis corrigées :**
+
+- **L'auteur de chaque message est marqué des deux côtés.** Un ordre venu d'un
+  humain vise le poste où il est saisi : il lie l'IA de ce poste. Un ordre venu
+  d'une IA n'en lie aucune. Le pont qui prête **dit pourquoi il n'a pas
+  déclenché son agent** (turn déjà en cours, conversation ouverte, ou demande
+  relayée trop de fois) au lieu de se taire.
+- **Une action perdue ne doit pas se muer en autre chose.** Mesuré deux fois le
+  2026‑10‑28 : `ask` envoyé avec un message de plusieurs lignes, l'`action`
+  arrivait vide, et l'outil rendait **la liste des voisins** sans un mot
+  d'erreur. Vue d'en face, cela ressemblait à une réponse du voisin — c'était
+  notre propre outil qui avait laissé tomber la question. Un `action` absent avec
+  un `message` présent est maintenant un `ask`.
+
+**Outillage d'installation** (`tools/patch-canal/`, 26 outils, aucun équivalent
+amont) : poseur, diagnoseur, fabricateur de paquet, recherche d'installations. Le
+poseur ne reconnaît plus sa cible au nom du lanceur — **il la reconnaît
+structurellement** (le dossier au‑dessus du paquet, qui doit contenir un
+`ajean.exe`). Mesuré : là où le lanceur s'appelait `Lancer-Cresius-principale.ps1`
+et non `Lancer-Cresius.ps1`, la reconnaissance échouait et le poseur sortait sur
+« installation cible introuvable » **sans rien poser**. Le nom du lanceur posé est
+lu dans `Lancer-Cresius.cmd`, pas supposé.
+
+Deux règles d'encodage à ne pas « nettoyer » : les `.ps1` exigent le **BOM UTF‑8**
+dès qu'ils portent des accents (illisibles sous PowerShell 5.1 sinon), les `.cmd`
+n'en portent **jamais**. Un `.exe` n'est jamais recodé en texte (mesure :
+19 946 496 → 29 027 591 octets).
+
+## La génération d'images : un prototype mesuré, hors dépôt
+
+**À lire avant tout le reste : la génération d'images n'est pas une fonction de ce
+build.** Le dépôt **supprime explicitement** le générateur d'images de la
+configuration du moteur — `delete(out, "images")` dans `backend_moe_strata.go`,
+commenté « aucun générateur d'images étranger n'est installé ni démarré ». Ce qui
+suit décrit un **prototype conduit sur une machine, hors dépôt, non paqueté, non
+installable par `ajean update`**. Il est consigné ici parce qu'il a produit des
+mesurages utiles, pas parce qu'il serait livré.
+
+Ce que le prototype a établi, mesure à l'appui :
+
+- **`sd-cli` compile en HIP sur notre carte** (`gfx1201`). La cause de l'échec
+  précédent n'était pas ROCm : c'était notre *toolset* MSVC.
+- **Z‑Image Turbo (Q3_K, 4 pas) en 512×512** : 16,1 s poids en VRAM ; **18,2 s en
+  `--offload-to-cpu` avec 0 Mo de VRAM**. Le repli `--backend cpu` coûte un
+  facteur ~4 (24,2 s contre 5,85 s en GPU à 256 px). **L'offload est la réponse**,
+  pas le CPU.
+- **Le moteur est déterministe sans amorce** : prompt identique → fichier identique
+  au MD5 près. C'est ce qui rend une comparaison d'images fiable, et ce qui a
+  permis de prouver qu'un réglage de mémoire ne changeait rien au rendu.
+- **Z‑Image ne comprend pas le français.** Test à conditions égales, seule la
+  langue change : le prompt français rate **les trois éléments demandés** (canidé
+  gris dans des herbes, sans rocher ni mousse) ; le prompt anglais les réussit
+  **tous les trois**. Conséquence pratique : tout prompt destiné à ce modèle doit
+  être écrit en anglais.
+- **La boucle « l'IA écrit le prompt → le modèle image génère → l'IA relit
+  l'image et juge » tient de bout en bout** (~20 s par tour). Son verrou n'était
+  ni la génération ni la traduction : **c'était le jugement.** Un juge à note
+  globale attribuait 10/10 à tout, y compris à une image manifestement ratée, et
+  ne rendait même pas de note sur elle. Remplacé par une **liste binaire
+  numérotée** (`1 : OUI` / `2 : NON`) dont **le script fait le compte** : la note
+  devient déterministe et comparable, et l'image ratée est détectée (5/5 conforme
+  sur un banc d'images dont l'issue était connue d'avance).
+
+**Ce qui reste à décider avant d'en faire une fonction** : le choix du modèle et sa
+licence, l'installation et la mise à jour du générateur, la place dans
+l'interface, et ce que « générer » veut dire quand aucune carte n'est disponible.
+
 ## Amont `v0.18.9` — menu latéral : Paramètres, Tâches, API, AJEAN LINK
 
 - **Connexion d'un appareil guidée** : la ligne « Connecter un nouvel appareil »
@@ -371,16 +459,38 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.16.1 Cresius` |
-| Étiquette Git | `v0.18.16+rev1` |
+| Version affichée | `0.18.16.2 Cresius` |
+| Étiquette Git | `v0.18.16+rev2` |
 | Socle amont | `v0.18.16` |
 | Moteur MoE | Strata `0.2.4` — paquet moteur `0.1.48`, contrôle `0.1.49.2`, cinq paquets par carte, SHA-256 vérifiés |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
-| Précédent | `0.18.15.6 Cresius`, étiquette `v0.18.15+rev6` (base amont `v0.18.15`) |
+| Précédent | `0.18.16.1 Cresius`, étiquette `v0.18.16+rev1` (patch canal) |
 
 La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
-de notre numéro de révision**. `0.18.16` + révision `1` → `0.18.16.1 Cresius`,
-étiquette `v0.18.16+rev1`. Les deux désignent le même build.
+de notre numéro de révision**. `0.18.16` + révision `2` → `0.18.16.2 Cresius`,
+étiquette `v0.18.16+rev2`. Les deux désignent le même build.
+
+## Ce que la révision 2 ajoute sur la base `v0.18.16`
+
+Trois correctifs, chacun avec son test :
+
+- **La réserve VRAM choisie dans l'application est enfin appliquée.** Le champ
+  « Réserve VRAM » de l'écran Moteur écrivait dans le preset… que le moteur
+  n'écoutait pas : la clé `user_args` du profil gagnait à chaque démarrage. Le
+  réglage est maintenant marqué « appliqué par l'application » et propagé dans
+  `user_args` (`args_written`), donc l'écran dit vrai. **Le défaut a vécu du
+  18/10 au 29/10.** Tests : `TestStrataReserveSurvivesUserArgs`,
+  `TestStrataReserveLeftAloneWhenUnset`, `TestStrataVisionOffRemovesFlagFromUserArgs`.
+- **Le seuil de compactage se règle en pourcentage de la fenêtre** (`COMPACT_FRAC`),
+  plus seulement en jetons absolus. Il était codé en dur à 75 % ; `COMPACT_MAX` ne
+  pouvait que l'**abaisser**. Un curseur est apparu dans les réglages. Tests :
+  `chat_compact_max_test.go`.
+- **L'outil du pont ne peut plus perdre une question en silence.** Une `action`
+  absente avec un `message` présent est maintenant un `ask`. Mesuré deux fois :
+  l'appel partait avec `ask`, l'action arrivait vide, et l'outil rendait **la liste
+  des voisins** sans un mot d'erreur — vu d'en face, cela ressemblait à une réponse
+  du voisin. Tests : `parallel_peer_ask_fallback_test.go`,
+  `tool_args_repair_guillemets_test.go`.
 
 ## Installation
 
@@ -398,7 +508,7 @@ ou, depuis le dépôt :
 
 # English
 
-# Release notes — AJEAN `0.18.16.1 Cresius` / tag `v0.18.16+rev1`
+# Release notes — AJEAN `0.18.16.2 Cresius` / tag `v0.18.16+rev2`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -686,6 +796,114 @@ the preflight refuses to load it — that is the "engine differs from the pinned
 version" message. Install the engine from the Engine screen, or promote the
 `0.1.48` package to the pinned location.
 
+## The Ajean↔Ajean bridge: two Ajean instances on one local network talking
+
+**Entirely absent upstream** — this is the largest part of the current private
+line (`parallel_bridge.go` +993 lines, `parallel_peer.go` +858,
+`parallel_bridge_agent.go` +526, plus `parallel_config/_engine/_import/_profile/
+_memory.go`, the `13b-bridge.js` interface card and four test files).
+
+This is **not** a borrowed model and not shared load: **each side keeps its own
+brain.** The bridge is a channel between two AIs, not a lent model.
+
+| Side | What is exposed |
+| --- | --- |
+| **The card** (interface) | "Ajean ↔ Ajean bridge", which only appears if `/api/bridge` answers. A switch, an adjustable port, and **the address to paste on the other Ajean** |
+| **The API** | `/api/bridge`: `GET` = state, `POST {enabled, port}` = settings. The surface offered to the neighbour is **`/v1` only** — no interface, no memory, no tools |
+| **The tool** | `peer`, four actions: `list`, `status`, `ask`, `forget` |
+
+**What the bridge carries, and what it does not.** A question and a text answer.
+The neighbour **never sees our disk**: it answers with its own tools on its own
+machine, and it may refuse. Our files do not travel; its files do not arrive.
+
+**Two authority rules, measured then fixed:**
+
+- **The author of each message is marked on both sides.** An order from a human
+  targets the machine where it was typed: it binds that machine's AI. An order
+  from an AI binds none. A bridge that declines **says why it did not start its
+  agent** (turn already running, conversation open, or a request relayed too many
+  times) instead of staying silent.
+- **A lost action must not turn into something else.** Measured twice on
+  2026‑10‑28: `ask` sent with a multi-line message, the `action` arrived empty,
+  and the tool returned **the list of neighbours** without a word of error. Seen
+  from the other side, that looked like the neighbour's answer — it was our own
+  tool dropping the question. A missing `action` with a `message` present is now
+  an `ask`.
+
+**Install tooling** (`tools/patch-canal/`, 26 tools, no upstream equivalent):
+installer, diagnoser, package builder, install finder. The installer no longer
+recognises its target by launcher name — **it recognises it structurally** (the
+folder above the package, which must contain an `ajean.exe`). Measured: where the
+launcher was named `Lancer-Cresius-principale.ps1` rather than
+`Lancer-Cresius.ps1`, recognition failed and the script exited on "target install
+not found" **without installing anything**. The installed launcher's name is read
+from `Lancer-Cresius.cmd`, not assumed.
+
+Two encoding rules not to "clean up": `.ps1` files require a **UTF‑8 BOM** once
+they carry accents (unreadable under PowerShell 5.1 otherwise), `.cmd` files never
+carry one. An `.exe` is never re-encoded as text (measured: 19,946,496 →
+29,027,591 bytes).
+
+## Image generation: a measured prototype, outside the repository
+
+**Read this first: image generation is not a feature of this build.** The
+repository **explicitly removes** the image generator from the engine
+configuration — `delete(out, "images")` in `backend_moe_strata.go`, commented
+"no unrelated image generator is installed or started". What follows describes a
+**prototype run on one machine, outside the repository, not packaged, not
+installable via `ajean update`**. It is recorded here because it produced useful
+measurements, not because it ships.
+
+What the prototype established, measurement attached:
+
+- **`sd-cli` compiles under HIP on our card** (`gfx1201`). The cause of the
+  earlier failure was not ROCm: it was our MSVC *toolset*.
+- **Z‑Image Turbo (Q3_K, 4 steps) at 512×512**: 16.1 s weights in VRAM; **18.2 s
+  with `--offload-to-cpu` at 0 MB VRAM**. The `--backend cpu` fallback costs a
+  factor of ~4 (24.2 s vs 5.85 s on GPU at 256 px). **Offload is the answer**, not
+  the CPU.
+- **The engine is deterministic without a seed**: same prompt → same file, MD5 for
+  MD5. That makes image comparison reliable, and it is what proved a memory
+  setting changed nothing in the rendering.
+- **Z‑Image does not understand French.** Equal conditions, language the only
+  variable: the French prompt misses **all three requested elements** (grey canid
+  in grass, no rock, no moss); the English prompt hits **all three**. Practical
+  consequence: every prompt for this model must be written in English.
+- **The loop "the AI writes the prompt → the image model generates → the AI reads
+  the image back and judges" holds end to end** (~20 s per turn). Its bottleneck
+  was neither generation nor translation: **it was the judgement.** A judge giving
+  an overall score awarded 10/10 to everything, including a plainly failed image,
+  and did not even return a score for it. Replaced by a **numbered binary list**
+  (`1: YES` / `2: NO`) whose **count the script does**: the score becomes
+  deterministic and comparable, and the failed image is caught (5/5 correct on a
+  bench of images whose outcome was known in advance).
+
+**Still to decide before turning this into a feature**: model choice and its
+licence, installing and updating the generator, its place in the interface, and
+what "generate" means when no GPU is available.
+
+## What revision 2 adds on top of the `v0.18.16` base
+
+Three fixes, each with its test:
+
+- **The VRAM reserve chosen in the application is finally applied.** The "VRAM
+  reserve" field on the Engine screen wrote into the preset… which the engine did
+  not listen to: the `user_args` key of the profile won at every start. The
+  setting is now marked "applied by the application" and propagated into
+  `user_args` (`args_written`), so the screen tells the truth. **The defect lived
+  from 10‑18 to 10‑29.** Tests: `TestStrataReserveSurvivesUserArgs`,
+  `TestStrataReserveLeftAloneWhenUnset`, `TestStrataVisionOffRemovesFlagFromUserArgs`.
+- **The compaction threshold is set as a percentage of the window**
+  (`COMPACT_FRAC`), no longer only in absolute tokens. It was hard-coded at 75 %;
+  `COMPACT_MAX` could only **lower** it. A slider appeared in the settings.
+  Tests: `chat_compact_max_test.go`.
+- **The bridge tool can no longer lose a question silently.** A missing `action`
+  with a `message` present is now an `ask`. Measured twice: the call went out as
+  `ask`, the action arrived empty, and the tool returned **the neighbour list**
+  without a word of error — seen from the other side it looked like the
+  neighbour's answer. Tests: `parallel_peer_ask_fallback_test.go`,
+  `tool_args_repair_guillemets_test.go`.
+
 ## Upstream `v0.18.9` — sidebar: Settings, Tasks, API, AJEAN LINK
 
 - **Guided device pairing**: the "Connect a new device" row in the AJEAN LINK
@@ -750,16 +968,16 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.16.1 Cresius` |
-| Git tag | `v0.18.16+rev1` |
+| Version displayed | `0.18.16.2 Cresius` |
+| Git tag | `v0.18.16+rev2` |
 | Upstream base | `v0.18.16` |
 | MoE engine | Strata `0.2.4` — engine package `0.1.48`, control `0.1.49.2`, five packages per card, SHA-256 verified |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
-| Previous | `0.18.15.6 Cresius`, tag `v0.18.15+rev6` (upstream base `v0.18.15`) |
+| Previous | `0.18.16.1 Cresius`, tag `v0.18.16+rev1` (bridge patch) |
 
 The private line's naming rule: **upstream's number, as is, followed by our
-revision number**. `0.18.16` + revision `1` → `0.18.16.1 Cresius`, tag
-`v0.18.16+rev1`. Both names denote the same build.
+revision number**. `0.18.16` + revision `2` → `0.18.16.2 Cresius`, tag
+`v0.18.16+rev2`. Both names denote the same build.
 
 ## Installation
 

@@ -35,10 +35,17 @@ const parallelMemoryRevision = 7
 // distingue l'AUTEUR de chaque message du canal — un ordre d'un humain qui vise
 // un poste lie l'IA de ce poste, un ordre d'une IA n'en lie aucune, et le tour
 // lancé pour un appelant qui raccroche est annulé au lieu de tourner pour
-// personne. Doit rester identique à
+// personne.
+// Sur la base 0.18.16 : la révision 1 est le patch canal 18161 ; la 2 applique enfin
+// la réserve VRAM choisie dans l'application — le champ était décoratif, user_args du
+// profil moteur gagnait à chaque démarrage —, rend le seuil de compactage réglable en
+// pourcentage de la fenêtre (COMPACT_FRAC), et répare l'outil peer : une action
+// perdue rendait la liste des voisins sans un mot d'erreur, ce qui, vu d'en face,
+// ressemblait à une réponse du voisin.
+// Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".1 Cresius"
+const buildFlavorSuffix = ".2 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.

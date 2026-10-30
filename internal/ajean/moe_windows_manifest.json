@@ -1,20 +1,20 @@
 {
-  "version": "0.2.4",
-  "commit": "96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59",
-  "engine_version": "0.1.48",
-  "control_version": "0.1.49.2",
+  "version": "0.2.8",
+  "commit": "36f6663c25e60abdfc626abe48e0e8fa3a9fe762",
+  "engine_version": "0.1.54",
+  "control_version": "0.1.54",
   "source": {
-    "name": "strata-src-96ca438.zip",
-    "url": "https://codeload.github.com/Niko1221/Strata/zip/96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59",
-    "sha256": "8707cbef7b60de84571df8f745ac169529ba7b03a6b58241cee39d6853cbe6d0",
-    "size": 33386414,
-    "root": "Strata-96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59/"
+    "name": "strata-src-36f6663.zip",
+    "url": "https://codeload.github.com/Niko1221/Strata/zip/36f6663c25e60abdfc626abe48e0e8fa3a9fe762",
+    "sha256": "4af496276f0e01a404c28d63428916414218bcd9c14a9f2588d96d2b125db848",
+    "size": 35059173,
+    "root": "Strata-36f6663c25e60abdfc626abe48e0e8fa3a9fe762/"
   },
   "control": {
-    "name": "strata-control-0.1.49.2-windows-x86_64.zip",
-    "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-control-0.1.49.2-windows-x86_64.zip",
-    "sha256": "992405e03630ec41e318d90dc91cda21b232d3a3f409d27b48d82d1274afeaab",
-    "size": 72504173
+    "name": "strata-control-0.1.54-windows-x86_64.zip",
+    "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-control-0.1.54-windows-x86_64.zip",
+    "sha256": "f24b7626b0b002ed69f092713bce05396b996562411b3c763fdc1be6ffa0ab22",
+    "size": 73086664
   },
   "python": {
     "name": "python-3.12.10-embed-amd64.zip",
@@ -28,46 +28,46 @@
   },
   "engines": {
     "hip-rdna2": {
-      "name": "strata-engine-0.1.48-windows-x86_64-hip-rdna2.tar.gz",
-      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-engine-0.1.48-windows-x86_64-hip-rdna2.tar.gz",
-      "sha256": "a7499ad48dd40bb2d4d3ff05a72310aff3c5264f5ba41b130506856d8f346bef",
-      "size": 176779037,
+      "name": "strata-engine-0.1.54-windows-x86_64-hip-rdna2.tar.gz",
+      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-engine-0.1.54-windows-x86_64-hip-rdna2.tar.gz",
+      "sha256": "2d45c35e10bfb43eb112ae7ffcd8b8cceef51a2cc7bf99864191ee55f29529d6",
+      "size": 172503557,
       "backend": "hip",
       "dir": "engine",
       "archs": ["gfx1030", "gfx1031"]
     },
     "hip-rdna3": {
-      "name": "strata-engine-0.1.48-windows-x86_64-hip-rdna3.tar.gz",
-      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-engine-0.1.48-windows-x86_64-hip-rdna3.tar.gz",
-      "sha256": "7ec85ed2131fb223ffa10118ef92d86eeaffb6f4653cb2f27ae9d53f458dbf72",
-      "size": 242654494,
+      "name": "strata-engine-0.1.54-windows-x86_64-hip-rdna3.tar.gz",
+      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-engine-0.1.54-windows-x86_64-hip-rdna3.tar.gz",
+      "sha256": "57a378c1075f1fd90a25015f8e81ea0622f27267dceb55c6a368ed9a148e40c8",
+      "size": 277351554,
       "backend": "hip",
       "dir": "engine",
       "archs": ["gfx1100", "gfx1101", "gfx1102", "gfx1151"]
     },
     "hip-rx9070": {
-      "name": "strata-engine-0.1.48-windows-x86_64-hip-rx9070.tar.gz",
-      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-engine-0.1.48-windows-x86_64-hip-rx9070.tar.gz",
-      "sha256": "1eb6faf4b074e67aa31c2acbc37cf2bc31b121bc4a145b0a06f0f13fbf3334d7",
-      "size": 563172419,
+      "name": "strata-engine-0.1.54-windows-x86_64-hip-rx9070.tar.gz",
+      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-engine-0.1.54-windows-x86_64-hip-rx9070.tar.gz",
+      "sha256": "912a293a22190c48331cd0b1050c8697f2c0572c0cc367437697c9eaad3d02e2",
+      "size": 568037623,
       "backend": "hip",
       "dir": "engine",
       "archs": ["gfx1200", "gfx1201"]
     },
     "cuda12": {
-      "name": "strata-engine-0.1.48-windows-x86_64-cuda-cuda12.tar.gz",
-      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-engine-0.1.48-windows-x86_64-cuda-cuda12.tar.gz",
-      "sha256": "77c3d57015c146c0f7f2969db88617be9e0a1539516ed9d2d9218a3f0bb09231",
-      "size": 823477805,
+      "name": "strata-engine-0.1.54-windows-x86_64-cuda-cuda12.tar.gz",
+      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-engine-0.1.54-windows-x86_64-cuda-cuda12.tar.gz",
+      "sha256": "d9bb160fc73599bb1eeee64a74ea8a7eede4843b76c8fa1750335f1504811517",
+      "size": 902226219,
       "backend": "cuda",
       "dir": "engine-cuda12",
       "archs": ["sm_60", "sm_61", "sm_70", "sm_75", "sm_80", "sm_86", "sm_89"]
     },
     "cuda13": {
-      "name": "strata-engine-0.1.48-windows-x86_64-cuda-cuda13.tar.gz",
-      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.4/strata-engine-0.1.48-windows-x86_64-cuda-cuda13.tar.gz",
-      "sha256": "1e1611b0977d984bd7d8e79591a1ba1a7e550a2f4a66bfa45744a77308a71b95",
-      "size": 581299508,
+      "name": "strata-engine-0.1.54-windows-x86_64-cuda-cuda13.tar.gz",
+      "url": "https://github.com/Niko1221/Strata/releases/download/v0.2.8/strata-engine-0.1.54-windows-x86_64-cuda-cuda13.tar.gz",
+      "sha256": "bacff012e5f7e44ffefd5a08230363e0e527c8a86abf55ef1b31c833be37b8ab",
+      "size": 620425196,
       "backend": "cuda",
       "dir": "engine",
       "archs": ["sm_75", "sm_86", "sm_89", "sm_120"]

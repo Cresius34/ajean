@@ -45,7 +45,7 @@ const parallelMemoryRevision = 7
 // Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".2 Cresius"
+const buildFlavorSuffix = ".3 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.

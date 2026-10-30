@@ -25,10 +25,18 @@ import (
 // the Strata release we vendor (tag), strataVersion is the engine package version that
 // lands in engine/BUILD.json, and strataControlVersion is the control package shipped
 // beside it. The preflight check below compares BUILD.json against strataVersion only.
-const strataSourceVersion = "0.2.4"
-const strataVersion = "0.1.48" // moteur Qwen : inchangé dans 0.2.4 (paquets 0.1.48, octet pour octet)
-const strataControlVersion = "0.1.49.2"
-const strataSourceCommit = "96ca4383c7b05a8a3e6064c65d9e9977d4b3bb59"
+const strataSourceVersion = "0.2.8"
+const strataVersion = "0.1.54" // moteur Qwen : 0.1.48 → 0.1.54 dans 0.2.8 (fenêtres HIP de 16 rangées)
+const strataControlVersion = "0.1.54"
+
+// strataSourceCommit désigne l'arbre source que l'installeur déplie (serve/, strata_control/,
+// setup.py). C'est le commit du paquet Control, qui est public. Le commit de BUILD.json du
+// moteur 0.1.54 est `8c1aea4bca1b` : il ne figure PAS dans le dépôt public (mesuré le 30/10 —
+// l'API répond « No commit found for SHA », le codeload renvoie 404). Ce n'est pas contradictoire :
+// les paquets moteur sont construits sur un arbre interne, et le préflight compare le
+// BUILD.json livré à strataVersion, jamais à ce commit. Laisser strataSourceCommit sur le
+// commit Control garde une source téléchargeable et vérifiable pour l'installation.
+const strataSourceCommit = "36f6663c25e60abdfc626abe48e0e8fa3a9fe762"
 const strataPathToken = "${AJEAN_HOME}/"
 
 //go:embed moe_portable_install.ps1

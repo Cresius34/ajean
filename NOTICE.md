@@ -12,7 +12,7 @@ de contexte, quantification clé/valeurs, réserve de VRAM, vision sur AMD ;
 mémoire sémantique **EmbeddingGemma 2** ; **pont Ajean↔Ajean** ; déduplication
 des appels ; réglage du seuil de compactage). Elle est signalée par un suffixe à part,
 **`.N Cresius`** : la version lue par le binaire est par exemple
-**`0.18.16.2 Cresius`**, pas `0.18.16` (base amont `v0.18.16` + révision `2`).
+**`0.18.16.3 Cresius`**, pas `0.18.16` (base amont `v0.18.16` + révision `3`).
 Cette ligne n'est **pas** une version de
 l'amont, n'est **pas** testée sur d'autres machines et n'est **pas** garantie
 transposable. Pour installer AJEAN, prenez les versions publiées sur
@@ -50,7 +50,7 @@ Windows sont téléchargés à l'installation du moteur.
 | --- | --- |
 | [nathaninline/ajean](https://github.com/nathaninline/ajean) | amont — projet original et versions publiées |
 | [Niko1221/Strata](https://github.com/Niko1221/Strata) | moteur MoE exécuté par le fork |
-| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.2 Cresius` posé, base amont `v0.18.16`) |
+| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.3 Cresius` posé, base amont `v0.18.16`) |
 
 ## Modèles
 

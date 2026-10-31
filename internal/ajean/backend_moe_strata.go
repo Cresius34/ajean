@@ -741,19 +741,22 @@ func moeStrataEnvironment(backend string) moeEnv {
 	return strataSelectEnvironment(strataWindowsCards(), backend, totalRAMGB(), disk)
 }
 
+// strataPanelFamily : une ligne du panneau « Moteur MoE ». Type au niveau paquet
+// et pas de la fonction, pour qu'un test puisse le construire et vérifier le
+// contrat JSON sans serveur HTTP.
+type strataPanelFamily struct {
+	moeFamily
+	Fits      []moeFit `json:"fits"`
+	Recommend string   `json:"recommend"`
+	Blocked   string   `json:"blocked,omitempty"` // famille que ce poste ne peut pas installer en un clic
+}
+
 func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 	e := moeStrataEnvironment(r.URL.Query().Get("backend"))
-	type family struct {
-		moeFamily
-		Fits      []moeFit `json:"fits"`
-		Recommend string   `json:"recommend"`
-		Blocked   string   `json:"blocked,omitempty"` // famille que ce poste ne peut pas installer en un clic
-	}
 	// Le catalogue vivant du moteur, si son serveur repond. S'il est absent ou
 	// muet, on retombe sur nos deux tables : le panneau doit continuer d'afficher
 	// ce qu'il a toujours affiche.
 	cat, catErr := strataCatalogueGet()
-	var families []family
 	var installed []string
 	list, _ := ListPresets()
 	presets := map[string]map[string]string{}
@@ -776,8 +779,27 @@ func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 	if len(src) == 0 {
 		src = moeFamilies // repli : nos tables recopiees, si le serveur n'a pas repondu
 	}
+	families := strataPanelFamilies(e, cat, catErr, src, presets, active)
+	sendJSON(w, 200, strataPanelResponse(e, families, installed, backends, cat, catErr))
+}
+
+// strataPanelFamilies : les lignes du panneau, pour chaque famille proposee.
+// Séparé du handler pour qu'un test puisse jouer le contrat JSON sans serveur
+// HTTP, avec un catalogue factice — c'est ce qui manquait à la révision 4 :
+// ses tests vérifiaient les tables, jamais ce que `encoding/json` en fait.
+func strataPanelFamilies(e moeEnv, cat *strataCatalogue, catErr error, src []moeFamily,
+	presets map[string]map[string]string, active map[string]bool) []strataPanelFamily {
+	families := make([]strataPanelFamily, 0, len(src))
 	for _, f := range src {
-		v := family{moeFamily: f, Recommend: moeRecommend(f.ID, e)}
+		// Fits commence à TABLEAU VIDE, jamais à nil. Le contrat est là : l'interface
+		// lit f.fits.find(...) sur toutes les familles sans filtre, et une famille
+		// sans taille rendue « null » fait tomber la boucle entière. Mesuré le
+		// 31/10/2026 avec la révision 4 : la famille NVFP4, écartée par
+		// strataFamilyBlocked, rend zéro taille → « fits: null » → l'engrenage des
+		// presets MoE ne répond plus ET le panneau Configuration reste bloqué sur
+		// son squelette de chargement (loadCfg lève avant swapContent). Un seul
+		// défaut, deux symptômes, et aucun des deux visible aux tests Go.
+		v := strataPanelFamily{moeFamily: f, Fits: []moeFit{}, Recommend: moeRecommend(f.ID, e)}
 		if why := strataFamilyBlocked(f.ID, e.Backend); why != "" {
 			v.Blocked = why
 		}
@@ -813,7 +835,7 @@ func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 		}
 		families = append(families, v)
 	}
-	sendJSON(w, 200, strataPanelResponse(e, families, installed, backends, cat, catErr))
+	return families
 }
 
 // strataPanelResponse : ce que le panneau recoit. Séparé du handler pour que le

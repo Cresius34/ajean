@@ -8,6 +8,8 @@ package ajean
 // tailles : c'est exactement la regression qu'on ne veut pas.
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -301,4 +303,95 @@ func TestNommageSansCollision(t *testing.T) {
 		}
 	}
 	t.Logf("%d couples -> %d presets distincts, %d dossiers distincts", len(couples), len(presets), len(tags))
+}
+
+// TestPanneauFitsJamaisNull : le contrat JSON que l'interface attend.
+//
+// La régression, mesurée le 31/10/2026 sur le poste en service avec la révision 4.
+// L'interface lit `f.fits.find(...)` sur TOUTES les familles, sans filtre :
+//   - 05-status.js L500, dans loadCfg(), la branche ENGINE=moe :
+//     `for(const f of s.families){ const x=f.fits.find(x=>x.active); … }`
+//     Une famille à `fits: null` y lève → swapContent() jamais appelé → le panneau
+//     « CONFIGURATION » reste bloqué sur son squelette de chargement.
+//   - 10b-moe.js L56, dans openMoe(presetId) : la boucle qui cherche le preset
+//     cliqué traverse les familles sans s'arrêter → la première famille à `null`
+//     fait tomber l'ouverture AVANT l'affichage. Les trois engrenages des presets
+//     MoE ne répondent plus ; le quatrième, llama.cpp, passe par openPreset() et
+//     survit. C'est exactement ce que l'humain a vu et décrit.
+//
+// La cause : strataFamilyBlocked écarte NVFP4 hors CUDA (docs/QUANTS.md : « the HIP
+// and SYCL engines have no NVFP4 kernels »), la famille ne rend donc AUCUNE taille,
+// et un slice Go nil se marshall en `null` — pas en `[]`. Un seul défaut, deux
+// symptômes, et les tests Go de la révision 4 ne l'ont pas vu : ils vérifiaient les
+// tables, jamais ce que encoding/json en fait. D'où ce test, joué SANS moteur.
+func TestPanneauFitsJamaisNull(t *testing.T) {
+	e := moeStrataEnvironment("hip")
+	if e.Backend != "hip" {
+		t.Skipf("backend résolu = %q : ce test suppose un poste AMD", e.Backend)
+	}
+	if why := strataFamilyBlocked("nvfp4", e.Backend); why == "" {
+		t.Skip("cette plateforme n'écarte aucune famille : rien à vérifier")
+	}
+
+	// Une famille que nos tables chiffrèrent, et une famille bloquée à zéro taille.
+	src := []moeFamily{
+		{ID: "qwen", Label: "Qwen3.8-Flash-Next", About: "a", Quants: []string{"IQ3_S"}},
+		{ID: "nvfp4", Label: "Qwen3.8-Flash-Next (NVFP4)", About: "b", Quants: nil},
+	}
+	fams := strataPanelFamilies(e, nil, errors.New("catalogue non consulté : on teste le contrat, pas le moteur"),
+		src, map[string]map[string]string{}, map[string]bool{})
+
+	if len(fams) != 2 {
+		t.Fatalf("familles fabriquées = %d, attendu 2", len(fams))
+	}
+
+	brut, err := json.Marshal(strataPanelResponse(e, fams, nil, nil, nil, nil))
+	if err != nil {
+		t.Fatalf("marshage du panneau : %v", err)
+	}
+
+	// Le symptôme, pris à la source : le mot que le JavaScript ne sait pas lire.
+	if strings.Contains(string(brut), `"fits":null`) {
+		t.Errorf("le panneau rend « \"fits\":null » : loadCfg() et openMoe() vont lever sur cette famille")
+	}
+
+	// Et la forme attendue, famille par famille, relue comme le navigateur la reçoit.
+	var relu struct {
+		Families []struct {
+			ID      string          `json:"id"`
+			Fits    json.RawMessage `json:"fits"`
+			Blocked string          `json:"blocked"`
+		} `json:"families"`
+	}
+	if err := json.Unmarshal(brut, &relu); err != nil {
+		t.Fatalf("relecture du panneau : %v", err)
+	}
+	if len(relu.Families) != 2 {
+		t.Fatalf("familles relues = %d", len(relu.Families))
+	}
+	for _, f := range relu.Families {
+		if len(f.Fits) == 0 {
+			t.Errorf("%s : la clé « fits » est absente de la réponse", f.ID)
+			continue
+		}
+		if string(f.Fits) == "null" {
+			t.Errorf("%s : fits = null, le JavaScript lira « Cannot read properties of null »", f.ID)
+		}
+		if !bytes.HasPrefix(f.Fits, []byte("[")) {
+			t.Errorf("%s : fits = %s, attendu un tableau", f.ID, string(f.Fits))
+		}
+		if f.ID == "nvfp4" {
+			if string(f.Fits) != "[]" {
+				t.Errorf("nvfp4 : fits = %s, attendu [] (la famille est écartée, ses tailles aussi)", string(f.Fits))
+			}
+			if f.Blocked == "" {
+				t.Error("nvfp4 : écartée mais sans motif — le panneau afficherait une famille muette")
+			}
+			t.Logf("nvfp4 : fits=[] · blocked = %q", f.Blocked)
+		}
+		if f.ID == "qwen" && string(f.Fits) == "[]" {
+			t.Error("qwen : fits vide alors que la famille a une taille chiffrée dans nos tables")
+		}
+	}
+	t.Logf("contrat vérifié sur %d octets de réponse : « fits » est un tableau partout", len(brut))
 }

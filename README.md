@@ -8,8 +8,11 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), created and maintained by
 > **nathaninline** — the upstream project, and the only source of published AJEAN releases.
 > Everything below describes AJEAN **in general**. This fork carries a **private patch line**
-> (**0.18.16.2 Cresius**, built on upstream `v0.18.16`) for one specific machine: the
+> (**0.18.16.4 Cresius**, built on upstream `v0.18.16`) for one specific machine: the
 > **Strata** MoE engine on AMD (context size, KV quantization, VRAM reserve, AMD vision),
+> a **model catalogue read from the engine** instead of copied by hand — the Engine screen
+> shows the families and sizes the installed engine really knows, with their measured costs
+> and the reason when one of them is ruled out —,
 > EmbeddingGemma 2 semantic memory, the **Ajean↔Ajean bridge** (two Ajean instances on one
 > local network talking to each other, each keeping its own brain), call
 > de-duplication and a tunable compaction threshold. Those additions

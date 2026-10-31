@@ -12,7 +12,7 @@ de contexte, quantification clé/valeurs, réserve de VRAM, vision sur AMD ;
 mémoire sémantique **EmbeddingGemma 2** ; **pont Ajean↔Ajean** ; déduplication
 des appels ; réglage du seuil de compactage). Elle est signalée par un suffixe à part,
 **`.N Cresius`** : la version lue par le binaire est par exemple
-**`0.18.16.3 Cresius`**, pas `0.18.16` (base amont `v0.18.16` + révision `3`).
+**`0.18.16.4 Cresius`**, pas `0.18.16` (base amont `v0.18.16` + révision `4`).
 Cette ligne n'est **pas** une version de
 l'amont, n'est **pas** testée sur d'autres machines et n'est **pas** garantie
 transposable. Pour installer AJEAN, prenez les versions publiées sur
@@ -21,13 +21,13 @@ transposable. Pour installer AJEAN, prenez les versions publiées sur
 ## Ce que ce fork ajoute à l'amont
 
 Sept fronts, mesurés commit par commit contre le tag amont `v0.18.16`
-(**148 fichiers, +29 296 / −10 349**, **aucun fichier amont supprimé** — chaque
-fusion est additive). Le détail chiffré et la surface de conflit sont dans
-[RELEASE_NOTES.md](RELEASE_NOTES.md).
+(**151 fichiers, +30 900 / −10 367**, **102 ajoutés, 49 modifiés, aucun fichier
+amont supprimé** — chaque fusion est additive). Le détail chiffré et la surface
+de conflit sont dans [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 | Front | Ce qui est ajouté | Accrochage dans le code amont |
 | --- | --- | --- |
-| **Moteur MoE Strata** | `backend_moe_strata.go`, `backend_moe_windows/_linux/_other.go`, `moe_probe.go` (route `/api/moe/verify`), `moe_windows_manifest.json`, `moe_portable_install.ps1`, `web_devices.go` (`/api/backends/devices`) | +171 / −163 seulement dans **leur** `backend_moe.go` |
+| **Moteur MoE Strata** | `backend_moe_strata.go`, `backend_moe_windows/_linux/_other.go`, `moe_probe.go` (route `/api/moe/verify`), `backend_moe_catalogue_vivant.go` (catalogue lu dans le moteur par `tools/strata_mcp.py`), `moe_windows_manifest.json`, `moe_portable_install.ps1`, `web_devices.go` (`/api/backends/devices`) | +209 / −164 seulement dans **leur** `backend_moe.go` |
 | **Mémoire sémantique EmbeddingGemma 2** | `mem_embeddings.go`, `mem_embedding_backend/_media/_settings/_transformers.go`, `embedding_server.py`, `web_embeddings.go` (`/api/embeddings*`) | leur machinerie `jean_recall.go`, `jean_exact.go`, `jean_fixes.go` **conservée**, rebranchée sur notre encodeur |
 | **Pont Ajean↔Ajean** | `parallel_bridge.go`, `parallel_peer.go`, `parallel_bridge_agent.go`, `parallel_config/_engine/_import/_profile/_memory.go`, `13b-bridge.js`, 4 fichiers de tests | **entièrement absent de l'amont** |
 | **Déduplication des appels d'outils** | `repeat_exempt.go`, tests `llm_dedup_*` | leurs `chat_tools_loose.go` / `tool_args_repair.go` coexistent |
@@ -50,7 +50,7 @@ Windows sont téléchargés à l'installation du moteur.
 | --- | --- |
 | [nathaninline/ajean](https://github.com/nathaninline/ajean) | amont — projet original et versions publiées |
 | [Niko1221/Strata](https://github.com/Niko1221/Strata) | moteur MoE exécuté par le fork |
-| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.4 Cresius` en cours de pose, base amont `v0.18.16`) |
+| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.4 Cresius` en service, base amont `v0.18.16`) |
 
 ## Modèles
 

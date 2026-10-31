@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.16.2 Cresius` / étiquette `v0.18.16+rev2`
+# Notes de version — AJEAN `0.18.16.4 Cresius` / étiquette `v0.18.16+rev4`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -20,13 +20,18 @@ ligne privée `Cresius`. Le socle est celui de l'amont ; la ligne privée se ré
 Le socle amont est `v0.18.16` : l'**installation d'ExLlama depuis l'interface** ne
 casse plus sans console (#177), les **binaires CUDA officiels** de llama.cpp arrivent
 sous Linux avec carte NVIDIA, et l'**affichage du chat** devient continu. Côté ligne
-privée, cette révision 1 sur la nouvelle base porte le **canal Ajean↔Ajean** : le pont
-rend un véritable tour d'agent de l'autre côté sous double autorisation, **dit pourquoi
-il ne le rend pas**, et l'auteur de chaque message du canal est distingué (un ordre
-d'un humain qui vise un poste lie l'IA de ce poste, un ordre d'une IA n'en lie aucune).
-Le **journal de Jean** et la **mémoire sémantique** partagent toujours un **seul
-encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul moteur, un seul espace vectoriel
-sur le poste — et le **moteur MoE Strata** reste proposé par carte, y compris sur AMD (HIP).
+privée, cette révision 4 sur la nouvelle base porte le **catalogue de modèles lu dans
+le moteur** : l'écran Moteur affiche les familles et les tailles que le moteur installé
+connaît vraiment, avec leurs coûts mesurés et le motif quand l'une d'elles est écartée,
+au lieu d'une liste recopiée à la main dans le code. Le moteur **Strata** passe en
+`0.2.8` (paquet moteur `0.1.54`, contrôle `0.1.54`). Le **canal Ajean↔Ajean** est là
+depuis la révision 1 : le pont rend un véritable tour d'agent de l'autre côté sous
+double autorisation, **dit pourquoi il ne le rend pas**, et l'auteur de chaque message
+du canal est distingué (un ordre d'un humain qui vise un poste lie l'IA de ce poste,
+un ordre d'une IA n'en lie aucune). Le **journal de Jean** et la **mémoire sémantique**
+partagent toujours un **seul encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul
+moteur, un seul espace vectoriel sur le poste — et le **moteur MoE Strata** reste
+proposé par carte, y compris sur AMD (HIP).
 
 ## Amont `v0.18.16` — ExLlama depuis l'interface, CUDA Linux, chat plus fluide
 
@@ -263,45 +268,56 @@ dans le même sens :
 
 ## Le moteur MoE, où en sommes-nous
 
-La bascule est **faite** dans ce build : la release vendue est **Strata `0.2.4`**
-(commit source `96ca438`), le **paquet moteur `0.1.48`** et le **paquet de
-contrôle `0.1.49.2`**. Ces trois numéros sont désormais déclarés séparément dans
+La bascule est **faite** dans ce build : la release vendue est **Strata `0.2.8`**, le
+**paquet moteur `0.1.54`** et le **paquet de contrôle `0.1.54`** (l'archive source au
+commit `36f6663c`). Ces trois numéros sont déclarés séparément dans
 `internal/ajean/backend_moe_strata.go` et ne doivent pas être confondus : seul le
 numéro du paquet moteur est comparé au cachet `engine/BUILD.json` par le contrôle
-préalable.
+préalable. Les six empreintes du manifeste interne sont celles de `SHA256SUMS.txt` de
+la publication `v0.2.8`, téléchargée et vérifiée sur ce poste.
 
-Ce que `0.2.4` change pour nous, mesuré sur le poste :
+Ce que le passage de `0.2.4` à `0.2.8` change, mesuré :
 
-- **Les images sur AMD (HIP) sont disponibles.** Le paquet moteur `0.1.48`
-  embarque le lecteur d'images AMD : son cachet `BUILD.json` porte
-  `vision: "cpu+hip"`, avec `strata-vision-hip.exe` et un repli
-  `strata-vision.exe`. Les garde-fous qui refusaient la vision sur HIP sont donc
-  levés (contrôle préalable, réglages, fiche moteur). La section vision n'est
-  conservée que si le preset la demande (`MOE_VISION=1`) ; sinon elle est retirée,
-  comme avant. Un test garde ce comportement : `TestStrataHipVisionPackage`.
-- **Une archive par carte, plus d'archive plate.** Le manifeste interne
-  (`internal/ajean/moe_windows_manifest.json`) publie le contrôle `0.1.49.2` et
-  **cinq** paquets moteur `tar.gz` par carte — `hip-rdna2`, `hip-rdna3`,
-  `hip-rx9070` (la carte de ce poste, `gfx1201`), `cuda12`, `cuda13` — avec
-  SHA-256 et tailles relevés sur le flux en direct (séquence 112).
-- **Le script d'installation portable** (`moe_portable_install.ps1`) défait une
-  archive `tar.gz` au lieu d'un `zip`, estampille `engine/BUILD.json` avec
-  `source: prebuilt`, et choisit le paquet selon la carte. Il reste lisible en
-  PowerShell 5.
-- **Notre enveloppe `moe_portable_setup.py`** suit le nouvel appel de `data_folder`
-  en `0.2.4` (`request, move, yes, set_default`).
+- **Une archive par carte, plus d'archive plate** (acquis de `0.2.4`, conservé). Le
+  manifeste interne (`internal/ajean/moe_windows_manifest.json`) publie le contrôle et
+  **cinq** paquets moteur `tar.gz` par carte — `hip-rdna2`, `hip-rdna3`, `hip-rx9070`
+  (la carte de ce poste, `gfx1201`), `cuda12`, `cuda13` — avec SHA-256 et tailles.
+- **Les images sur AMD (HIP) sont disponibles** (acquis de `0.2.4`, conservé) : le
+  cachet `BUILD.json` porte `vision: "cpu+hip"`, avec `strata-vision-hip.exe` et un
+  repli `strata-vision.exe`. Les garde-fous qui refusaient la vision sur HIP sont levés.
+  La section vision n'est conservée que si le preset la demande (`MOE_VISION=1`).
+  Test : `TestStrataHipVisionPackage`.
+- **Rien à réinstaller côté Python.** `requirements.txt` est identique octet pour octet
+  entre `0.2.4` et `0.2.8` (23 lignes) ; les 17 paquets runtime déjà installés dans
+  notre Python embarqué 3.12.10 conviennent.
+- **Aucune option perdue.** `strata --help` en énumère **157** en `0.1.48` comme en
+  `0.1.54`. Les 14 options de notre configuration sont acceptées — preuve directe :
+  une option inventée rend « unknown argument », alors que `--mtp` et
+  `--vram-reserve-mib`, absents des deux `--help`, passent sans erreur.
+- `engine/strata.exe --version` répond **`strata 0.1.54`** ; `strata-device.exe`
+  énumère la carte. `TestStrataDeviceToolRealEngine`, joué contre le moteur `0.1.54`
+  réellement installé, passe (il était sauté jusqu'ici : son chemin par défaut
+  pointait un dossier mort).
 
-Installation portée de bout en bout et vérifiée sur ce poste : moteur extrait,
-`llama.cpp 3cf0325` (commit épinglé par `0.2.4`), poids `IQ3_S`, `mmproj`, pack et
-MTP préparés ; moteur exécuté (`strata 0.1.48`, familles `qwen4exp` et
-`qwen35moe`) ; réponse réelle obtenue du moteur lancé par l'application.
+**Un piège d'installation, mesuré, qui est fermé.** Basculer le preset `.env` ne
+suffit pas : les configurations moteur elles-mêmes (`strata-iq3_s.json` et les deux
+`swift`) contenaient 9 et 6 références à `strata-0.1.48-hip` — l'exécutable, le dossier
+de travail, `lib_dirs`, `--expert-profile`, `STRATA_HIPBLASLT_TUNING`, `vision.exe`. Le
+nouveau serveur aurait lancé **l'ancien** moteur et relu son ancien réglage : un bump
+fantôme, et le contrôle préalable n'y aurait vu que du feu, puisqu'il vérifie le
+`BUILD.json` situé à côté de l'exécutable que la configuration pointe.
 
-Un point d'installation à connaître, mesuré : l'emplacement du moteur est dérivé
-de la version épinglée (`data\moe\strata-<version>-<carte>`). Un `data` récupéré
-d'une installation plus ancienne garde donc l'ancien moteur sous l'ancien nom, et
-le contrôle préalable refuse de le charger — c'est le message
-« moteur MoE différent de la version figée ». Il faut installer le moteur depuis
-l'interface Moteur, ou promouvoir le paquet `0.1.48` à l'emplacement épinglé.
+Autre point à connaître : l'emplacement du moteur est dérivé de la version épinglée
+(`data\moe\strata-<version>-<carte>`). Un `data` récupéré d'une installation plus
+ancienne garde donc l'ancien moteur sous l'ancien nom, et le contrôle préalable refuse
+de le charger — c'est le message « moteur MoE différent de la version figée ». Il faut
+installer le moteur depuis l'écran Moteur, ou promouvoir le paquet `0.1.54` à
+l'emplacement épinglé.
+
+**Ce qui reste mesuré depuis** : le moteur `0.1.54` a depuis servi l'application sur ce
+poste, y compris la lecture du catalogue (8 familles, 25 tailles) et une génération
+complète. Le paquet `0.2.8` est annoncé non testé par l'amont sur une Radeon Windows
+en ce qui concerne le Monitor (ils ont testé Linux AMD et Windows NVIDIA).
 
 ## Le pont Ajean↔Ajean : deux Ajean du réseau local qui se parlent
 
@@ -459,16 +475,17 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.16.2 Cresius` |
-| Étiquette Git | `v0.18.16+rev2` |
+| Version affichée | `0.18.16.4 Cresius` |
+| Étiquette Git | `v0.18.16+rev4` |
 | Socle amont | `v0.18.16` |
-| Moteur MoE | Strata `0.2.4` — paquet moteur `0.1.48`, contrôle `0.1.49.2`, cinq paquets par carte, SHA-256 vérifiés |
+| Moteur MoE | Strata `0.2.8` — paquet moteur `0.1.54`, contrôle `0.1.54`, cinq paquets par carte, SHA-256 vérifiés |
+| Catalogue de modèles | **lu dans le moteur** (`tools/strata_mcp.py` importe `setup.py`) : 8 familles, 25 tailles, repli sur la liste interne si le moteur est muet |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
-| Précédent | `0.18.16.1 Cresius`, étiquette `v0.18.16+rev1` (patch canal) |
+| Précédent | `0.18.16.3 Cresius`, étiquette `v0.18.16+rev3` (moteur Strata `0.2.8`) |
 
 La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
-de notre numéro de révision**. `0.18.16` + révision `2` → `0.18.16.2 Cresius`,
-étiquette `v0.18.16+rev2`. Les deux désignent le même build.
+de notre numéro de révision**. `0.18.16` + révision `4` → `0.18.16.4 Cresius`,
+étiquette `v0.18.16+rev4`. Les deux désignent le même build.
 
 ## Ce que la révision 2 ajoute sur la base `v0.18.16`
 
@@ -492,6 +509,72 @@ Trois correctifs, chacun avec son test :
   du voisin. Tests : `parallel_peer_ask_fallback_test.go`,
   `tool_args_repair_guillemets_test.go`.
 
+## Ce que les révisions 3 et 4 ajoutent sur la base `v0.18.16`
+
+### Révision 3 — le moteur passe en Strata `0.2.8`
+
+Un commit : les trois versions figées montent (`0.1.48` → `0.1.54` pour le paquet
+moteur, `0.1.49.2` → `0.1.54` pour le contrôle), le manifeste publie les cinq
+paquets en `0.1.54` avec les empreintes de `SHA256SUMS.txt`, l'archive source au
+commit `36f6663c`. Vérifié avant de poser : `requirements.txt` identique octet pour
+octet entre `0.2.4` et `0.2.8`, aucune option perdue sur les 157 de `--help`,
+`strata 0.1.54` exécuté, `TestStrataDeviceToolRealEngine` joué contre le moteur
+réellement installé. Le piège des configurations moteur qui pointaient encore
+l'ancien exécutable est fermé (voir plus haut).
+
+### Révision 4 — l'écran Moteur lit le catalogue du moteur
+
+**Le panneau « Moteur MoE » proposait 2 familles et 4 quantifications. Le moteur
+posé sur ce poste en connaît 8 et 25**, avec pour chacune ses coûts réels et un avis
+calibré sur cette machine. `moeFamilies` et `moeQuants` étaient une copie à la main
+de la table `MODELS` de `setup.py` : chaque taille ajoutée en amont obligeait à
+réécrire du Go et à recompiler.
+
+- **`backend_moe_catalogue_vivant.go`** parle au serveur que le moteur livre déjà,
+  `tools/strata_mcp.py` — un serveur MCP (JSON-RPC 2.0, bibliothèque standard seule)
+  qui **importe `setup.py` comme module** et rend l'outil `strata_models`. Sa réponse
+  porte `source: "setup.py"` : ce sont les tables vivantes, pas un inventaire.
+  Mesuré : 8 familles, 25 tailles, contextes de 8 192 à 524 288.
+- **Ce que le catalogue fournit, et ce qu'il ne décide pas.** Les noms et les coûts
+  viennent du moteur ; **l'adéquation reste calculée par `moeFitFor`**, qui connaît
+  notre marge de RAM, notre carte d'aide et le mode mmap. Le serveur, lui, ne filtre
+  pas : mesuré, il rend les trois NVFP4 « fits » sur une Radeon R9700 alors que
+  `setup.py` les marque `nvidia_only` et que `docs/QUANTS.md` du moteur écrit « the
+  HIP and SYCL engines have no NVFP4 kernels ». `strataFamilyBlocked` écarte donc
+  ici — et **le panneau le dit au lieu de cacher la famille**.
+- **Repli explicite.** Si le serveur est absent ou muet, on retombe sur les deux
+  tables internes et la réponse porte `catalogue:"local"` + `catalogue_error`. Le
+  panneau affiche « Catalogue du moteur indisponible — liste interne d'Ajean ».
+- **Deux faux calculs corrigés au passage.** `normalizeStrataInstall` acceptait un
+  couple que seules les tables du moteur connaissent : sans ça, une taille inconnue
+  rendait `ArenaGB = 0`, donc « ça tient » annoncé à tort, et l'installation partait
+  sur un faux calcul de place. Le poseur ouvre famille et quantification, et accepte
+  `--gguf-dir` pour des poids déjà descendus à la main.
+- **Un défaut d'affichage réparé, trois symptômes, une cause.** Écarter une famille
+  la laisse sans aucune taille, et un slice Go `nil` se marshall en `null` et non en
+  `[]`. Or l'interface lit `f.fits.find(...)` sur **toutes** les familles : une
+  `null` y lève, et le panneau CONFIGURATION restait bloqué sur son squelette de
+  chargement, les trois engrenages des presets MoE ne répondaient plus. **Preuve
+  directe** prise sur l'application en service : sa réponse `/api/moe` contenait
+  `"fits":null` sur la famille NVFP4, une seule sur huit. Le quatrième engrenage
+  survivait parce que son preset n'a aucun `ENGINE=` dans son `.env` et passait par
+  un autre chemin — d'où l'impression que seul celui-là fonctionnait. Corrigé par
+  `TestPanneauFitsJamaisNull`, qui relit la réponse **comme le navigateur la reçoit**
+  (les tests précédents vérifiaient les tables, jamais ce qu'en fait `encoding/json`).
+- **Le panneau nomme le moteur.** « Qwen3.8 Flash Next » et « AJEAN MoE » nommaient
+  le modèle, ou l'application elle-même ; huit familles ne s'appellent pas Qwen3.8
+  Flash Next. Devenu **« Strata » + la version lue chez le serveur**, sur la ligne de
+  la carte, le titre de la fenêtre et la ligne MOTEUR du panneau Configuration.
+- **Les huit familles cessent de s'écraser.** Le bloc était un sélecteur segmenté,
+  une rangée d'items `flex:1` : huit pastilles égales de ~60 px dans une fenêtre de
+  520 px, étirées à la hauteur de la plus longue (celle qui porte sa description en
+  entier), le texte coupé caractère par caractère, et le curseur rendu en pilier
+  blanc. Les pastilles prennent maintenant leur place et rebondissent sur plusieurs
+  rangées ; la description du modèle choisi se lit dessous, coupée à deux lignes,
+  texte entier au survol — **sauf la raison d'une famille écartée, qui s'affiche en
+  entier** : une famille bloquée ne rend aucune taille, la liste des qualités sous
+  elle est vide, cette ligne est son seul porteur.
+
 ## Installation
 
 ```
@@ -501,14 +584,14 @@ ajean update
 ou, depuis le dépôt :
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.16+rev1`
+2. `git checkout v0.18.16+rev4`
 3. `go build -o ajean.exe ./cmd/ajean`
 
 ---
 
 # English
 
-# Release notes — AJEAN `0.18.16.2 Cresius` / tag `v0.18.16+rev2`
+# Release notes — AJEAN `0.18.16.4 Cresius` / tag `v0.18.16+rev4`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -530,13 +613,17 @@ This build **absorbs upstream `v0.18.16`** — and therefore
 The upstream base is `v0.18.16`: installing **ExLlama from the interface** no longer
 breaks when there is no console (#177), official llama.cpp **CUDA binaries** arrive on
 Linux with an NVIDIA card, and **chat rendering** becomes continuous. On the private
-side, this revision 1 on the new base carries the **Ajean↔Ajean channel**: the bridge can
-run a real agent turn on the other machine under double authorisation, **says why it did
-not**, and every channel message carries its author — an order from a human aimed at a
-machine binds that machine's AI, an order from an AI binds none. **Jean's journal** and
-**semantic memory** still share a **single encoder**, EmbeddingGemma 2 — one GGUF, one
-engine, one vector space on the machine — and the **Strata MoE engine** is still offered
-per card, AMD (HIP) included.
+side, this revision 4 on the new base carries the **model catalogue read from the
+engine**: the Engine screen shows the families and sizes the installed engine really
+knows, with their measured costs and the reason when one of them is ruled out, instead
+of a list copied by hand in the code. The **Strata** engine moves to `0.2.8` (engine
+package `0.1.54`, control `0.1.54`). The **Ajean↔Ajean channel** has been there since
+revision 1: the bridge can run a real agent turn on the other machine under double
+authorisation, **says why it did not**, and every channel message carries its author —
+an order from a human aimed at a machine binds that machine's AI, an order from an AI
+binds none. **Jean's journal** and **semantic memory** still share a **single encoder**,
+EmbeddingGemma 2 — one GGUF, one engine, one vector space on the machine — and the
+**Strata MoE engine** is still offered per card, AMD (HIP) included.
 
 ## Upstream `v0.18.16` — ExLlama from the interface, CUDA on Linux, smoother chat
 
@@ -757,44 +844,56 @@ These Cresius fixes were **abandoned** as moot — upstream made the same call:
 
 ## The MoE engine, where we stand
 
-The move is **done** in this build: the vendored release is **Strata `0.2.4`**
-(source commit `96ca438`), the **engine package is `0.1.48`** and the **control
-package `0.1.49.2`**. Those three numbers are now declared separately in
+The move is **done** in this build: the vendored release is **Strata `0.2.8`**, the
+**engine package is `0.1.54`** and the **control package `0.1.54`** (source archive at
+commit `36f6663c`). Those three numbers are declared separately in
 `internal/ajean/backend_moe_strata.go` and must not be conflated: only the engine
 package number is compared against the `engine/BUILD.json` stamp by the preflight
-check.
+check. The six fingerprints in the internal manifest are the ones from the
+`SHA256SUMS.txt` of the `v0.2.8` publication, downloaded and verified on this machine.
 
-What `0.2.4` changes for us, measured on this machine:
+What moving from `0.2.4` to `0.2.8` changes, measured:
 
-- **Pictures on AMD (HIP) are available.** The `0.1.48` engine package ships the
-  AMD picture reader: its `BUILD.json` stamp carries `vision: "cpu+hip"`, with
-  `strata-vision-hip.exe` and a `strata-vision.exe` fallback. The guards that
-  refused vision on HIP are therefore lifted (preflight, settings, engine
-  details). The vision section is kept only when the preset asks for it
-  (`MOE_VISION=1`); otherwise it is dropped, as before. A test pins this
-  behaviour: `TestStrataHipVisionPackage`.
-- **One archive per card, no flat archive.** The internal manifest
-  (`internal/ajean/moe_windows_manifest.json`) publishes control `0.1.49.2` and
-  **five** engine `tar.gz` packages per card — `hip-rdna2`, `hip-rdna3`,
-  `hip-rx9070` (this machine's card, `gfx1201`), `cuda12`, `cuda13` — with
-  SHA-256 and sizes read from the live feed (sequence 112).
-- **The portable install script** (`moe_portable_install.ps1`) unpacks a `tar.gz`
-  instead of a `zip`, stamps `engine/BUILD.json` with `source: prebuilt`, and
-  picks the package matching the card. It stays readable on PowerShell 5.
-- **Our `moe_portable_setup.py` wrapper** follows the new `0.2.4` signature of
-  `data_folder` (`request, move, yes, set_default`).
+- **One archive per card, no flat archive** (carried over from `0.2.4`). The internal
+  manifest (`internal/ajean/moe_windows_manifest.json`) publishes the control package
+  and **five** engine `tar.gz` packages per card — `hip-rdna2`, `hip-rdna3`,
+  `hip-rx9070` (this machine's card, `gfx1201`), `cuda12`, `cuda13` — with SHA-256 and
+  sizes.
+- **Pictures on AMD (HIP) are available** (carried over from `0.2.4`): the
+  `BUILD.json` stamp carries `vision: "cpu+hip"`, with `strata-vision-hip.exe` and a
+  `strata-vision.exe` fallback. The guards that refused vision on HIP are lifted. The
+  vision section is kept only when the preset asks for it (`MOE_VISION=1`). Test:
+  `TestStrataHipVisionPackage`.
+- **Nothing to reinstall on the Python side.** `requirements.txt` is byte-for-byte
+  identical between `0.2.4` and `0.2.8` (23 lines); the 17 runtime packages already
+  installed in our embedded Python 3.12.10 are fine.
+- **No option lost.** `strata --help` lists **157** in `0.1.48` and in `0.1.54` alike.
+  All 14 options of our configuration are accepted — direct proof: an invented option
+  returns "unknown argument", while `--mtp` and `--vram-reserve-mib`, absent from both
+  `--help` outputs, pass without error.
+- `engine/strata.exe --version` answers **`strata 0.1.54`**; `strata-device.exe`
+  enumerates the card. `TestStrataDeviceToolRealEngine`, run against the `0.1.54`
+  engine actually installed, passes (it was skipped until then: its default path
+  pointed at a dead folder).
 
-The install was carried end to end and verified on this machine: engine unpacked,
-`llama.cpp 3cf0325` (the commit pinned by `0.2.4`), `IQ3_S` weights, `mmproj`,
-pack and MTP prepared; engine executed (`strata 0.1.48`, families `qwen4exp` and
-`qwen35moe`); a real answer obtained from the engine started by the app.
+**An install trap, measured, now closed.** Switching the `.env` preset is not enough:
+the engine configurations themselves (`strata-iq3_s.json` and the two `swift` ones)
+carried 9 and 6 references to `strata-0.1.48-hip` — the executable, the working
+directory, `lib_dirs`, `--expert-profile`, `STRATA_HIPBLASLT_TUNING`, `vision.exe`. The
+new server would have launched the **old** engine and re-read its old tuning: a ghost
+bump, and the preflight would have seen nothing, since it checks the `BUILD.json` that
+sits next to the executable the configuration points at.
 
-One install detail worth knowing, measured: the engine location is derived from
-the pinned version (`data\moe\strata-<version>-<card>`). A `data` folder carried
-over from an older install therefore keeps the old engine under the old name, and
-the preflight refuses to load it — that is the "engine differs from the pinned
-version" message. Install the engine from the Engine screen, or promote the
-`0.1.48` package to the pinned location.
+Another detail worth knowing: the engine location is derived from the pinned version
+(`data\moe\strata-<version>-<card>`). A `data` folder carried over from an older
+install therefore keeps the old engine under the old name, and the preflight refuses to
+load it — that is the "engine differs from the pinned version" message. Install the
+engine from the Engine screen, or promote the `0.1.54` package to the pinned location.
+
+**What has since been measured**: the `0.1.54` engine has since served the application
+on this machine, including reading the catalogue (8 families, 25 sizes) and a full
+generation. The `0.2.8` package is reported untested upstream on a Windows Radeon for
+the Monitor (they tested Linux AMD and Windows NVIDIA).
 
 ## The Ajean↔Ajean bridge: two Ajean instances on one local network talking
 
@@ -904,6 +1003,69 @@ Three fixes, each with its test:
   neighbour's answer. Tests: `parallel_peer_ask_fallback_test.go`,
   `tool_args_repair_guillemets_test.go`.
 
+## What revisions 3 and 4 add on top of the `v0.18.16` base
+
+### Revision 3 — the engine moves to Strata `0.2.8`
+
+One commit: the three pinned versions go up (`0.1.48` → `0.1.54` for the engine
+package, `0.1.49.2` → `0.1.54` for control), the manifest publishes the five packages
+in `0.1.54` with the `SHA256SUMS.txt` fingerprints, the source archive at commit
+`36f6663c`. Checked before installing: `requirements.txt` byte-for-byte identical
+between `0.2.4` and `0.2.8`, no option lost among the 157 of `--help`, `strata 0.1.54`
+executed, `TestStrataDeviceToolRealEngine` run against the engine actually installed.
+The trap of engine configurations still pointing at the old executable is closed (see
+above).
+
+### Revision 4 — the Engine screen reads the engine's catalogue
+
+**The "MoE Engine" screen offered 2 families and 4 quantizations. The engine installed
+on this machine knows 8 and 25**, each with its real costs and a verdict calibrated on
+this machine. `moeFamilies` and `moeQuants` were a hand copy of the `MODELS` table in
+`setup.py`: every size added upstream meant rewriting Go and recompiling.
+
+- **`backend_moe_catalogue_vivant.go`** talks to the server the engine already ships,
+  `tools/strata_mcp.py` — an MCP server (JSON-RPC 2.0, standard library only) that
+  **imports `setup.py` as a module** and serves the `strata_models` tool. Its answer
+  carries `source: "setup.py"`: those are the live tables, not an inventory. Measured:
+  8 families, 25 sizes, contexts from 8,192 to 524,288.
+- **What the catalogue provides, and what it does not decide.** Names and costs come
+  from the engine; **the fit is still computed by `moeFitFor`**, which knows our RAM
+  margin, our helper card and mmap mode. The server does no filtering: measured, it
+  reports all three NVFP4 entries as "fits" on a Radeon R9700, while `setup.py` marks
+  them `nvidia_only` and the engine's own `docs/QUANTS.md` writes "the HIP and SYCL
+  engines have no NVFP4 kernels". `strataFamilyBlocked` therefore rules them out here —
+  and **the screen says so instead of hiding the family**.
+- **Explicit fallback.** If the server is missing or mute, we fall back to the two
+  internal tables and the answer carries `catalogue:"local"` + `catalogue_error`. The
+  screen shows "Engine catalogue unavailable — Ajean's internal list".
+- **Two bad calculations fixed along the way.** `normalizeStrataInstall` accepts a
+  family/size pair only the engine's tables know: without it, an unknown size returned
+  `ArenaGB = 0`, so "it fits" was announced wrongly and the install started from a bad
+  space calculation. The installer opens family and quantization, and accepts
+  `--gguf-dir` for weights already downloaded by hand.
+- **A display defect fixed — three symptoms, one cause.** Ruling a family out leaves it
+  with no size at all, and a Go `nil` slice marshals as `null`, not `[]`. Yet the
+  interface reads `f.fits.find(...)` on **every** family: a `null` throws there, the
+  CONFIGURATION panel stayed stuck on its loading skeleton, and three of the MoE preset
+  gears stopped responding. **Direct proof** taken from the running application: its
+  `/api/moe` answer contained `"fits":null` on the NVFP4 family, one family out of
+  eight. The fourth gear survived because its preset has no `ENGINE=` in its `.env` and
+  goes through another path — hence the feeling that only that one worked. Fixed by
+  `TestPanneauFitsJamaisNull`, which re-reads the answer **the way the browser receives
+  it** (the earlier tests checked the tables, never what `encoding/json` makes of them).
+- **The screen names the engine.** "Qwen3.8 Flash Next" and "AJEAN MoE" named the
+  model, or the application itself; eight families are not called Qwen3.8 Flash Next.
+  Now **"Strata" + the version read from the server**, on the card row, the window
+  title and the ENGINE line of the Configuration panel.
+- **The eight families stop crushing each other.** The block was a segmented control,
+  a row of `flex:1` items: eight equal pills of ~60 px in a 520 px window, stretched to
+  the height of the tallest one (the one carrying its description in full), text cut
+  character by character, and the cursor rendered as a white pillar. The pills now take
+  their own width and wrap onto several rows; the description of the chosen model reads
+  below, cut at two lines, full text on hover — **except the reason of a ruled-out
+  family, shown in full**: a blocked family reports no size, the quality list under it
+  is empty, that line is its only carrier.
+
 ## Upstream `v0.18.9` — sidebar: Settings, Tasks, API, AJEAN LINK
 
 - **Guided device pairing**: the "Connect a new device" row in the AJEAN LINK
@@ -968,16 +1130,17 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.16.2 Cresius` |
-| Git tag | `v0.18.16+rev2` |
+| Version displayed | `0.18.16.4 Cresius` |
+| Git tag | `v0.18.16+rev4` |
 | Upstream base | `v0.18.16` |
-| MoE engine | Strata `0.2.4` — engine package `0.1.48`, control `0.1.49.2`, five packages per card, SHA-256 verified |
+| MoE engine | Strata `0.2.8` — engine package `0.1.54`, control `0.1.54`, five packages per card, SHA-256 verified |
+| Model catalogue | **read from the engine** (`tools/strata_mcp.py` imports `setup.py`): 8 families, 25 sizes, falls back to the internal list when the engine is mute |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
-| Previous | `0.18.16.1 Cresius`, tag `v0.18.16+rev1` (bridge patch) |
+| Previous | `0.18.16.3 Cresius`, tag `v0.18.16+rev3` (Strata `0.2.8` engine) |
 
 The private line's naming rule: **upstream's number, as is, followed by our
-revision number**. `0.18.16` + revision `2` → `0.18.16.2 Cresius`, tag
-`v0.18.16+rev2`. Both names denote the same build.
+revision number**. `0.18.16` + revision `4` → `0.18.16.4 Cresius`, tag
+`v0.18.16+rev4`. Both names denote the same build.
 
 ## Installation
 
@@ -988,5 +1151,5 @@ ajean update
 or, from the repository:
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.16+rev1`
+2. `git checkout v0.18.16+rev4`
 3. `go build -o ajean.exe ./cmd/ajean`

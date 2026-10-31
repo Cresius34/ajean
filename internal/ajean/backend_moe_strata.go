@@ -421,16 +421,51 @@ func normalizeStrataInstall(r moeInstallReq) (moeInstallReq, error) {
 	if *r.VRAMReserve < 0 || *r.VRAMReserve > 65536 {
 		return r, errors.New("réserve VRAM hors limites")
 	}
-	valid := false
-	for _, f := range moeFamilies {
-		if f.ID == r.Family && moeHas(f.Quants, r.Quant) {
-			valid = true
+	// La famille et la taille doivent exister quelque part : dans nos tables, ou
+	// dans le catalogue vivant du moteur. Sans cette seconde source, toute taille
+	// que setup.py sait installer mais que nos tables ne nomment pas serait
+	// refusee — et, pire, moeQuants[r.Quant] rendrait la valeur zero pour une
+	// taille inconnue : ArenaGB = 0, donc « ça tient » annonce a tort.
+	if !moeKnowsChoice(r.Family, r.Quant) {
+		if cat, err := strataCatalogueGet(); err == nil {
+			if s := strataSize(cat, r.Family, r.Quant); s == nil || s.Experimental {
+				return r, errors.New("famille ou quantification inconnue du moteur")
+			} else if why := strataFamilyBlocked(r.Family, r.Backend); why != "" {
+				return r, errors.New(why)
+			}
+		} else {
+			return r, errors.New("famille ou quantification inconnue")
 		}
 	}
-	if !valid {
-		return r, errors.New("famille ou quantification inconnue")
+	if r.GGUFDir != "" {
+		d := strataAbsPath(r.GGUFDir)
+		if !strataFileExists(d) {
+			return r, fmt.Errorf("le dossier de GGUF n'existe pas : %s", d)
+		}
+		r.GGUFDir = d
 	}
 	return r, nil
+}
+
+// moeKnowsChoice : le couple est-il dans nos tables recopiees ?
+func moeKnowsChoice(family, quant string) bool {
+	for _, f := range moeFamilies {
+		if f.ID == family && moeHas(f.Quants, quant) {
+			return true
+		}
+	}
+	return false
+}
+
+// strataAbsPath : un chemin choisi par l'humain, rendu absolu sous nos pieds.
+// On n'accepte que ce qui existe reellement ; le poseur, lui, ne recopie que des
+// jetons sans separateur de chemin (moe_portable_install.ps1 L137).
+func strataAbsPath(p string) string {
+	p = strings.TrimSpace(strings.Trim(p, "\""))
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	return filepath.Clean(filepath.Join(AjeanHome(), p))
 }
 
 func runStrataInstallStep(dir, script string, args ...string) error {
@@ -475,8 +510,21 @@ func moeStrataInstall(req moeInstallReq) {
 		lcFail(errors.New(env.Reason))
 		return
 	}
-	if f := moeFitFor(moeQuants[r.Quant], env, moeHaveGB(r.Family, r.Quant)); !f.OK {
+	// Le cout annonce vient du moteur quand on a son catalogue : nos tables
+	// recopiees ne connaissent que quatre tailles, et moeQuants rendrait 0 pour
+	// une taille qu'elles ne nomment pas.
+	qq := moeQuants[r.Quant]
+	if cat, err := strataCatalogueGet(); err == nil {
+		if s := strataSize(cat, r.Family, r.Quant); s != nil {
+			qq = strataQuant(s)
+		}
+	}
+	if f := moeFitFor(qq, env, moeHaveGB(r.Family, r.Quant)); !f.OK {
 		lcFail(errors.New(f.Why))
+		return
+	}
+	if why := strataFamilyBlocked(r.Family, r.Backend); why != "" {
+		lcFail(errors.New(why))
 		return
 	}
 	if err = os.MkdirAll(moeHome(), 0o700); err != nil {
@@ -505,7 +553,11 @@ func moeStrataInstall(req moeInstallReq) {
 	if r.Vision {
 		args = append(args, "-Vision")
 	}
-	lcPhase(fmt.Sprintf("Strata %s · %s : préparation portable puis ~%.0f Go de poids", strataVersion, r.Backend, moeQuants[r.Quant].DownloadGB))
+	if r.GGUFDir != "" {
+		args = append(args, "-GGUFDir", r.GGUFDir)
+	}
+	// Le cout annonce vient du moteur (voir plus haut), pas de nos tables.
+	lcPhase(fmt.Sprintf("Strata %s · %s %s : préparation portable puis ~%.0f Go de poids", strataVersion, r.Backend, r.Quant, qq.DownloadGB))
 	if err = runStrataInstallStep(moeHome(), script, args...); err != nil {
 		lcFail(fmt.Errorf("installation MoE : %w ; voir data/moe/logs/installation.log", err))
 		return
@@ -695,7 +747,12 @@ func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 		moeFamily
 		Fits      []moeFit `json:"fits"`
 		Recommend string   `json:"recommend"`
+		Blocked   string   `json:"blocked,omitempty"` // famille que ce poste ne peut pas installer en un clic
 	}
+	// Le catalogue vivant du moteur, si son serveur repond. S'il est absent ou
+	// muet, on retombe sur nos deux tables : le panneau doit continuer d'afficher
+	// ce qu'il a toujours affiche.
+	cat, catErr := strataCatalogueGet()
 	var families []family
 	var installed []string
 	list, _ := ListPresets()
@@ -715,10 +772,37 @@ func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 			active[p.ID] = p.Active
 		}
 	}
-	for _, f := range moeFamilies {
+	src := strataFamilies(cat, e.Backend)
+	if len(src) == 0 {
+		src = moeFamilies // repli : nos tables recopiees, si le serveur n'a pas repondu
+	}
+	for _, f := range src {
 		v := family{moeFamily: f, Recommend: moeRecommend(f.ID, e)}
+		if why := strataFamilyBlocked(f.ID, e.Backend); why != "" {
+			v.Blocked = why
+		}
 		for _, q := range f.Quants {
-			fit := moeFitFor(moeQuants[q], e, moeHaveGB(f.ID, q))
+			// Les couts viennent du moteur quand on les a, sinon de nos tables.
+			qq, connu := moeQuants[q]
+			if s := strataSize(cat, f.ID, q); s != nil {
+				qq = strataQuant(s)
+				connu = true
+			}
+			if !connu {
+				continue // le moteur nomme une taille dont on ne sait pas chiffrer le cout
+			}
+			have := moeHaveGB(f.ID, q)
+			if catErr == nil {
+				have = strataHaveGB(cat, f.ID, q)
+			}
+			fit := moeFitFor(qq, e, have)
+			if s := strataSize(cat, f.ID, q); s != nil {
+				fit.EngineVerdict = s.OnThisPC
+				fit.EngineMin = strataEngineMin(s.EngineMin)
+			}
+			if why := strataFamilyBlocked(f.ID, e.Backend); why != "" {
+				fit.Blocked = why
+			}
 			id := strataPresetName(f.ID, q, e.Backend)
 			if c, ok := presets[id]; ok {
 				fit.Preset = id
@@ -729,5 +813,31 @@ func handleStrataMoe(w http.ResponseWriter, r *http.Request) {
 		}
 		families = append(families, v)
 	}
-	sendJSON(w, 200, map[string]any{"version": "Strata " + strataVersion, "env": e, "families": families, "installed": installed, "preset_backends": backends, "modern": true, "default_context": 86016, "default_vram_reserve_mib": 4096})
+	sendJSON(w, 200, strataPanelResponse(e, families, installed, backends, cat, catErr))
+}
+
+// strataPanelResponse : ce que le panneau recoit. Séparé du handler pour que le
+// test puisse vérifier le contenu sans serveur HTTP.
+func strataPanelResponse(e moeEnv, families any, installed []string, backends map[string]string,
+	cat *strataCatalogue, catErr error) map[string]any {
+	resp := map[string]any{"version": "Strata " + strataVersion, "env": e, "families": families,
+		"installed": installed, "preset_backends": backends, "modern": true,
+		"default_context": 86016, "default_vram_reserve_mib": 4096,
+		"catalogue": "local"}
+	if catErr == nil && cat != nil {
+		resp["catalogue"] = "moteur"
+		resp["catalogue_source"] = cat.Source
+		resp["contexts"] = cat.Contexts
+		resp["context_note"] = cat.ContextNote
+		if cat.Recommendation != nil {
+			resp["engine_recommend"] = map[string]any{
+				"family": cat.Recommendation.Family, "model": cat.Recommendation.Model,
+				"context": cat.Recommendation.Context,
+				"why":     cat.Recommendation.Why, "notes": cat.Recommendation.Notes,
+			}
+		}
+	} else if catErr != nil {
+		resp["catalogue_error"] = catErr.Error()
+	}
+	return resp
 }

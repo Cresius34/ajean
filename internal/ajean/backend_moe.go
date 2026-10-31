@@ -327,11 +327,23 @@ func moeCheckPython() (string, error) {
 
 // moeTag : le nom que l'installeur donne aux dossiers d'un choix
 // (models/<tag>, packs/<tag en minuscules>) : « swift-IQ3_XXS », « IQ3_XXS ».
+// moeTag : le nom que Strata donne a son dossier de poids pour ce couple.
+//
+// Mesure le 31/10/2026 dans data\models : « IQ3_S » pour la famille qwen,
+// « swift-iq3_s » pour swift, « qwen36-UD-Q4_K_XL » pour qwen36. Les deux formes
+// historiques sont conservees a l'octet pres — les presets deja installs pointent
+// leurs MOE_CONFIG sur des fichiers qui portent ce tag. Pour les autres familles
+// (le catalogue du moteur en rend huit), on qualifie : sans cela, « coder » en
+// IQ1_M et « qwen » en IQ1_M ecriraient le MEME fichier de config et creeraient
+// le MEME nom de preset, et l'un des deux masquerait l'autre.
 func moeTag(family, quant string) string {
 	if family == "swift" {
 		return "swift-" + quant
 	}
-	return quant
+	if family == "qwen" || family == "" {
+		return quant
+	}
+	return family + "-" + quant
 }
 
 func moeDirGB(dir string) float64 {
@@ -388,6 +400,16 @@ type moeFit struct {
 	Why    string   `json:"why,omitempty"`
 	Preset string   `json:"preset,omitempty"` // id du preset si ce choix est déjà installé
 	Active bool     `json:"active,omitempty"` // ... et si c'est le preset actif
+	// EngineVerdict : l'avis du moteur sur cette machine (« fits », « tight »,
+	// « does not fit »…), rendu par son propre serveur de catalogue. Affiché en
+	// appui du nôtre, jamais à sa place : le moteur ne connaît ni notre carte
+	// d'aide ni notre page file.
+	EngineVerdict string `json:"engine_verdict,omitempty"`
+	// EngineMin : le moteur minimum que cette taille exige, si elle en demande un.
+	EngineMin string `json:"engine_min,omitempty"`
+	// Blocked : non vide = proposé mais pas installable en un clic ici, et pourquoi
+	// (famille réservée à une autre marque, signalée expérimentale par le moteur).
+	Blocked string `json:"blocked,omitempty"`
 	// Details : la config de lancement de ce preset, calculée par la MÊME
 	// fonction que le lancement (moeBuildConfig) : ce qui est affiché tourne.
 	Details *moeDetails `json:"details,omitempty"`
@@ -586,13 +608,28 @@ type moeInstallReq struct {
 	Context     int    `json:"context,omitempty"`
 	VRAMReserve *int   `json:"vram_reserve_mib,omitempty"`
 	Vision      bool   `json:"vision,omitempty"`
+	// GGUFDir : des poids déjà descendus à la main (C3). Transmis à setup.py
+	// comme --gguf-dir. setup.py les accepte même si leur SHA-256 ne correspond
+	// pas au fichier épinglé, pourvu que le GGUF soit complet : « it may be
+	// another version or a fine-tune, so check a few answers » (setup.py:3149
+	// verify_sha256, own=True, mesuré le 31/10/2026). Un fichier tronqué est
+	// refusé, et notre fichier n'est alors jamais supprimé.
+	GGUFDir string `json:"gguf_dir,omitempty"`
 }
 
 // moePresetName : nom du fichier preset (et donc de son id) pour un choix donné.
+// moePresetName : le nom du preset .env pour ce couple. Les deux noms historiques
+// sont conserves a l'octet pres (les .env deja ecrits s'appellent ainsi). Pour les
+// autres familles du catalogue, on qualifie avec la famille : « coder IQ1_M » et
+// « qwen IQ1_M » sinon porteraient le meme nom de preset et l'un masquerait
+// l'autre dans la liste.
 func moePresetName(family, quant string) string {
 	label := "Classique"
 	if family == "swift" {
 		label = "Swift 1.5"
+	}
+	if family != "qwen" && family != "swift" && family != "" {
+		label += " " + family
 	}
 	return "FLASH NEXT " + strings.ToUpper(label) + " " + quant
 }

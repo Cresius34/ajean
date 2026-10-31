@@ -65,13 +65,36 @@ function closeMoe(){ hideModal('moe-modal'); }
 
 function moeRenderFams(){
   const box = document.getElementById('moe-fams');
-  box.innerHTML = moeState.families.map(f=>
-    '<label><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
+  box.innerHTML = moeState.families.map(f=>{
+    // Une famille que ce poste ne peut pas installer en un clic reste visible,
+    // avec sa raison : la cacher ferait disparaître un modèle sans explication
+    // (le même choix que pour la ligne du moteur, note du 31/10/2026).
+    const off = f.blocked ? ' moe-off' : '';
+    return '<label class="lc-mode'+off+'"'+(f.blocked?' title="'+escHtml(f.blocked)+'"':'')+'><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
     +' onchange="moeFam=this.value;moeRenderQuants(true)">'
-    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.about)+'</span></label>').join('');
+    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.blocked||f.about)+'</span></label>';
+  }).join('');
   // innerHTML removes the existing slider thumb. Trigger its native checked
   // setter after a backend refresh, even if the family itself is unchanged.
   const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
+}
+
+// moeCatalogueLine : d'où vient la liste proposée. C'est la ligne qui rend le
+// défaut visible : si le panneau est retombé sur notre liste recopiée (quatre
+// tailles), l'humain doit pouvoir le lire au lieu de croire que le moteur
+// n'a rien d'autre.
+function moeCatalogueLine(){
+  const el = document.getElementById('moe-catalogue');
+  if(!el) return;
+  const s = moeState || {};
+  if(s.catalogue === 'moteur'){
+    const n = (s.families||[]).reduce((a,f)=>a+((f.fits||[]).length), 0);
+    el.textContent = 'Modèles lus dans le catalogue du moteur ('+escHtml(s.catalogue_source||'setup.py')+') : '
+      +(s.families||[]).length+' familles, '+n+' tailles.';
+  }else{
+    el.textContent = 'Catalogue du moteur indisponible — liste interne d’Ajean ('
+      +((s.families||[]).length)+' familles). '+(s.catalogue_error||'');
+  }
 }
 
 function moeRenderQuants(pickReco){
@@ -87,8 +110,11 @@ function moeRenderQuants(pickReco){
     const q = x.quant, sel = q.id===moeQuant;
     const tag = x.active ? t('moe.active') : x.preset ? t('moe.installed') : q.id===f.recommend ? t('moe.recommended') : '';
     const reco = tag ? ' <span class="lc-reco">'+tag+'</span>' : '';
-    const usable = x.ok || !!x.preset;   // installé : activable même si l'espace disque manque
+    // installé : activable même si l'espace disque manque ; une famille que ce
+    // poste ne peut pas charger n'est pas installable, mais reste affichée.
+    const usable = !!x.preset || (x.ok && !x.blocked);
     const desc = x.preset ? escHtml(q.about)
+      : x.blocked ? escHtml(x.blocked)
       : x.ok ? escHtml(q.about)+' · '+t('moe.download').replace('{gb}', Math.round(x.disk_gb))
       : escHtml(x.why);
     return '<div class="lc-mode'+(sel?' moe-sel':'')+(usable?'':' moe-off')+'"'
@@ -105,8 +131,10 @@ function moeRenderQuants(pickReco){
   document.getElementById('moe-bench').hidden = !(fit && fit.active);
   go.textContent = fit && fit.active ? t('moe.is_active') : fit && fit.preset ? t('moe.activate') : t('moe.install');
   moeRenderDisk(fit);
+  moeRenderVerdict(fit);
   moeRenderSettings(fit);
   moeRenderDetails(fit);
+  moeCatalogueLine();
   document.getElementById('moe-note').textContent = !fit ? t('moe.nothing_fits')
     : fit.active ? t('moe.note_active') : fit.preset ? t('moe.note_installed')
     : (fit.mmap ? t('moe.note_mmap') : t('moe.note'));
@@ -121,6 +149,24 @@ function moeRenderDisk(fit){
   const need = Math.round(fit.disk_gb), left = free - need;
   el.textContent = (left >= 5 ? t('moe.disk_ok') : t('moe.disk_short'))
     .replace('{free}', free).replace('{need}', need).replace('{left}', Math.max(left, 0));
+}
+
+// moeRenderVerdict : l'avis du moteur sur cette machine, a cote du notre. On
+// l'affiche sans lui laisser la decision : le moteur ne connait ni notre carte
+// d'aide ni notre page file, et il rend les trois NVFP4 « fits » sur une carte
+// AMD alors que le moteur HIP n'a pas de noyaux NVFP4 (docs/QUANTS.md, mesure
+// du 31/10/2026). C'est un appui, pas un verdict.
+function moeRenderVerdict(fit){
+  const el = document.getElementById('moe-engine-verdict');
+  if(!el) return;
+  if(!fit || (!fit.engine_verdict && !fit.engine_min)){ el.textContent=''; return; }
+  const mots = {fits:'tient sur ce poste', tight:'tient, mais juste', 'does not fit':'ne tient pas'};
+  const v = fit.engine_verdict || '';
+  const lib = mots[v.toLowerCase()] || v;
+  const parts = [];
+  if(lib) parts.push('Le moteur, sur ce poste : ' + lib + (v && lib!==v ? ' ('+v+')' : ''));
+  if(fit.engine_min) parts.push('moteur Strata minimum ' + fit.engine_min);
+  el.textContent = parts.join(' · ');
 }
 
 // Réglages modifiables d'un modèle installé.
@@ -242,6 +288,11 @@ async function moeInstall(){
   if(!await askConfirm(msg, {title:t('moe.modal_title'), okText:t('moe.install')})) return;
   const body={family:moeFam, quant:moeQuant};
   if(moeState.modern)Object.assign(body,{backend:moeBackend,toolkit:document.getElementById('moe-toolkit').value,context:+document.getElementById('moe-install-context').value,vram_reserve_mib:+document.getElementById('moe-install-reserve').value,vision:document.getElementById('moe-install-vision').checked});
+  // Poids déjà descendus à la main : transmis à setup.py comme --gguf-dir. Vide =
+  // téléchargement par le moteur. Un dossier inexistant est refusé côté serveur
+  // avant de lancer la tâche, pas après 40 minutes de préparation.
+  const gd=document.getElementById('moe-install-ggufdir');
+  if(gd&&gd.value.trim())body.gguf_dir=gd.value.trim();
   const r = await jpost('/api/moe/install', body);
   if(!r.ok){ toast(t('llamacpp.error_prefix')+(r.error||'')); return; }
   closeMoe();

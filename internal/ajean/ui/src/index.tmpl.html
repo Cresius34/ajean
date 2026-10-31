@@ -658,8 +658,12 @@
           <div data-moe-install-only class="moe-kv"><span>Contexte initial</span><input id="moe-install-context" type="number" min="32768" max="262144" step="4096" value="86016" style="width:95px"></div>
           <div data-moe-install-only class="moe-kv"><span>Réserve VRAM pour Windows / Unreal (Mio)</span><input id="moe-install-reserve" type="number" min="0" max="65536" step="256" value="4096" style="width:80px"></div>
           <div data-moe-install-only class="moe-kv"><span>Vision du modèle</span><input id="moe-install-vision" type="checkbox"></div>
+          <!-- Poids déjà téléchargés : le moteur les accepte tels quels (setup.py
+               verify_sha256, own=True). Laisser vide = téléchargement par le moteur. -->
+          <div data-moe-install-only class="moe-kv"><span>Poids déjà sur le disque (dossier .gguf, optionnel)</span><input id="moe-install-ggufdir" type="text" placeholder="C:\…\dossier\des\gguf" style="width:250px"></div>
         </div>
         <div id="moe-windows-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+        <div id="moe-catalogue" class="muted" style="font-size:11px;line-height:1.5"></div>
       </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
@@ -670,6 +674,7 @@
         <div class="slist" id="moe-quants"></div>
       </div>
       <div id="moe-disk" class="muted" style="font-size:12px;line-height:1.5"></div>
+      <div id="moe-engine-verdict" class="muted" style="font-size:11px;line-height:1.5"></div>
       <div class="fld" id="moe-settings-fld" hidden>
         <label class="fld-l" data-i18n="moe.settings_label">Réglages</label>
         <div class="slist moe-details" id="moe-settings"></div>

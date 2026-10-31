@@ -41,11 +41,18 @@ const parallelMemoryRevision = 7
 // profil moteur gagnait à chaque démarrage —, rend le seuil de compactage réglable en
 // pourcentage de la fenêtre (COMPACT_FRAC), et répare l'outil peer : une action
 // perdue rendait la liste des voisins sans un mot d'erreur, ce qui, vu d'en face,
-// ressemblait à une réponse du voisin.
+// ressemblait à une réponse du voisin. La 3 monte le moteur Strata de 0.1.48 à 0.1.54
+// (paquet 0.2.8). La 4 fait lire au panneau de modèles le CATALOGUE VIVANT du moteur
+// au lieu d'une liste recopiée à la main : Ajean proposait 2 familles et 4
+// quantifications là où le moteur posé en connaît 8 et 25, avec leurs coûts réels et
+// l'avis calibré sur cette machine. Le nommage est ouvert aux familles que setup.py
+// sait installer (garde-fou par forme, plus par liste fermée), un couple famille/taille
+// inconnu ne rend plus un coût à zéro — qui faisait annoncer « ça tient » à tort —, et
+// l'installation accepte un dossier de poids déjà descendus à la main (--gguf-dir).
 // Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".3 Cresius"
+const buildFlavorSuffix = ".4 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.

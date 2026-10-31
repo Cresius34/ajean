@@ -2446,8 +2446,10 @@ button.th-head:hover{background:var(--t1)}
           <div data-moe-install-only class="moe-kv"><span>Contexte initial</span><input id="moe-install-context" type="number" min="32768" max="262144" step="4096" value="86016" style="width:95px"></div>
           <div data-moe-install-only class="moe-kv"><span>Réserve VRAM pour Windows / Unreal (Mio)</span><input id="moe-install-reserve" type="number" min="0" max="65536" step="256" value="4096" style="width:80px"></div>
           <div data-moe-install-only class="moe-kv"><span>Vision du modèle</span><input id="moe-install-vision" type="checkbox"></div>
+          <div data-moe-install-only class="moe-kv"><span>Poids déjà sur le disque (dossier .gguf, optionnel)</span><input id="moe-install-ggufdir" type="text" placeholder="C:\…\dossier\des\gguf" style="width:250px"></div>
         </div>
         <div id="moe-windows-note" class="muted" style="font-size:11px;line-height:1.5"></div>
+        <div id="moe-catalogue" class="muted" style="font-size:11px;line-height:1.5"></div>
       </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
@@ -2458,6 +2460,7 @@ button.th-head:hover{background:var(--t1)}
         <div class="slist" id="moe-quants"></div>
       </div>
       <div id="moe-disk" class="muted" style="font-size:12px;line-height:1.5"></div>
+      <div id="moe-engine-verdict" class="muted" style="font-size:11px;line-height:1.5"></div>
       <div class="fld" id="moe-settings-fld" hidden>
         <label class="fld-l" data-i18n="moe.settings_label">Réglages</label>
         <div class="slist moe-details" id="moe-settings"></div>
@@ -11156,11 +11159,26 @@ async function openMoe(presetId){
 function closeMoe(){ hideModal('moe-modal'); }
 function moeRenderFams(){
   const box = document.getElementById('moe-fams');
-  box.innerHTML = moeState.families.map(f=>
-    '<label><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
+  box.innerHTML = moeState.families.map(f=>{
+    const off = f.blocked ? ' moe-off' : '';
+    return '<label class="lc-mode'+off+'"'+(f.blocked?' title="'+escHtml(f.blocked)+'"':'')+'><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
     +' onchange="moeFam=this.value;moeRenderQuants(true)">'
-    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.about)+'</span></label>').join('');
+    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.blocked||f.about)+'</span></label>';
+  }).join('');
   const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
+}
+function moeCatalogueLine(){
+  const el = document.getElementById('moe-catalogue');
+  if(!el) return;
+  const s = moeState || {};
+  if(s.catalogue === 'moteur'){
+    const n = (s.families||[]).reduce((a,f)=>a+((f.fits||[]).length), 0);
+    el.textContent = 'Modèles lus dans le catalogue du moteur ('+escHtml(s.catalogue_source||'setup.py')+') : '
+      +(s.families||[]).length+' familles, '+n+' tailles.';
+  }else{
+    el.textContent = 'Catalogue du moteur indisponible — liste interne d’Ajean ('
+      +((s.families||[]).length)+' familles). '+(s.catalogue_error||'');
+  }
 }
 function moeRenderQuants(pickReco){
   const f = moeState.families.find(x=>x.id===moeFam);
@@ -11174,8 +11192,9 @@ function moeRenderQuants(pickReco){
     const q = x.quant, sel = q.id===moeQuant;
     const tag = x.active ? t('moe.active') : x.preset ? t('moe.installed') : q.id===f.recommend ? t('moe.recommended') : '';
     const reco = tag ? ' <span class="lc-reco">'+tag+'</span>' : '';
-    const usable = x.ok || !!x.preset;   
+    const usable = !!x.preset || (x.ok && !x.blocked);
     const desc = x.preset ? escHtml(q.about)
+      : x.blocked ? escHtml(x.blocked)
       : x.ok ? escHtml(q.about)+' · '+t('moe.download').replace('{gb}', Math.round(x.disk_gb))
       : escHtml(x.why);
     return '<div class="lc-mode'+(sel?' moe-sel':'')+(usable?'':' moe-off')+'"'
@@ -11192,8 +11211,10 @@ function moeRenderQuants(pickReco){
   document.getElementById('moe-bench').hidden = !(fit && fit.active);
   go.textContent = fit && fit.active ? t('moe.is_active') : fit && fit.preset ? t('moe.activate') : t('moe.install');
   moeRenderDisk(fit);
+  moeRenderVerdict(fit);
   moeRenderSettings(fit);
   moeRenderDetails(fit);
+  moeCatalogueLine();
   document.getElementById('moe-note').textContent = !fit ? t('moe.nothing_fits')
     : fit.active ? t('moe.note_active') : fit.preset ? t('moe.note_installed')
     : (fit.mmap ? t('moe.note_mmap') : t('moe.note'));
@@ -11206,6 +11227,18 @@ function moeRenderDisk(fit){
   const need = Math.round(fit.disk_gb), left = free - need;
   el.textContent = (left >= 5 ? t('moe.disk_ok') : t('moe.disk_short'))
     .replace('{free}', free).replace('{need}', need).replace('{left}', Math.max(left, 0));
+}
+function moeRenderVerdict(fit){
+  const el = document.getElementById('moe-engine-verdict');
+  if(!el) return;
+  if(!fit || (!fit.engine_verdict && !fit.engine_min)){ el.textContent=''; return; }
+  const mots = {fits:'tient sur ce poste', tight:'tient, mais juste', 'does not fit':'ne tient pas'};
+  const v = fit.engine_verdict || '';
+  const lib = mots[v.toLowerCase()] || v;
+  const parts = [];
+  if(lib) parts.push('Le moteur, sur ce poste : ' + lib + (v && lib!==v ? ' ('+v+')' : ''));
+  if(fit.engine_min) parts.push('moteur Strata minimum ' + fit.engine_min);
+  el.textContent = parts.join(' · ');
 }
 function moeRenderSettings(fit){
   const fld = document.getElementById('moe-settings-fld'), save = document.getElementById('moe-save');
@@ -11313,6 +11346,8 @@ async function moeInstall(){
   if(!await askConfirm(msg, {title:t('moe.modal_title'), okText:t('moe.install')})) return;
   const body={family:moeFam, quant:moeQuant};
   if(moeState.modern)Object.assign(body,{backend:moeBackend,toolkit:document.getElementById('moe-toolkit').value,context:+document.getElementById('moe-install-context').value,vram_reserve_mib:+document.getElementById('moe-install-reserve').value,vision:document.getElementById('moe-install-vision').checked});
+  const gd=document.getElementById('moe-install-ggufdir');
+  if(gd&&gd.value.trim())body.gguf_dir=gd.value.trim();
   const r = await jpost('/api/moe/install', body);
   if(!r.ok){ toast(t('llamacpp.error_prefix')+(r.error||'')); return; }
   closeMoe();

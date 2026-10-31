@@ -4,13 +4,28 @@ param(
     [ValidateSet('hip','cuda')][string]$Backend='hip',
     [ValidateSet('12','13')][string]$Toolkit='13',
     [ValidateSet('auto','rx9070','rdna3','rdna2')][string]$HipVariant='auto',
-    [ValidateSet('swift','qwen')][string]$Family='swift',
-    [ValidateSet('Q2_0','IQ2_XS','IQ3_XXS','IQ3_S')][string]$Quant='IQ3_XXS',
+    # Famille et quantification ne sont plus une liste fermee : la liste vivante est
+    # celle du moteur (setup.py FAMILIES/MODELS, rendue par tools/strata_mcp.py).
+    # Fermer ici obligerait a recompiler Ajean a chaque taille ajoutee en amont.
+    # Le garde-fou devient une forme : que des mots, pas d'option parasite (un
+    # argument commencant par - serait lu par setup.py comme un reglage), pas de
+    # separateur de chemin, pas de point. Les noms reels observes le 31/10/2026 :
+    #   familles qwen, swift, coder, unsloth, gyro, nvfp4, qwen36, deepseek41
+    #   tailles  Q2_0, IQ3_S, UD-Q4_K_XL, UD-Q8_K_XL, IST-DAS-2.25bpw, Gyro-S, NVFP4-QAD
+    [string]$Family='swift',
+    [string]$Quant='IQ3_XXS',
+    [string]$GGUFDir='',
     [int]$Context=86016,
     [int]$ReserveMiB=4096,
     [switch]$Vision
 )
 $ErrorActionPreference='Stop'
+if($Family -notmatch '^[a-z0-9]+$'){throw 'Famille invalide : '+$Family}
+if($Quant -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$'){throw 'Quantification invalide : '+$Quant}
+if($GGUFDir -ne ''){
+    $GGUFDir=[IO.Path]::GetFullPath($GGUFDir)
+    if(-not(Test-Path -LiteralPath $GGUFDir -PathType Container)){throw 'Dossier de GGUF introuvable : '+$GGUFDir}
+}
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 $ProgressPreference='SilentlyContinue'
 $MoeHome=[IO.Path]::GetFullPath($MoeHome)
@@ -143,6 +158,15 @@ Copy-Item -LiteralPath (Join-Path $MoeHome 'ajean_setup.py') -Destination (Join-
 $data=Join-Path $MoeHome 'data'
 $visionMode=$(if($Vision){'gpu'}else{'none'})
 $arguments=@((Join-Path $source 'ajean_setup.py'),'--ajean-manifest',$manifestPath,'--setup','--yes','--no-start','--no-browser','--backend',$Backend,'--family',$Family,'--model',$Quant,'--context',[string]$Context,'--kv','int8','--vision',$visionMode,'--vram-reserve-mib',[string]$ReserveMiB,'--host','127.0.0.1','--port','18080','--data-dir',$data,'--models-dir',(Join-Path $data 'models'),'--prebuilt',($cache+[IO.Path]::DirectorySeparatorChar))
+if($GGUFDir -ne ''){
+    # C3 : des poids deja descendus a la main. setup.py les accepte meme si leur
+    # SHA-256 ne correspond pas au fichier epingle (verify_sha256, own=True :
+    # « it may be another version or a fine-tune, so check a few answers »,
+    # setup.py:3149, verifie le 31/10/2026). Un fichier tronque est refuse et
+    # notre fichier n'est alors jamais supprime. ajean_setup.py relaie cet
+    # argument tel quel vers le setup amont (parse_known_args, puis sys.argv).
+    $arguments+=@('--gguf-dir',$GGUFDir)
+}
 if($Backend -eq 'cuda'){$arguments+=@('--cuda',$Toolkit)}
 # setup.py of 0.2.x resolves its own package: the pinned source tree is on the path
 # so `from strata_control import ...` finds it whether setup is run as a script or imported.

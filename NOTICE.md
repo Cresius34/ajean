@@ -50,7 +50,7 @@ Windows sont téléchargés à l'installation du moteur.
 | --- | --- |
 | [nathaninline/ajean](https://github.com/nathaninline/ajean) | amont — projet original et versions publiées |
 | [Niko1221/Strata](https://github.com/Niko1221/Strata) | moteur MoE exécuté par le fork |
-| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.3 Cresius` posé, base amont `v0.18.16`) |
+| ce dépôt | ligne de correctifs privée, millésime `.N Cresius` (`0.18.16.4 Cresius` en cours de pose, base amont `v0.18.16`) |
 
 ## Modèles
 

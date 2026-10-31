@@ -501,7 +501,7 @@ async function loadCfg(){
     const d=fit&&fit.details;
     ENGINE_CMDLINE=(cl&&cl.cmdline)||'';
     const cp=ENGINE_CMDLINE ? '<button class="cfg-copy" onclick="copyText(ENGINE_CMDLINE, t(\'status.cmdline_copied\'))" title="'+escHtml(t('status.cmdline_copy')+' : '+ENGINE_CMDLINE)+'"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>' : '';
-    rows.push(row(t('status.cfg_engine')+cp, t('status.engine_moe')));
+    rows.push(row(t('status.cfg_engine')+cp, moeEngineLabel(s&&s.version)));
     if(fam) rows.push(row('MODEL', fam.label+' '+fit.quant.id));
     if(d){
       const k=n=>(+n>=1024 ? Math.round(+n/1024)+'K' : n);

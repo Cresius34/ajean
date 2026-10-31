@@ -730,7 +730,10 @@ fr: {
   "status.cmdline_copy": "copier",
   "status.cmdline_copied": "commande llama-server copiée",
   "status.engine_prebuilt": "llama.cpp précompilé",
-  "status.engine_moe": "AJEAN MoE",
+  // Le moteur MoE s'appelle Strata (demande de l'humain, 31/10 au soir). Le
+  // panneau « CONFIGURATION » ne doit plus dire « AJEAN MoE » : c'est le nom
+  // d'Ajean, pas celui du moteur. La version se lit sur la ligne de la carte.
+  "status.engine_moe": "Strata",
   "status.engine_compiled": "llama.cpp compilé",
   "status.engine_custom_prefix": "llama.cpp personnalisé :",
   "settings.presets.active_title": "preset actif",
@@ -867,10 +870,13 @@ fr: {
   "settings.network.open_title": "Ouvrir sur le réseau",
   "settings.network.close_title": "Fermer sur le réseau",
   "settings.network.restart_ok": "Redémarrer",
-  "moe.mode_title": "Qwen3.8 Flash Next",
+  // Le titre nomme le MOTEUR, pas le modèle : Strata décide des familles
+  // proposées, et huit familles ne s'appellent pas « Qwen3.8 Flash Next ».
+  // La version du moteur est ajoutée par loadMoe()/openMoe() côté appelant.
+  "moe.mode_title": "Strata",
   "moe.mode_desc": "moteur optimisé, installation en un clic",
   "moe.state_installed": "{n} modèle(s) installé(s)",
-  "moe.modal_title": "Qwen3.8 Flash Next",
+  "moe.modal_title": "Strata",
   "moe.close_aria": "Fermer",
   "moe.machine": "Machine : {gpus}, {ram} Go de RAM, {disk} Go libres. Réglages automatiques.",
   "moe.version_label": "Version",
@@ -2190,7 +2196,7 @@ en: {
   "status.cmdline_copy": "copy",
   "status.cmdline_copied": "llama-server command copied",
   "status.engine_prebuilt": "llama.cpp prebuilt",
-  "status.engine_moe": "AJEAN MoE",
+  "status.engine_moe": "Strata",
   "status.engine_compiled": "llama.cpp compiled",
   "status.engine_custom_prefix": "llama.cpp custom:",
   "settings.presets.active_title": "active preset",
@@ -2327,10 +2333,10 @@ en: {
   "settings.network.open_title": "Open on the network",
   "settings.network.close_title": "Close on the network",
   "settings.network.restart_ok": "Restart",
-  "moe.mode_title": "Qwen3.8 Flash Next",
+  "moe.mode_title": "Strata",
   "moe.mode_desc": "optimized engine, one-click install",
   "moe.state_installed": "{n} model(s) installed",
-  "moe.modal_title": "Qwen3.8 Flash Next",
+  "moe.modal_title": "Strata",
   "moe.close_aria": "Close",
   "moe.machine": "Machine: {gpus}, {ram} GB of RAM, {disk} GB free. Automatic settings.",
   "moe.version_label": "Version",

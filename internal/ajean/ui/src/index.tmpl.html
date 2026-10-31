@@ -291,15 +291,20 @@
         <div class="lc-mode-d" data-i18n="engine.mode_custom_desc">un fork de llama.cpp pour modèles spéciaux (quant ternaire…)</div>
         <div class="lc-mode-state" id="lc-custom-state"></div>
       </div>
-      <!-- Moteur MoE spécialisé Qwen3.8 Flash Next, installé en un clic (version
-           figée par ajean). Affiché seulement là où il tourne (Linux + NVIDIA). -->
+      <!-- Moteur MoE Strata, installé en un clic (version posée par le moteur
+           luimême). Affiché seulement là où il tourne. -->
       <div class="lc-mode" id="lc-mode-exl3" hidden onclick="openExl3()">
         <div class="lc-mode-t" data-i18n="exl3.mode_title">ExLlama</div>
         <div class="lc-mode-d" data-i18n="exl3.mode_desc">modèles EXL3 sur carte NVIDIA, très rapide en génération</div>
         <div class="lc-mode-state" id="lc-exl3-state"></div>
       </div>
       <div class="lc-mode" id="lc-mode-moe" hidden onclick="openMoe()">
-        <div class="lc-mode-t" data-i18n="moe.mode_title">Qwen3.8 Flash Next</div>
+        <!-- Le moteur s'appelle Strata, et sa version se lit sur la ligne :
+             c'est lui qui décide des familles proposées, le nom du modèle n'est
+              plus le titre (demande de l'humain, 31/10 au soir). La version est
+              posée par loadMoe() dans sa PROPRE portée : applyI18n ne touche que
+              la portée data-i18n, un changement de langue ne l'écrase donc pas. -->
+        <div class="lc-mode-t" id="lc-moe-title"><span data-i18n="moe.mode_title">Strata</span><span id="lc-moe-ver"></span></div>
         <div class="lc-mode-d" data-i18n="moe.mode_desc">le plus rapide pour ce modèle, installation en un clic</div>
         <div class="lc-mode-state" id="lc-moe-state"></div>
       </div>
@@ -645,7 +650,7 @@
 <div id="moe-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeMoe()">
   <div class="modal-card" style="max-width:520px">
     <div class="modal-head">
-      <strong data-i18n="moe.modal_title">Qwen3.8 Flash Next</strong>
+      <strong id="moe-modal-title" data-i18n="moe.modal_title">Strata</strong>
       <button class="modal-x" onclick="closeMoe()" aria-label="Fermer" data-i18n="moe.close_aria" data-i18n-attr="aria-label">×</button>
     </div>
     <div class="modal-body mform">
@@ -667,7 +672,15 @@
       </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
+        <!-- PASTILLES dans le sens de la lecture, comme avant, mais qui prennent
+             leur place et rebondissent : le moteur rend huit familles et .seg
+             les égalisait à ~60 px en les étirant à la plus haute, d'où le texte
+             coupé et le pilier blanc du curseur (mesuré 31/10/2026). La
+             description du modèle choisi se lit sous le groupe, dans
+             #moe-fam-about, plus dans la pastille : c'est elle qui faisait la
+             hauteur. Voir 10b-moe.js (moeRenderFams) et styles.css. -->
         <div class="seg" id="moe-fams"></div>
+        <div id="moe-fam-about"></div>
       </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.quality_label">Qualité</label>

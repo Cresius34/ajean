@@ -514,6 +514,18 @@ textarea.sctl{min-height:76px;resize:vertical;line-height:1.5}
 #moe-quants .lc-mode.moe-off{cursor:default}
 #moe-quants .lc-mode.moe-off:hover{background:none}
 #moe-quants .lc-mode.moe-off .lc-mode-t{color:var(--dim)}
+#moe-fams{flex-wrap:wrap;align-items:flex-start;row-gap:6px;padding:6px;border-radius:14px}
+#moe-fams>label{flex:0 1 auto;width:auto;min-height:0;padding:7px 11px;border-radius:999px;
+  font-size:12.5px;line-height:1.25;text-align:center}
+#moe-fams>label:not(:last-child){border-bottom:0}
+#moe-fams input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+#moe-fams .lc-mode.moe-off{cursor:default}
+#moe-fams .lc-mode.moe-off:hover{background:none}
+#moe-fam-about{font-size:11px;color:var(--dim);line-height:1.5;overflow-wrap:break-word;word-break:normal;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-height:33px}
+#moe-fam-about[hidden]{display:none}
+#moe-fam-about.moe-fam-blocke{display:block;-webkit-line-clamp:none;line-clamp:none;overflow:visible;min-height:0}
+#moe-quants .lc-mode-d{overflow-wrap:break-word;word-break:normal}
 .moe-details{padding:4px 10px}
 .moe-details .moe-kv{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;padding:5px 0}
 .moe-details .moe-kv .switch{display:block}
@@ -2188,7 +2200,7 @@ button.th-head:hover{background:var(--t1)}
         <div class="lc-mode-state" id="lc-exl3-state"></div>
       </div>
       <div class="lc-mode" id="lc-mode-moe" hidden onclick="openMoe()">
-        <div class="lc-mode-t" data-i18n="moe.mode_title">Qwen3.8 Flash Next</div>
+        <div class="lc-mode-t" id="lc-moe-title"><span data-i18n="moe.mode_title">Strata</span><span id="lc-moe-ver"></span></div>
         <div class="lc-mode-d" data-i18n="moe.mode_desc">le plus rapide pour ce modèle, installation en un clic</div>
         <div class="lc-mode-state" id="lc-moe-state"></div>
       </div>
@@ -2433,7 +2445,7 @@ button.th-head:hover{background:var(--t1)}
 <div id="moe-modal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeMoe()">
   <div class="modal-card" style="max-width:520px">
     <div class="modal-head">
-      <strong data-i18n="moe.modal_title">Qwen3.8 Flash Next</strong>
+      <strong id="moe-modal-title" data-i18n="moe.modal_title">Strata</strong>
       <button class="modal-x" onclick="closeMoe()" aria-label="Fermer" data-i18n="moe.close_aria" data-i18n-attr="aria-label">×</button>
     </div>
     <div class="modal-body mform">
@@ -2454,6 +2466,7 @@ button.th-head:hover{background:var(--t1)}
       <div class="fld">
         <label class="fld-l" data-i18n="moe.version_label">Version</label>
         <div class="seg" id="moe-fams"></div>
+        <div id="moe-fam-about"></div>
       </div>
       <div class="fld">
         <label class="fld-l" data-i18n="moe.quality_label">Qualité</label>
@@ -4260,7 +4273,7 @@ fr: {
   "status.cmdline_copy": "copier",
   "status.cmdline_copied": "commande llama-server copiée",
   "status.engine_prebuilt": "llama.cpp précompilé",
-  "status.engine_moe": "AJEAN MoE",
+  "status.engine_moe": "Strata",
   "status.engine_compiled": "llama.cpp compilé",
   "status.engine_custom_prefix": "llama.cpp personnalisé :",
   "settings.presets.active_title": "preset actif",
@@ -4397,10 +4410,10 @@ fr: {
   "settings.network.open_title": "Ouvrir sur le réseau",
   "settings.network.close_title": "Fermer sur le réseau",
   "settings.network.restart_ok": "Redémarrer",
-  "moe.mode_title": "Qwen3.8 Flash Next",
+  "moe.mode_title": "Strata",
   "moe.mode_desc": "moteur optimisé, installation en un clic",
   "moe.state_installed": "{n} modèle(s) installé(s)",
-  "moe.modal_title": "Qwen3.8 Flash Next",
+  "moe.modal_title": "Strata",
   "moe.close_aria": "Fermer",
   "moe.machine": "Machine : {gpus}, {ram} Go de RAM, {disk} Go libres. Réglages automatiques.",
   "moe.version_label": "Version",
@@ -5720,7 +5733,7 @@ en: {
   "status.cmdline_copy": "copy",
   "status.cmdline_copied": "llama-server command copied",
   "status.engine_prebuilt": "llama.cpp prebuilt",
-  "status.engine_moe": "AJEAN MoE",
+  "status.engine_moe": "Strata",
   "status.engine_compiled": "llama.cpp compiled",
   "status.engine_custom_prefix": "llama.cpp custom:",
   "settings.presets.active_title": "active preset",
@@ -5857,10 +5870,10 @@ en: {
   "settings.network.open_title": "Open on the network",
   "settings.network.close_title": "Close on the network",
   "settings.network.restart_ok": "Restart",
-  "moe.mode_title": "Qwen3.8 Flash Next",
+  "moe.mode_title": "Strata",
   "moe.mode_desc": "optimized engine, one-click install",
   "moe.state_installed": "{n} model(s) installed",
-  "moe.modal_title": "Qwen3.8 Flash Next",
+  "moe.modal_title": "Strata",
   "moe.close_aria": "Close",
   "moe.machine": "Machine: {gpus}, {ram} GB of RAM, {disk} GB free. Automatic settings.",
   "moe.version_label": "Version",
@@ -7359,7 +7372,7 @@ async function loadCfg(){
     const d=fit&&fit.details;
     ENGINE_CMDLINE=(cl&&cl.cmdline)||'';
     const cp=ENGINE_CMDLINE ? '<button class="cfg-copy" onclick="copyText(ENGINE_CMDLINE, t(\'status.cmdline_copied\'))" title="'+escHtml(t('status.cmdline_copy')+' : '+ENGINE_CMDLINE)+'"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>' : '';
-    rows.push(row(t('status.cfg_engine')+cp, t('status.engine_moe')));
+    rows.push(row(t('status.cfg_engine')+cp, moeEngineLabel(s&&s.version)));
     if(fam) rows.push(row('MODEL', fam.label+' '+fit.quant.id));
     if(d){
       const k=n=>(+n>=1024 ? Math.round(+n/1024)+'K' : n);
@@ -11108,6 +11121,13 @@ function lcToggleLog(){
   else { pre.setAttribute('hidden',''); bar.classList.remove('open'); }
 }
 let moeState = null, moeFam = '', moeQuant = '', moeTarget = '', moeBackend = '';
+function moeEngineLabel(v){
+  const n = t('status.engine_moe');
+  const s = String(v||'').trim();
+  if(!s) return n;
+  if(s.toLowerCase().startsWith(n.toLowerCase())) return s;
+  return n+' '+s;
+}
 async function loadMoe(){
   let s;
   try{ s = await jget('/api/moe'+(moeBackend?'?backend='+encodeURIComponent(moeBackend):'')); }catch(_){ return; }
@@ -11116,6 +11136,12 @@ async function loadMoe(){
   if(!row) return;
   const env = s.env || {};
   row.hidden = !(env.supported || env.visible);
+  const ver = document.getElementById('lc-moe-ver');
+  if(ver){
+    const nom = t('status.engine_moe');
+    const entier = moeEngineLabel(s.version);
+    ver.textContent = entier.startsWith(nom) ? entier.slice(nom.length) : entier;
+  }
   const st = document.getElementById('lc-moe-state');
   if(st) st.textContent = !env.supported ? (env.reason || '')
     : (s.installed||[]).length ? t('moe.state_installed').replace('{n}', s.installed.length)
@@ -11154,6 +11180,8 @@ async function openMoe(presetId){
   }
   moeRenderFams();
   moeRenderQuants(!moeTarget);
+  const mt = document.getElementById('moe-modal-title');
+  if(mt && s.version) mt.textContent = moeEngineLabel(s.version);
   showModal('moe-modal');
 }
 function closeMoe(){ hideModal('moe-modal'); }
@@ -11162,10 +11190,20 @@ function moeRenderFams(){
   box.innerHTML = moeState.families.map(f=>{
     const off = f.blocked ? ' moe-off' : '';
     return '<label class="lc-mode'+off+'"'+(f.blocked?' title="'+escHtml(f.blocked)+'"':'')+'><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
-    +' onchange="moeFam=this.value;moeRenderQuants(true)">'
-    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.blocked||f.about)+'</span></label>';
+    +' onchange="moeFam=this.value;moeFamAbout();moeRenderQuants(true)">'
+    +escHtml(f.label)+'</label>';
   }).join('');
+  moeFamAbout();
   const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
+}
+function moeFamAbout(){
+  const el = document.getElementById('moe-fam-about');
+  if(!el) return;
+  const f = ((moeState||{}).families||[]).find(x=>x.id===moeFam);
+  const texte = f ? (f.blocked || f.about || '') : '';
+  el.textContent = texte;
+  el.classList.toggle('moe-fam-blocke', !!(f && f.blocked));
+  if(f && f.about) el.title = f.about; else el.removeAttribute('title');
 }
 function moeCatalogueLine(){
   const el = document.getElementById('moe-catalogue');

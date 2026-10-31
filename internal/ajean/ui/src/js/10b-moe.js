@@ -5,6 +5,18 @@
 // même suivi (#lc-job), même pastille, même annulation.
 let moeState = null, moeFam = '', moeQuant = '', moeTarget = '', moeBackend = '';
 
+// moeEngineLabel : « Strata 0.1.54 ». Le serveur rend déjà la chaîne toute faite
+// (« Strata » + version, strataPanelResponse), mais le NOM est traduit du côté de
+// l'interface : coller l'un sur l'autre donnerait « Strata Strata 0.1.54 ». On
+// garde donc la partie que le nom ne couvre pas.
+function moeEngineLabel(v){
+  const n = t('status.engine_moe');
+  const s = String(v||'').trim();
+  if(!s) return n;
+  if(s.toLowerCase().startsWith(n.toLowerCase())) return s;
+  return n+' '+s;
+}
+
 async function loadMoe(){
   let s;
   try{ s = await jget('/api/moe'+(moeBackend?'?backend='+encodeURIComponent(moeBackend):'')); }catch(_){ return; }
@@ -16,6 +28,19 @@ async function loadMoe(){
   // la cacher faisait disparaître le moteur sans explication (issue #125).
   const env = s.env || {};
   row.hidden = !(env.supported || env.visible);
+  // Le moteur s'appelle Strata, et sa version se lit sur la ligne (demande de
+  // l'humain, 31/10 au soir). La chaîne vient du serveur — strataPanelResponse
+  // rend « Strata 0.1.54 » — donc elle suit le moteur posé, sans recompilation.
+  // Le nom est écrit dans sa PROPRE portée : applyI18n ne pose le texte que sur
+  // la portée data-i18n, un changement de langue n'écrase pas la version.
+  const ver = document.getElementById('lc-moe-ver');
+  if(ver){
+    const nom = t('status.engine_moe');
+    const entier = moeEngineLabel(s.version);
+    // La ligne porte déjà « Strata » (porté par data-i18n) : on n'y met que le
+    // reste, sinon la carte afficherait « Strata Strata 0.1.54 ».
+    ver.textContent = entier.startsWith(nom) ? entier.slice(nom.length) : entier;
+  }
   const st = document.getElementById('lc-moe-state');
   if(st) st.textContent = !env.supported ? (env.reason || '')
     : (s.installed||[]).length ? t('moe.state_installed').replace('{n}', s.installed.length)
@@ -59,6 +84,11 @@ async function openMoe(presetId){
   }
   moeRenderFams();
   moeRenderQuants(!moeTarget);
+  // Titre de la fenêtre : « Strata 0.1.54 ». Écrit après l'ouverture car la
+  // fenêtre est reconstruite à chaque fois ; le data-i18n du gabarit reste le
+  // repli si la version du moteur manque.
+  const mt = document.getElementById('moe-modal-title');
+  if(mt && s.version) mt.textContent = moeEngineLabel(s.version);
   showModal('moe-modal');
 }
 function closeMoe(){ hideModal('moe-modal'); }
@@ -70,13 +100,42 @@ function moeRenderFams(){
     // avec sa raison : la cacher ferait disparaître un modèle sans explication
     // (le même choix que pour la ligne du moteur, note du 31/10/2026).
     const off = f.blocked ? ' moe-off' : '';
+    // La pastille ne porte QUE le nom du modèle. Sa description — le « about »
+    // du moteur, jusqu'à 300 caractères chez unsloth — vivait ici et faisait la
+    // hauteur de la pastille active, donc le pilier blanc du curseur et le texte
+    // coupé caractère par caractère. Elle se lit sous le groupe, voir
+    // moeFamAbout(). La raison d'une famille écartée reste au survol.
     return '<label class="lc-mode'+off+'"'+(f.blocked?' title="'+escHtml(f.blocked)+'"':'')+'><input type="radio" name="moe-fam" value="'+f.id+'"'+(f.id===moeFam?' checked':'')
-    +' onchange="moeFam=this.value;moeRenderQuants(true)">'
-    +'<span>'+escHtml(f.label)+'</span><span class="be-note">'+escHtml(f.blocked||f.about)+'</span></label>';
+    +' onchange="moeFam=this.value;moeFamAbout();moeRenderQuants(true)">'
+    +escHtml(f.label)+'</label>';
   }).join('');
+  moeFamAbout();
   // innerHTML removes the existing slider thumb. Trigger its native checked
   // setter after a backend refresh, even if the family itself is unchanged.
   const checked=box.querySelector('input:checked');if(checked)checked.checked=true;
+}
+
+// moeFamAbout : la description du modèle choisi, sous les pastilles.
+//
+// Deux régimes, et c'est voulu (arbitrage du 31/10 au soir avec l'humain) :
+//   - famille ÉCARTÉE : sa raison est écrite EN ENTIER. Une famille bloquée ne
+//     rend aucune taille, la liste des qualités sous elle est vide — cette ligne
+//     est le seul endroit où la raison s'affiche. Sans elle, cliquer NVFP4 ne
+//     donne aucune explication (le 31/10, « fits » vide et blocked posé,
+//     l'interface ne disait rien : c'est le défaut réparé plus haut).
+//   - famille NORMALE : le « about » du moteur répète en grande partie la liste
+//     des qualités (celui d'unsloth énumère ses cinq tailles et leurs seuils de
+//     RAM, que chaque ligne détaille déjà). Il est donc coupé à deux lignes par
+//     le CSS, et le texte complet reste lisible au survol.
+function moeFamAbout(){
+  const el = document.getElementById('moe-fam-about');
+  if(!el) return;
+  const f = ((moeState||{}).families||[]).find(x=>x.id===moeFam);
+  const texte = f ? (f.blocked || f.about || '') : '';
+  el.textContent = texte;
+  el.classList.toggle('moe-fam-blocke', !!(f && f.blocked));
+  // Le survol rend le texte entier, y compris quand il est coupé.
+  if(f && f.about) el.title = f.about; else el.removeAttribute('title');
 }
 
 // moeCatalogueLine : d'où vient la liste proposée. C'est la ligne qui rend le

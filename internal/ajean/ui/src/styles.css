@@ -871,6 +871,49 @@ textarea.sctl{min-height:76px;resize:vertical;line-height:1.5}
 #moe-quants .lc-mode.moe-off{cursor:default}
 #moe-quants .lc-mode.moe-off:hover{background:none}
 #moe-quants .lc-mode.moe-off .lc-mode-t{color:var(--dim)}
+/* Les huit familles du moteur, en PASTILLES dans le sens de la lecture, comme le
+   faisait la fenêtre avant (demande de l'humain, 31/10 au soir : « l'affichage
+   d'origine, mais horizontalement plutôt que verticalement »).
+
+   Ce qui cassait, mesuré sur le poste en service : .seg est une rangée d'items
+   flex avec flex:1, donc HUIT pastilles égales dans une fenêtre de 520 px —
+   ~60 px chacune — et étirées à la hauteur de la plus longue (unsloth porte sa
+   description en entier, ~15 lignes). Résultat : le texte de chaque famille coupé
+   caractère par caractère, et le curseur .seg-thumb, taillé sur la pastille
+   active haute de ~300 px, rendu en pilier blanc. Deux symptômes, un conteneur
+   qui ne savait pas s'adapter.
+
+   La correction garde le contrôle segmenté, le glissement du curseur et le clic
+   sur la ligne : les pastilles prennent leur propre place et rebondissent sur
+   plusieurs rangées. La description du modèle choisi ne vit plus DANS la pastille,
+   elle se lit sous le groupe — c'est elle qui faisait la hauteur. */
+#moe-fams{flex-wrap:wrap;align-items:flex-start;row-gap:6px;padding:6px;border-radius:14px}
+#moe-fams>label{flex:0 1 auto;width:auto;min-height:0;padding:7px 11px;border-radius:999px;
+  font-size:12.5px;line-height:1.25;text-align:center}
+/* .lc-mode marque chaque fin de ligne d'un filet : bien dans une liste, double
+   trait sous une pilule arrondie. Les pastilles du moteur n'en veulent pas. */
+#moe-fams>label:not(:last-child){border-bottom:0}
+#moe-fams input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+#moe-fams .lc-mode.moe-off{cursor:default}
+#moe-fams .lc-mode.moe-off:hover{background:none}
+/* La description du modèle choisi : sa propre ligne, sous les pastilles. Le
+   « about » du moteur atteint 300 caractères (unsloth) et nomme des tailles sans
+   espace (« UD-IQ4_XS, UD-Q5_K_XL, ») — break-word ne coupe qu'en cas d'urgence,
+   le texte courant reste coupé aux mots.
+   Coupé à DEUX lignes, le texte entier restant au survol : il répète en grande
+   partie la liste des qualités qui est juste en dessous (le « about » d'unsloth
+   énumère ses cinq tailles et leurs seuils de RAM, chaque ligne le détaille déjà),
+   et il passe de 18 caractères chez qwen à 300 chez unsloth — sans plafond il
+   décalait de plusieurs lignes tout ce qui est sous lui à chaque clic.
+   min-height : deux lignes réservées, pour qu'un texte d'une ligne ne fasse pas
+   remonter le panneau. La raison d'une famille ÉCARTÉE n'est pas coupée : c'est
+   le seul endroit où elle s'affiche (une famille bloquée ne rend aucune taille,
+   la liste des qualités en dessous est vide). */
+#moe-fam-about{font-size:11px;color:var(--dim);line-height:1.5;overflow-wrap:break-word;word-break:normal;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-height:33px}
+#moe-fam-about[hidden]{display:none}
+#moe-fam-about.moe-fam-blocke{display:block;-webkit-line-clamp:none;line-clamp:none;overflow:visible;min-height:0}
+#moe-quants .lc-mode-d{overflow-wrap:break-word;word-break:normal}
 .moe-details{padding:4px 10px}
 .moe-details .moe-kv{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;padding:5px 0}
 .moe-details .moe-kv .switch{display:block}

@@ -155,8 +155,8 @@ if (-not $Dossiers -or -not $Dossiers.Count) {
   #
   # Avant, on remontait jusqu'a quatre niveaux en cherchant une « signature »
   # (ajean.exe + Lancer-Cresius.ps1). Mesure du 2026-10-28, ici et chez la voisine :
-  # cette signature est FAUSSE. L'installation principale s'appelle
-  # Lancer-Cresius-principale.ps1 ; le fichier cherche n'existe pas ; la
+  # cette signature est FAUSSE. L'installation principale avait nomme son lanceur
+  # autrement que « Lancer-Cresius.ps1 » ; le fichier cherche n'existait pas ; la
   # reconnaissance echouait et le script hurlait « installation cible introuvable »
   # sans rien poser. Un nom de fichier en dur dans un poseur ment des que quelqu'un
   # renomme le lanceur — et c'est exactement le « le patch ne s'applique pas »
@@ -245,10 +245,21 @@ function Inventaire($Root) {
   # dont le dossier porte un autre suffixe (RTX, portable, la voisine…), il posait
   # le lanceur de la principale dans la variante. On lit donc le paquet : quel
   # lanceur y vit, et lequel correspond au SUFFIXE du dossier vise.
-  $nomLanceur = 'Lancer-Cresius-principale.ps1'
+  #
+  # Un paquet peut ne contenir QU'UN lanceur, et c'est le cas courant : rien a
+  # departager. Les lanceurs ne nomment AUCUN dossier — ils travaillent depuis
+  # $PSScriptRoot et verrouillent par la version du binaire — donc leur nom n'est
+  # pas une cle. Le chercher par son nom (l'ancien defaut : un nom de lanceur
+  # principal ecrit en dur) faisait echouer la pose des que le paquet ne le
+  # contenait pas, et c'est le defaut signale par l'utilisateur.
   $dispo = @(Get-ChildItem -LiteralPath $LancD -Filter 'Lancer-Cresius-*.ps1' -EA SilentlyContinue |
              ForEach-Object { $_.Name })
-  if ($dispo.Count) {
+  # Nom sentinelle : s'il ne se resolve a rien, l'entree src n'existera pas et la
+  # comparaison par sha le dira (« ABSENT DU PAQUET ») au lieu d'ecrire au hasard.
+  $nomLanceur = 'aucun-lanceur-dans-ce-paquet.ps1'
+  if ($dispo.Count -eq 1) {
+    $nomLanceur = $dispo[0]
+  } elseif ($dispo.Count -gt 1) {
     # Suffixe du dossier vise : ce qui suit « maj Cresius« . Vide pour la principale.
     $suffixe = ''
     $m = [regex]::Match((Split-Path $Root -Leaf), 'maj\s+Cresius\s+(.+)$')
@@ -274,8 +285,8 @@ function Inventaire($Root) {
   # c'est Lancer-Cresius.cmd qui le decide, en appelant
   #   powershell -File "%~dp0<NOM>.ps1"
   # Mesure du 2026-10-28 : l'installation principale avait un Lancer-Cresius.cmd
-  # qui appelait Lancer-Cresius.ps1 alors que le fichier pose s'appelait
-  # Lancer-Cresius-principale.ps1 — le lanceur ne pouvait donc pas demarrer, et
+  # qui appelait Lancer-Cresius.ps1 alors que le fichier pose portait un autre
+  # nom — le lanceur ne pouvait donc pas demarrer, et
   # un poseur qui ecrit dans un nom en dur aurait patche un fichier que personne
   # n'appelle. On pose donc la ou le .cmd regarde.
   $dstLanceur = 'Lancer-Cresius.ps1'

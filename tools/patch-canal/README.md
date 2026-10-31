@@ -24,8 +24,8 @@ commise se perd au paquet suivant — c'est le mécanisme derrière le
 ## Le correctif du 2026-10-28, en bref
 
 Le poseur cherchait sa cible en exigeant un fichier nommé `Lancer-Cresius.ps1`.
-Là où le lanceur s'appelait `Lancer-Cresius-principale.ps1`, la reconnaissance
-échouait et le script sortait sur « installation cible introuvable » sans rien poser.
+Là où le lanceur portait **un autre nom**, la reconnaissance échouait et le script
+sortait sur « installation cible introuvable » sans rien poser.
 La cible est maintenant **structurelle** : le dossier au-dessus du paquet (qui doit
 contenir un `ajean.exe`). Le nom du lanceur posé est lu dans `Lancer-Cresius.cmd`,
 pas supposé. Voir l'en-tête de `Appliquer-Patch-Canal.ps1`.

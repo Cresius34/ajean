@@ -354,14 +354,16 @@ pas, ses fichiers n'arrivent pas.
   notre propre outil qui avait laissé tomber la question. Un `action` absent avec
   un `message` présent est maintenant un `ask`.
 
-**Outillage d'installation** (`tools/patch-canal/`, 26 outils, aucun équivalent
+**Outillage d'installation** (`tools/patch-canal/`, 26 outils, dont un test du
+poseur ; aucun équivalent
 amont) : poseur, diagnoseur, fabricateur de paquet, recherche d'installations. Le
 poseur ne reconnaît plus sa cible au nom du lanceur — **il la reconnaît
 structurellement** (le dossier au‑dessus du paquet, qui doit contenir un
-`ajean.exe`). Mesuré : là où le lanceur s'appelait `Lancer-Cresius-principale.ps1`
-et non `Lancer-Cresius.ps1`, la reconnaissance échouait et le poseur sortait sur
+`ajean.exe`). Mesuré : là où le lanceur portait un autre nom que
+`Lancer-Cresius.ps1`, la reconnaissance échouait et le poseur sortait sur
 « installation cible introuvable » **sans rien poser**. Le nom du lanceur posé est
-lu dans `Lancer-Cresius.cmd`, pas supposé.
+lu dans `Lancer-Cresius.cmd`, pas supposé. Un paquet peut ne contenir **qu'un**
+lanceur : le poseur le prend sans chercher un nom, et n'en suppose aucun.
 
 Deux règles d'encodage à ne pas « nettoyer » : les `.ps1` exigent le **BOM UTF‑8**
 dès qu'ils portent des accents (illisibles sous PowerShell 5.1 sinon), les `.cmd`
@@ -929,14 +931,16 @@ machine, and it may refuse. Our files do not travel; its files do not arrive.
   tool dropping the question. A missing `action` with a `message` present is now
   an `ask`.
 
-**Install tooling** (`tools/patch-canal/`, 26 tools, no upstream equivalent):
+**Install tooling** (`tools/patch-canal/`, 26 tools, one of them an installer
+test; no upstream equivalent):
 installer, diagnoser, package builder, install finder. The installer no longer
 recognises its target by launcher name — **it recognises it structurally** (the
 folder above the package, which must contain an `ajean.exe`). Measured: where the
-launcher was named `Lancer-Cresius-principale.ps1` rather than
-`Lancer-Cresius.ps1`, recognition failed and the script exited on "target install
-not found" **without installing anything**. The installed launcher's name is read
-from `Lancer-Cresius.cmd`, not assumed.
+launcher went by a name other than `Lancer-Cresius.ps1`, recognition failed and
+the script exited on "target install not found" **without installing anything**.
+The installed launcher's name is read from `Lancer-Cresius.cmd`, not assumed. A
+package may hold **one** launcher only: the installer takes it without looking for
+a name, and assumes none.
 
 Two encoding rules not to "clean up": `.ps1` files require a **UTF‑8 BOM** once
 they carry accents (unreadable under PowerShell 5.1 otherwise), `.cmd` files never

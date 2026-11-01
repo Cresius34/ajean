@@ -170,6 +170,10 @@ func TestToolsSeparatesEtAppelsRegroupes(t *testing.T) {
 		key  string
 	}{
 		{"memory", map[string]any{"action": "read", "file": "x.md"}, "mem_read", "file"},
+		// memory.grep → mem_grep : le nom que le modèle réclame de lui-même (calqué
+		// sur web_grep) est déclaré depuis le 2026-11-01, il passe donc aussi en
+		// forme regroupée. Sans cette ligne, l'alias ne serait vérifié qu'en nom plat.
+		{"memory", map[string]any{"action": "grep", "query": "mémoire"}, "mem_grep", "query"},
 		{"web", map[string]any{"action": "grep", "url": "u", "pattern": "p"}, "web_grep", "pattern"},
 		{"file", map[string]any{"action": "edit", "file": "a", "old": "o", "new": "n"}, "edit", "old"},
 		{"recall", map[string]any{"id": "r3"}, "recall", "id"},
@@ -186,7 +190,7 @@ func TestToolsSeparatesEtAppelsRegroupes(t *testing.T) {
 			t.Fatalf("action laissée dans %v", a)
 		}
 	}
-	if _, _, e := expandToolCall("memory", map[string]any{"action": "zap"}); !strings.Contains(e, "search, read, add, edit, delete") {
+	if _, _, e := expandToolCall("memory", map[string]any{"action": "zap"}); !strings.Contains(e, "search, grep, read, add, edit, delete") {
 		t.Fatalf("action inconnue : %q", e)
 	}
 }

@@ -23,6 +23,8 @@ package ajean
 var liveStateReadTools = map[string]bool{
 	"mem_read":      true,
 	"mem_search":    true,
+	// mem_grep exécute mem_search : même lecture d'un état vivant, mêmes raisons.
+	"mem_grep":      true,
 	"recall":        true,
 	"recall_search": true,
 	"task_list":     true,

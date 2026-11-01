@@ -74,6 +74,32 @@ func memSearchTool() Tool {
 	}
 }
 
+// memGrepTool : le nom que le modèle réclame de lui-même. Le groupe `web` compte
+// une action `grep` (web_grep) ; celle de `memory` manquait, et le modèle calque
+// dessus — `mem_grep` cité 6 fois dans le journal du moteur (75 % des appels
+// refusés, mesure du 2026-11-01). Strata 0.1.54 rejette dans SON parseur un nom
+// qu'on ne lui a pas déclaré : la réinjection lui rendait la liste, il réécrivait
+// les mêmes noms (mesuré : deux refus, `mem_grep, web_foo` à chaque fois). Donc
+// réparer le nom ne suffisait pas — il faut LE DÉCLARER. Exécution = mem_search
+// (le besoin est bien de retrouver du texte en mémoire) ; le schéma reste
+// volontairement court, chaque schéma se paie à chaque tour (cf. promptCharBudget).
+func memGrepTool() Tool {
+	return Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "mem_grep",
+			Description: "Find a page of memory by its exact words (same results as mem_search).",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string", "description": "Exact words to find"},
+				},
+				"required": []string{"query"},
+			},
+		},
+	}
+}
+
 func memReadTool() Tool {
 	return Tool{
 		Type: "function",
@@ -496,7 +522,7 @@ func EnabledTools(caps Caps) []Tool {
 	// Mémoire = axe indépendant du mode agent : les outils mem_* sont fournis dès
 	// que le mode mémoire n'est pas « off » (que l'agent soit actif ou non).
 	if caps.Mem != MemOff {
-		tools = append(tools, memSearchTool(), memReadTool(), memAddTool(), memEditTool(), memDeleteTool())
+		tools = append(tools, memSearchTool(), memGrepTool(), memReadTool(), memAddTool(), memEditTool(), memDeleteTool())
 		// Trackers (3ᵉ type de mémoire : données datées qui s'accumulent). Même axe que
 		// la mémoire (persistant, par projet), donc fourni dès que la mémoire est ON.
 		tools = append(tools, trackerTool())
@@ -879,6 +905,19 @@ type streamChunk struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage"`
+	// Strata (#3796) : un `<tool_call>` écrit par le modèle pour un outil que la
+	// requête ne déclarait pas n'est PAS exécuté — il repart en texte. Le moteur le
+	// signale ici, à la racine du chunk final (comme `timings`), avec le nom refusé.
+	// On ne lisait pas ce champ : l'appel mourait sans que personne ne le dise
+	// (observé le 2026-11-01, avec le MoE : aucune sortie, aucune erreur).
+	Rejected []strataRejected `json:"strata_rejected_tool_calls"`
+}
+
+// strataRejected : un appel d'outil refusé par le moteur. `reason` vaut "undeclared"
+// (le nom n'était pas au nombre des outils déclarés par la requête).
+type strataRejected struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
 }
 
 // runChat drives the full inference loop including tool calling.
@@ -1080,6 +1119,15 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 	// modèle vraiment bloqué doit finir par rendre la main, pas faire attendre.
 	const maxNudges = 2
 	nudgeCount := 0
+	// Appels d'outils refusés par le moteur (nom non déclaré) : on lui rend la liste
+	// des outils du domaine visé, une fois par tour refusé, pas plus — un modèle qui
+	// persisterait dans le même nom doit finir par rendre la main.
+	const maxRejectedRetries = 2
+	rejectedRetries := 0
+	// Noms refusés au tour précédent : si le modèle réécrit EXACTEMENT les mêmes,
+	// la relance ne sert plus à rien (mesuré : deux refus, mêmes noms à chaque
+	// fois). Voir memeNomsRefuses.
+	var rejectsPrecedents []string
 	// Reprises après un flux coupé (voir plus bas, après la lecture du flux).
 	const maxStreamRetries = 5
 	streamRetries := 0
@@ -1230,6 +1278,8 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			return extra, err
 		}
 		toolCalls := map[int]*ToolCall{}
+		// Noms d'outils refusés par le moteur ce tour-ci (voir streamChunk.Rejected).
+		var rejectedCalls []string
 		assistantContent := strings.Builder{}
 		finishReason := ""
 		// Accumulateur de stats : timings (prefill/decode) puis usage (total prompt)
@@ -1336,6 +1386,13 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				s := stats
 				scb(StreamEvent{Stats: &s})
 			}
+			// Appels refusés par le moteur : AVANT le garde `choices`, comme `timings`
+			// ci-dessus — le chunk final qui les porte a `choices:[]` sur ce build.
+			for _, rj := range chunk.Rejected {
+				if rj.Name != "" {
+					rejectedCalls = append(rejectedCalls, rj.Name)
+				}
+			}
 			if len(chunk.Choices) == 0 {
 				continue
 			}
@@ -1410,7 +1467,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					}
 					key := "command"
 					switch cname {
-					case "mem_search", "web_search", "web_images":
+					case "mem_search", "mem_grep", "web_search", "web_images":
 						key = "query"
 					case "mem_read", "mem_add", "mem_edit", "mem_delete", "edit", "write", "see_image", "see_video":
 						key = "file"
@@ -1695,7 +1752,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 				// nothing while a slow shell command runs and looks frozen.
 				label := ""
 				switch tc.Function.Name {
-				case "mem_search", "web_search", "web_images", "recall_search":
+				case "mem_search", "mem_grep", "web_search", "web_images", "recall_search":
 					label, _ = args["query"].(string)
 				case "mem_read", "mem_add", "mem_edit", "mem_delete", "edit", "write", "see_image", "see_video":
 					label, _ = args["file"].(string)
@@ -1798,7 +1855,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					args["_jean"] = true
 				}
 				switch tc.Function.Name {
-				case "mem_search":
+				case "mem_search", "mem_grep":
 					lim := 0
 					if v, ok := args["limit"].(float64); ok {
 						lim = int(v)
@@ -1980,7 +2037,7 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 					if isMCPTool(tc.Function.Name) {
 						result = mcpCall(tc.Function.Name, args)
 					} else {
-						result = "[erreur] outil inconnu: " + tc.Function.Name
+						result = outilInconnu(tc.Function.Name)
 					}
 				}
 				result = capToolResult(result)
@@ -2082,6 +2139,45 @@ func runChat(ctx context.Context, messages []Message, temperature float64, caps 
 			if caps.Jean && jeanAnswerThenSave(assistant, stepMsgs) {
 				return extra, nil
 			}
+			continue
+		}
+		// Un appel d'outil refusé par le moteur (nom non déclaré) est revenu en TEXTE :
+		// il n'a jamais atteint le dispatch ci-dessus, donc AUCUN résultat d'outil n'a
+		// été rendu et le tour allait finir là, silencieux — observé le 2026-11-01 avec
+		// le MoE : « hum.. », aucune sortie, aucune erreur. Le moteur nous rend le nom
+		// refusé (`strata_rejected_tool_calls`) : on lui rend la liste des outils du
+		// domaine visé, et on reprend le tour. Rôle user, comme les autres relances :
+		// un system en fin de séquence serait remonté en tête par normalizeSystemMessages.
+		if len(rejectedCalls) > 0 && len(tools) > 0 && !disableTools &&
+			rejectedRetries < maxRejectedRetries && !memeNomsRefuses(rejectsPrecedents, rejectedCalls) {
+			rejectedRetries++
+			// Balise en tete : cette phrase part en role:user parce que le gabarit
+			// l'exige (un system en fin de sequence est remonte en tete par
+			// normalizeSystemMessages), mais elle n'est PAS une demande de l'humain.
+			// Sans marqueur, elle arrive dans la conversation comme un message de
+			// l'utilisateur — vu le 2026-11-01 : l'humain a du demander « c'est toi ou
+			// l'utilisateur qui a parle ? ». Meme regle que le canal Ajean-Ajean.
+			var rb strings.Builder
+			rb.WriteString("[Ajean — message de l'application, pas de l'utilisateur] ")
+			rb.WriteString("[appel d'outil refusé par le moteur] ")
+			for i, nm := range rejectedCalls {
+				if i > 0 {
+					rb.WriteString(" ; ")
+				}
+				rb.WriteString(outilInconnu(nm))
+			}
+			rb.WriteString("\nCet appel n'a pas été exécuté et son contenu ne t'est pas parvenu. ")
+			rb.WriteString("Relance avec l'un des noms ci-dessus, exactement tel qu'écrit, ou réponds en texte si tu as déjà l'information.")
+			rej := rb.String()
+			// Dans `messages` seul, JAMAIS dans `extra` : comme les nudges
+			// (maxNudges plus bas), c'est une consigne passagère pour le tour suivant.
+			// Persistée, elle reviendrait à chaque tour comme une phrase dite par
+			// l'utilisateur, et le texte du refus s'accumulerait dans l'historique.
+			messages = append(messages, Message{Role: "user", Content: rej})
+			cb(StreamEvent{DropReasoning: true})
+			// Les noms qu'on vient de refuser deviennent la référence du tour
+			// suivant : les mêmes noms ne relanceront plus.
+			rejectsPrecedents = rejectedCalls
 			continue
 		}
 		// Normal end of turn. If the model produced no visible answer at all

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ var toolGroups = []toolGroup{
 	{name: "file", intro: "Write files on disk (read them with bash).",
 		members: [][2]string{{"write", "write"}, {"edit", "edit"}}},
 	{name: "memory", intro: "Persistent memory pages of the current project.",
-		members: [][2]string{{"search", "mem_search"}, {"read", "mem_read"}, {"add", "mem_add"}, {"edit", "mem_edit"}, {"delete", "mem_delete"}}},
+		members: [][2]string{{"search", "mem_search"}, {"grep", "mem_grep"}, {"read", "mem_read"}, {"add", "mem_add"}, {"edit", "mem_edit"}, {"delete", "mem_delete"}}},
 	{name: "task", intro: "Your scheduled tasks: they run later on their own.",
 		members: [][2]string{{"list", "task_list"}, {"create", "task_create"}, {"update", "task_update"}, {"delete", "task_delete"}}},
 	{name: "recall", intro: "Blocks archived when this conversation was compacted.",
@@ -128,6 +129,97 @@ func legacyToolName(name, action string) string {
 		return ""
 	}
 	return name
+}
+
+// outilInconnu : le message rendu quand un tool_call ne correspond à aucun outil
+// annoncé. Le modèle appelle parfois un nom plausible bâti par analogie : « mem_grep »
+// était de ceux-là, calqué sur web_grep (cité 6 fois dans le journal du moteur) — il
+// est déclaré depuis le 2026-11-01, mais la classe reste : le nom seul n'aide pas, le
+// modèle retente la même variante ou se rabat sur un outil sans rapport. On rend donc
+// le périmètre visé — les outils du groupe dont le préfixe (mem_, web_, browser_…)
+// ouvre l'appel — et, à défaut, la liste
+// des domaines. Coût : quelques lignes, seulement sur un tour déjà raté.
+func outilInconnu(name string) string {
+	s := "[erreur] outil inconnu: " + name
+	lower := strings.ToLower(strings.TrimSpace(name))
+	vus := map[string]bool{}
+	var membres []string
+	for _, g := range toolGroups {
+		for _, mb := range g.members {
+			i := strings.Index(mb[1], "_")
+			if i <= 0 {
+				continue
+			}
+			if !strings.HasPrefix(lower, mb[1][:i+1]) {
+				continue
+			}
+			for _, other := range g.members {
+				if !vus[other[1]] {
+					vus[other[1]] = true
+					membres = append(membres, other[1])
+				}
+			}
+			break
+		}
+	}
+	if len(membres) == 0 {
+		var domaines []string
+		for _, g := range toolGroups {
+			domaines = append(domaines, g.name)
+		}
+		return s + " — domaines d'outils annoncés : " + strings.Join(domaines, ", ")
+	}
+	return s + " — outils de ce domaine : " + strings.Join(membres, ", ")
+}
+
+// memeNomsRefuses : la liste des noms refusés est-elle identique à celle du tour
+// précédent ? Le moteur les rend dans l'ordre d'apparition, ce qui dépend de la
+// frappe du modèle : on compare donc des ensembles, triés, sans doublon.
+//
+// Pourquoi ce garde (arbitré par l'humain le 2026-11-01, voie « amont ») : la
+// relance avec la liste des outils valides a été mesurée inefficace. Le journal
+// du moteur montre deux refus AUX MÊMES NOMS (`L32104` puis `L32180` :
+// `mem_grep, web_foo` à chaque fois) — le modèle a réécrit exactement le même
+// appel après avoir reçu la liste. Chaque tour gaspillé repaie le préambule
+// complet (mesuré : 12 232 caractères, ~3058 tokens) plus l'historique.
+//
+// La relance garde sa première chance : un nom inconnu croisé pour la première
+// fois reçoit bien la liste. Elle est coupée seulement quand le même nom revient,
+// là où rien ne dit qu'une autre formulation aurait fait mieux. L'amont, face à
+// un appel d'outil fantôme, ne relance pas davantage : « on ignore donc l'appel :
+// le modèle répond en texte » (llm_client.go:1292-1298).
+func memeNomsRefuses(precedent, courant []string) bool {
+	if len(precedent) == 0 || len(courant) == 0 {
+		return false
+	}
+	a := normaliseNoms(precedent)
+	b := normaliseNoms(courant)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// normaliseNoms : noms en minuscules, sans doublon, triés — comparaison
+// d'ensembles, insensible à l'ordre et aux répétitions dans un même tour.
+func normaliseNoms(noms []string) []string {
+	vus := map[string]bool{}
+	out := make([]string, 0, len(noms))
+	for _, n := range noms {
+		k := strings.ToLower(strings.TrimSpace(n))
+		if k == "" || vus[k] {
+			continue
+		}
+		vus[k] = true
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func videoExt(f string) bool {

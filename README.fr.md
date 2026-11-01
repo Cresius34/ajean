@@ -8,7 +8,7 @@
 > [**nathaninline/ajean**](https://github.com/nathaninline/ajean), créé et maintenu par
 > **nathaninline** — le projet principal, et la seule source des versions publiées d'AJEAN.
 > Ce qui suit décrit AJEAN **en général**. Ce fork-ci porte une **ligne de correctifs
-> privée** (**0.18.16.4 Cresius**, construite sur l'amont `v0.18.16`) répondant aux besoins
+> privée** (**0.18.17.1 Cresius**, construite sur l'amont `v0.18.17`) répondant aux besoins
 > d'une machine précise : moteur MoE
 > **Strata** sur AMD (taille de contexte, quantification KV, réserve de VRAM, vision sur AMD),
 > **catalogue de modèles lu dans le moteur** plutôt que recopié à la main — l'écran Moteur

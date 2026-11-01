@@ -1,4 +1,4 @@
-# Notes de version — AJEAN `0.18.16.4 Cresius` / étiquette `v0.18.16+rev4`
+# Notes de version — AJEAN `0.18.17.1 Cresius` / étiquette `v0.18.17+rev1`
 
 **Projet dérivé, usage personnel.** Cette version est construite sur le dépôt
 `Cresius34/ajean`, fork de [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -8,30 +8,94 @@ validés sur d'autres machines, ni garantis transposables. Pour installer AJEAN,
 prenez les versions publiées sur
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-Cette version **absorbe l'amont `v0.18.16`** — donc aussi
+Cette version **absorbe l'amont `v0.18.17`** — donc aussi
 [`v0.18.12`](#amont-v01812--pré-chauffage-du-prompt-paires-doutils-incomplètes),
 [`v0.18.13`](#amont-v01813--moteur-exllama-exl3-en-un-clic),
-[`v0.18.14`](#amont-v01814--cartes-exllama-qui-déportaient-llamacpp) et
-[`v0.18.15`](#amont-v01815--conversation-de-jean-preset-modifié-exllama) — dans la
+[`v0.18.14`](#amont-v01814--cartes-exllama-qui-déportaient-llamacpp),
+[`v0.18.15`](#amont-v01815--conversation-de-jean-preset-modifié-exllama) et
+[`v0.18.16`](#amont-v01816--exllama-depuis-linterface-cuda-linux-chat-plus-fluide) — dans la
 ligne privée `Cresius`. Le socle est celui de l'amont ; la ligne privée se réduit à ce qu'elle apporte encore.
 
 ## En-tête
 
-Le socle amont est `v0.18.16` : l'**installation d'ExLlama depuis l'interface** ne
-casse plus sans console (#177), les **binaires CUDA officiels** de llama.cpp arrivent
-sous Linux avec carte NVIDIA, et l'**affichage du chat** devient continu. Côté ligne
-privée, cette révision 4 sur la nouvelle base porte le **catalogue de modèles lu dans
-le moteur** : l'écran Moteur affiche les familles et les tailles que le moteur installé
-connaît vraiment, avec leurs coûts mesurés et le motif quand l'une d'elles est écartée,
-au lieu d'une liste recopiée à la main dans le code. Le moteur **Strata** passe en
-`0.2.8` (paquet moteur `0.1.54`, contrôle `0.1.54`). Le **canal Ajean↔Ajean** est là
-depuis la révision 1 : le pont rend un véritable tour d'agent de l'autre côté sous
-double autorisation, **dit pourquoi il ne le rend pas**, et l'auteur de chaque message
-du canal est distingué (un ordre d'un humain qui vise un poste lie l'IA de ce poste,
-un ordre d'une IA n'en lie aucune). Le **journal de Jean** et la **mémoire sémantique**
-partagent toujours un **seul encodeur**, EmbeddingGemma 2 — un seul GGUF, un seul
-moteur, un seul espace vectoriel sur le poste — et le **moteur MoE Strata** reste
-proposé par carte, y compris sur AMD (HIP).
+Le socle amont est `v0.18.17` : **l'erreur d'envoi puis le redémarrage après un compactage
+en plein tour** sont réparés (#181) ; l'**effort de réflexion** part en `reasoning_effort`
+natif vers les API externes, qui rejetaient le champ propre à llama.cpp (#178) ; la **mémoire
+GPU des cartes AMD** cesse d'être inversée sur les portables où la puce Radeon intégrée
+passait pour une carte dédiée (#182) ; le **mot d'activité des tours terminés** ne masque
+plus la durée, les jetons et le débit (#173). S'y ajoutent deux fonctions neuves : **la voix
+de Jean** (reconnaissance et synthèse, branchées sur un serveur `audio.cpp` lancé à part) et
+**le gestionnaire de fichiers du mode Jean**, qui retrouve un fichier **par le sens** et non
+plus seulement par le nom.
+
+Côté ligne privée, cette révision 1 sur la nouvelle base conserve ce qui faisait sa raison
+d'être : le **catalogue de modèles lu dans le moteur** (l'écran Moteur affiche les familles
+et les tailles que le moteur installé connaît vraiment, avec leurs coûts mesurés et le motif
+quand l'une d'elles est écartée, au lieu d'une liste recopiée à la main), le **moteur Strata**
+en `0.2.8` (paquet moteur `0.1.54`, contrôle `0.1.54`), le **canal Ajean↔Ajean** (le pont
+rend un véritable tour d'agent de l'autre côté sous double autorisation, **dit pourquoi il ne
+le rend pas**, et l'auteur de chaque message du canal est distingué : un ordre d'un humain qui
+vise un poste lie l'IA de ce poste, un ordre d'une IA n'en lie aucune), le **seuil de
+compactage réglable** en pourcentage de la fenêtre — réglage qui touche exactement la ligne
+que l'amont a corrigée au point #181, d'où la fusion jouée et vérifiée plutôt que laissée à
+l'auto-fusion — et le fait que le **journal de Jean** et la **mémoire sémantique** partagent
+toujours un **seul encodeur**, EmbeddingGemma 2 : un seul GGUF, un seul moteur, un seul espace
+vectoriel sur le poste. Le **moteur MoE Strata** reste proposé par carte, y compris sur AMD (HIP).
+
+Les deux nouveautés de l'amont touchent notre encodeur, et c'est là que la vigilance paye :
+`jean_embed.go` est appelé pour indexer les fichiers de Jean **après** le journal, dans la même
+boucle, et le classement sémantique a été coupé en deux (`jeanQueryVec` puis `jeanSemanticRank`)
+pour que le vecteur de la requête ne soit calculé qu'une fois et servi aux deux. Le modèle
+`embeddinggemma-2-Q8_0.gguf` et son empreinte `egemma2-q8-v1` ressortent intacts de la fusion.
+La **voix**, elle, demande un serveur `audio.cpp` (Qwen3-ASR + VoxCPM2) que l'installateur
+n'installe pas : sans lui, aucun bouton micro n'apparaît.
+
+## Amont `v0.18.17` — envoi après compactage, effort de raisonnement, cartes AMD, voix et fichiers de Jean
+
+Un seul commit amont, **34 fichiers, +9 076 / −4 090**.
+
+- **#181 — erreur d'envoi puis redémarrage en longue conversation.** Le découpage
+  `messages[stepStart:]` était évalué **après** que le compactage avait raccourci
+  `messages` : au tour suivant, l'indice dépassait la longueur et la tranche levait
+  `slice bounds out of range`. L'amont lit d'abord les messages de l'étape
+  (`stepMsgs := messages[stepStart:]`), puis compacte. **C'est notre terrain** : le
+  compaction est là où vit notre seuil réglable. Le fichier `chat_compact.go` n'est
+  pas dans les 34 fichiers amont, donc notre réglage n'est pas écrasé — mais la
+  correction est sur la ligne d'à côté, et elle a été relue à la main.
+- **#178 — effort de réflexion vers une API externe.** Il partait en
+  `chat_template_kwargs`, un champ propre à llama.cpp ; OpenRouter, OpenAI, Mistral et
+  Groq à schéma strict le refusaient. Devenu `reasoning_effort` natif quand
+  `isExternalConfig(cfg)`. **Sans effet ici** : nos quatre profils `.env` sont locaux
+  (HIP), aucun n'est `EXTERNAL`.
+- **#182 — mémoire GPU inversée sur portable AMD.** La puce graphique intégrée
+  (« AMD Radeon(TM) Graphics ») était prise pour une carte dédiée : sa mémoire comptée
+  comme VRAM disponible, la carte dédiée réduite à sa part restante. Une fonction
+  `integratedGPUName()` remplace le test qui ne cherchait que « intel ». **Ce chemin est
+  bien le nôtre** : sous Windows, `amdSmiAllowed()` rend `false` (issue #259, rafale
+  d'invites UAC), donc `amd-smi` et `rocm-smi` ne sont jamais lancés et c'est le repli
+  **Vulkan** qui sert la mémoire des cartes. Le test de l'amont, rejoué sur les deux
+  cartes de ce poste, rend `AMD Radeon AI PRO R9700` → non intégrée et
+  `AMD Radeon(TM) Graphics` → intégrée : les deux verdicts sont bons.
+- **#173 — mot d'activité des tours terminés.** « Retient ça… » restait animé et
+  masquait la durée, le nombre de jetons et le débit du tour.
+- **La voix de Jean** — `voice.go` (384 lignes) et ses tests, deux modules
+  d'interface, six routes `/api/voice/*` (état, reconnaissance, synthèse, réglages,
+  voix enregistrées). Elle s'appuie sur un serveur **`audio.cpp` lancé à part**
+  (Qwen3-ASR pour l'écoute, VoxCPM2 pour la voix) : l'installateur ne l'installe pas,
+  et sans lui le bouton micro n'apparaît pas.
+- **Le gestionnaire de fichiers du mode Jean** — `jean_files.go` (780), sa couche
+  d'interface (480), son module d'interface (629), six routes `/api/jean/files/*`.
+  Il retrouve un fichier **par le sens**, pas seulement par le nom, et s'appuie sur
+  l'encodeur déjà en place : l'indexation des fichiers part **après** celle du journal,
+  dans la même boucle. Le classement sémantique a été coupé en `jeanQueryVec` (le
+  vecteur de la requête, calculé **une fois**) puis `jeanSemanticRank`, partagé entre
+  le journal et les fichiers.
+
+Interface : `verify-i18n` rendu sur l'arbre fusionné donne **1 543 clés** françaises et
+anglaises (l'amont en ajoute 86). La fusion n'a laissé que **deux fichiers en conflit**,
+dont `ui/index.html`, qui est **généré** : il a suffi de régénérer l'assemblage pour
+effacer les vingt et une zones, et le fichier rendu porte à la fois nos marqueurs MoE et
+les modules de voix et de fichiers de l'amont.
 
 ## Amont `v0.18.16` — ExLlama depuis l'interface, CUDA Linux, chat plus fluide
 
@@ -477,17 +541,17 @@ livraison applique la même règle
 
 | Élément | Valeur |
 | --- | --- |
-| Version affichée | `0.18.16.4 Cresius` |
-| Étiquette Git | `v0.18.16+rev4` |
+| Version affichée | `0.18.17.1 Cresius` |
+| Étiquette Git | `v0.18.17+rev1` |
 | Socle amont | `v0.18.16` |
 | Moteur MoE | Strata `0.2.8` — paquet moteur `0.1.54`, contrôle `0.1.54`, cinq paquets par carte, SHA-256 vérifiés |
 | Catalogue de modèles | **lu dans le moteur** (`tools/strata_mcp.py` importe `setup.py`) : 8 familles, 25 tailles, repli sur la liste interne si le moteur est muet |
 | Encodeur d'embeddings | EmbeddingGemma 2 `Q8_0`, 768 dimensions (mémoire **et** journal) |
-| Précédent | `0.18.16.3 Cresius`, étiquette `v0.18.16+rev3` (moteur Strata `0.2.8`) |
+| Précédent | `0.18.16.4 Cresius`, étiquette `v0.18.16+rev4` (moteur Strata `0.2.8`) |
 
 La règle de nommage de la ligne privée : **le numéro de l'amont, tel quel, suivi
-de notre numéro de révision**. `0.18.16` + révision `4` → `0.18.16.4 Cresius`,
-étiquette `v0.18.16+rev4`. Les deux désignent le même build.
+de notre numéro de révision**. `0.18.16` + révision `4` → `0.18.17.1 Cresius`,
+étiquette `v0.18.17+rev1`. Les deux désignent le même build.
 
 ## Ce que la révision 2 ajoute sur la base `v0.18.16`
 
@@ -586,14 +650,14 @@ ajean update
 ou, depuis le dépôt :
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.16+rev4`
+2. `git checkout v0.18.17+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`
 
 ---
 
 # English
 
-# Release notes — AJEAN `0.18.16.4 Cresius` / tag `v0.18.16+rev4`
+# Release notes — AJEAN `0.18.17.1 Cresius` / tag `v0.18.17+rev1`
 
 **Derived project, personal use.** This build comes from the `Cresius34/ajean`
 repository, a fork of [**nathaninline/ajean**](https://github.com/nathaninline/ajean)
@@ -603,29 +667,85 @@ machines and are not guaranteed transposable. To install AJEAN, use the
 releases published at
 [nathaninline/ajean](https://github.com/nathaninline/ajean/releases/latest).
 
-This build **absorbs upstream `v0.18.16`** — and therefore
+This build **absorbs upstream `v0.18.17`** — and therefore
 [`v0.18.12`](#upstream-v01812--prompt-prewarm-incomplete-tool-pairs),
 [`v0.18.13`](#upstream-v01813--exllama-engine-exl3-in-one-click),
-[`v0.18.14`](#upstream-v01814--exllama-cards-that-broke-llamacpp) and
-[`v0.18.15`](#upstream-v01815--jean-conversation-modified-preset-exllama) — into the
+[`v0.18.14`](#upstream-v01814--exllama-cards-that-broke-llamacpp),
+[`v0.18.15`](#upstream-v01815--jean-conversation-modified-preset-exllama) and
+[`v0.18.16`](#upstream-v01816--exllama-from-the-interface-cuda-on-linux-smoother-chat) — into the
 `Cresius` patch line. The base is upstream's; the private line is reduced to what it still adds.
 
 ## Headline
 
-The upstream base is `v0.18.16`: installing **ExLlama from the interface** no longer
-breaks when there is no console (#177), official llama.cpp **CUDA binaries** arrive on
-Linux with an NVIDIA card, and **chat rendering** becomes continuous. On the private
-side, this revision 4 on the new base carries the **model catalogue read from the
-engine**: the Engine screen shows the families and sizes the installed engine really
-knows, with their measured costs and the reason when one of them is ruled out, instead
-of a list copied by hand in the code. The **Strata** engine moves to `0.2.8` (engine
-package `0.1.54`, control `0.1.54`). The **Ajean↔Ajean channel** has been there since
-revision 1: the bridge can run a real agent turn on the other machine under double
-authorisation, **says why it did not**, and every channel message carries its author —
-an order from a human aimed at a machine binds that machine's AI, an order from an AI
-binds none. **Jean's journal** and **semantic memory** still share a **single encoder**,
-EmbeddingGemma 2 — one GGUF, one engine, one vector space on the machine — and the
-**Strata MoE engine** is still offered per card, AMD (HIP) included.
+The upstream base is `v0.18.17`: the **send error and restart after a compaction in the middle
+of a turn** are fixed (#181); the **reasoning effort** now goes out as native `reasoning_effort`
+to external APIs, which used to reject the llama.cpp-specific field (#178); AMD **GPU memory**
+is no longer inverted on laptops where the integrated Radeon chip was taken for a dedicated
+card (#182); the **activity label of finished turns** no longer hides duration, tokens and
+throughput (#173). Two new features arrive: **Jean's voice** (speech recognition and synthesis,
+hooked to a separately launched `audio.cpp` server) and the **Jean-mode file manager**, which
+finds a file **by meaning** and not only by name.
+
+On the private side, this revision 1 on the new base keeps what made it worth having: the
+**model catalogue read from the engine** (the Engine screen shows the families and sizes the
+installed engine really knows, with their measured costs and the reason when one of them is
+ruled out, instead of a list copied by hand), the **Strata** engine at `0.2.8` (engine package
+`0.1.54`, control `0.1.54`), the **Ajean↔Ajean channel** (the bridge can run a real agent turn
+on the other machine under double authorisation, **says why it did not**, and every channel
+message carries its author — an order from a human aimed at a machine binds that machine's AI,
+an order from an AI binds none), the **adjustable compaction threshold** expressed as a
+percentage of the window — a setting that sits on the very line upstream fixed under #181, which
+is why the merge was played and verified rather than left to auto-merge — and the fact that
+**Jean's journal** and **semantic memory** still share a **single encoder**, EmbeddingGemma 2:
+one GGUF, one engine, one vector space on the machine. The **Strata MoE engine** is still
+offered per card, AMD (HIP) included.
+
+Both upstream additions touch our encoder, which is where care pays off: `jean_embed.go` now
+also indexes Jean's files **after** the journal, in the same loop, and the semantic ranking was
+split in two (`jeanQueryVec` then `jeanSemanticRank`) so the query vector is computed once and
+served to both. The `embeddinggemma-2-Q8_0.gguf` model and its `egemma2-q8-v1` fingerprint come
+out of the merge untouched. **Voice**, on the other hand, needs an `audio.cpp` server (Qwen3-ASR
++ VoxCPM2) that the installer does not install: without it, no microphone button appears.
+
+## Upstream `v0.18.17` — send after compaction, reasoning effort, AMD cards, voice and Jean's files
+
+A single upstream commit, **34 files, +9,076 / −4,090**.
+
+- **#181 — send error and restart in a long conversation.** The slice
+  `messages[stepStart:]` was evaluated **after** compaction had shortened `messages`: on the
+  next turn the index ran past the length and the slice raised `slice bounds out of range`.
+  Upstream now reads the step's messages first (`stepMsgs := messages[stepStart:]`), then
+  compacts. **This is our ground**: compaction is where our adjustable threshold lives. The
+  file `chat_compact.go` is not among the 34 upstream files, so our setting is not overwritten
+  — but the fix sits on the line next to ours, and it was read by hand.
+- **#178 — reasoning effort toward an external API.** It went out as `chat_template_kwargs`,
+  a llama.cpp-specific field; OpenRouter, OpenAI, Mistral and Groq with strict schemas refused
+  it. It became native `reasoning_effort` when `isExternalConfig(cfg)`. **No effect here**: our
+  four `.env` profiles are local (HIP), none is `EXTERNAL`.
+- **#182 — inverted GPU memory on AMD laptops.** The integrated graphics chip ("AMD Radeon(TM)
+  Graphics") was taken for a dedicated card: its memory counted as available VRAM, the dedicated
+  card reduced to whatever was left. A new `integratedGPUName()` replaces a test that only looked
+  for "intel". **This is our live path**: on Windows `amdSmiAllowed()` returns `false` (issue
+  #259, a burst of UAC prompts), so `amd-smi` and `rocm-smi` never run and the **Vulkan**
+  fallback is what reports card memory. Upstream's test, replayed on this machine's two cards,
+  returns `AMD Radeon AI PRO R9700` → not integrated and `AMD Radeon(TM) Graphics` → integrated:
+  both verdicts are right.
+- **#173 — activity label of finished turns.** "Committing that…" stayed animated and hid the
+  turn's duration, token count and throughput.
+- **Jean's voice** — `voice.go` (384 lines) and its tests, two interface modules, six
+  `/api/voice/*` routes (status, recognition, synthesis, settings, saved voices). It relies on
+  a **separately launched `audio.cpp` server** (Qwen3-ASR for listening, VoxCPM2 for voice): the
+  installer does not install it, and without it no microphone button appears.
+- **The Jean-mode file manager** — `jean_files.go` (780), its interface layer (480), its
+  interface module (629), six `/api/jean/files/*` routes. It finds a file **by meaning**, not
+  only by name, and builds on the encoder already in place: file indexing runs **after** the
+  journal's, in the same loop. Semantic ranking was split into `jeanQueryVec` (the query
+  vector, computed **once**) then `jeanSemanticRank`, shared between the journal and the files.
+
+Interface: `verify-i18n` run on the merged tree reports **1,543 keys** in French and English
+(upstream adds 86). The merge left only **two conflicted files**, one of them `ui/index.html`,
+which is **generated**: regenerating the assembly cleared the twenty-one hunks, and the rendered
+file carries both our MoE markers and upstream's voice and file modules.
 
 ## Upstream `v0.18.16` — ExLlama from the interface, CUDA on Linux, smoother chat
 
@@ -1134,17 +1254,17 @@ rule (`data\scripts\Preparer-Paquet-Sans-Data.ps1`).
 
 | Item | Value |
 | --- | --- |
-| Version displayed | `0.18.16.4 Cresius` |
-| Git tag | `v0.18.16+rev4` |
+| Version displayed | `0.18.17.1 Cresius` |
+| Git tag | `v0.18.17+rev1` |
 | Upstream base | `v0.18.16` |
 | MoE engine | Strata `0.2.8` — engine package `0.1.54`, control `0.1.54`, five packages per card, SHA-256 verified |
 | Model catalogue | **read from the engine** (`tools/strata_mcp.py` imports `setup.py`): 8 families, 25 sizes, falls back to the internal list when the engine is mute |
 | Embedding encoder | EmbeddingGemma 2 `Q8_0`, 768 dimensions (memory **and** journal) |
-| Previous | `0.18.16.3 Cresius`, tag `v0.18.16+rev3` (Strata `0.2.8` engine) |
+| Previous | `0.18.16.4 Cresius`, tag `v0.18.16+rev4` (Strata `0.2.8` engine) |
 
 The private line's naming rule: **upstream's number, as is, followed by our
-revision number**. `0.18.16` + revision `4` → `0.18.16.4 Cresius`, tag
-`v0.18.16+rev4`. Both names denote the same build.
+revision number**. `0.18.16` + revision `4` → `0.18.17.1 Cresius`, tag
+`v0.18.17+rev1`. Both names denote the same build.
 
 ## Installation
 
@@ -1155,5 +1275,5 @@ ajean update
 or, from the repository:
 
 1. `git clone https://github.com/Cresius34/ajean`
-2. `git checkout v0.18.16+rev4`
+2. `git checkout v0.18.17+rev1`
 3. `go build -o ajean.exe ./cmd/ajean`

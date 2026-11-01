@@ -49,10 +49,17 @@ const parallelMemoryRevision = 7
 // sait installer (garde-fou par forme, plus par liste fermée), un couple famille/taille
 // inconnu ne rend plus un coût à zéro — qui faisait annoncer « ça tient » à tort —, et
 // l'installation accepte un dossier de poids déjà descendus à la main (--gguf-dir).
+// Sur la base 0.18.17 : la révision 1 est la fusion de l'amont lui-même — l'erreur d'envoi
+// puis le redémarrage après un compactage en plein tour (#181, la ligne même de notre seuil
+// de compactage), l'effort de réflexion envoyé en reasoning_effort natif aux API externes
+// qui le rejetaient (#178), la VRAM inversée sur portable où la puce Radeon intégrée passait
+// pour une carte dédiée (#182, et c'est bien ce chemin qui nous sert : amd-smi est refusé sur
+// Windows, le repli Vulkan fait foi), le mot d'activité des tours terminés qui masquait durée
+// et débit (#173), plus la voix de Jean et le classement des fichiers par le sens.
 // Doit rester identique à
 // cmd/ajean-memory-test/versioninfo.json (StringFileInfo.ProductVersion et
 // FileVersion), vérifié par TestVersionFlavorWindowsSuit.
-const buildFlavorSuffix = ".4 Cresius"
+const buildFlavorSuffix = ".1 Cresius"
 
 // uiBadgeLabel : intitulé affiché sous le logo par le build portable, à la
 // place du repère « TEST mémoire · R6 ». C'est le nom du patch, pas un numéro.
